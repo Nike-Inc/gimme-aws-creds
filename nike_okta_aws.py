@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import base64
 import boto3
 import configparser
 import getpass
@@ -8,6 +9,7 @@ import os
 import re
 import requests
 import sys
+import xml.etree.ElementTree as ET
 #import yaml
 from bs4 import BeautifulSoup
 from os.path import expanduser
@@ -21,6 +23,7 @@ from urllib.parse import urlparse, urlunparse
 #2. get app name
 #2a. get role arn
 #3. be able to select which role you want to use
+# 4. delete user creds just to be safe
 
 
 parser = argparse.ArgumentParser(
@@ -76,7 +79,7 @@ sid_cache_file = file_root + '/.okta_sid'
 def chris(username,password,idp_entry_url,aws_appname):
     idp_entry_url += '/api/v1'
     print("idp_entry_url", idp_entry_url)
-    headers = {'Accept' : 'application/json', 'Content-Type' : 'application/json', 'Authorization' : 'SSWS ' + 'YOUR OKTA API KEY'}
+    headers = {'Accept' : 'application/json', 'Content-Type' : 'application/json', 'Authorization' : 'SSWS ' + '00iafWJesTyYnDAI8gtjaMaI-jHrskz9ZnB-iQJjM9'}
 
     r = requests.post(idp_entry_url + '/authn', json={'username': username, 'password': password}, headers=headers)
 
@@ -100,8 +103,18 @@ def chris(username,password,idp_entry_url,aws_appname):
             if app['label'] == aws_appname:
                 # TODO make this interactive
                 print ("pick a role:")
-                for i, role in enumerate(app['_embedded']['user']['profile']['samlRoles']):
+                roles = app['_embedded']['user']['profile']['samlRoles']
+                for i, role in enumerate(roles):
                     print ('[',i,']:', role)
+                selection = input("Selection: ")
+
+                # make sure the choice is valid
+                if int(selection) > len(roles):
+                    print ("You selected an invalid selection")
+                    sys.exit(1)
+
+                role = roles[int(selection)]
+
 
         # get the applinks available to the user
         print ("r2 looks like", idp_entry_url + '/users/'+ resp['_embedded']['user']['id'] + '/appLinks')
@@ -124,13 +137,6 @@ def chris(username,password,idp_entry_url,aws_appname):
                     app['linkUrl'] = re.sub('-admin','', app['linkUrl'])
                     print("APP LABEL MATCH")
                     print("APP", app)
-                    sso_url = app['linkUrl'] + '/?sessionToken=' + resp['sessionToken']
-                    print("sso_url", app['linkUrl'] + '/?sessionToken=' + resp['sessionToken'])
-                    response = session.get(sso_url, verify=True)
-                    print ("response app", response)
-
-                    soup = BeautifulSoup(response.text, "html.parser")
-                    assertion = ''
 
                     # Get the the identityProviderArn from the aws app
                     ##print ('APP ID', app['appInstanceId'])
@@ -138,6 +144,44 @@ def chris(username,password,idp_entry_url,aws_appname):
                     app_rq = requests.get(idp_entry_url + '/apps/' + app['appInstanceId'],headers=headers, verify=True)
                     app_rp = json.loads(app_rq.text)
                     idp_arn = app_rp['settings']['app']['identityProviderArn']
+
+                    # Get the role ARNs
+                    saml_req = requests.get(app['linkUrl'] + '/?onetimetoken=' + resp['sessionToken'], headers=headers, verify=True)
+                    saml_soup = BeautifulSoup(saml_req.text, "html.parser")
+                    #print("SOUP", saml_soup)
+                    # Parse the SAML Response and grab the value
+                    saml_value = ''
+                    for inputtag in saml_soup.find_all('input'):
+                        if (inputtag.get('name') == 'SAMLResponse'):
+                            saml_value = inputtag.get('value')
+                    # decode the saml so we can find our arns
+                    # https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/
+                    aws_roles = []
+                    root = ET.fromstring(base64.b64decode(saml_value))
+                    #print(BeautifulSoup(saml_decoded, "lxml").prettify())
+                    for saml2attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
+                        if (saml2attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role'):
+                            for saml2attributevalue in saml2attribute.iter('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
+                                aws_roles.append(saml2attributevalue.text)
+                    #print("AWSROLE", aws_roles)
+
+                    # grab the role ARNs that matches the role to assume
+                    role_arn = ''
+                    for aws_role in aws_roles:
+                        chunks = aws_role.split(',')
+                        if role in chunks[1]:
+                            role_arn = chunks[1]
+                            break
+                    print("ROLE ARN", role_arn)
+
+
+                    sso_url = app['linkUrl'] + '/?sessionToken=' + resp['sessionToken']
+                    print("sso_url", app['linkUrl'] + '/?sessionToken=' + resp['sessionToken'])
+                    response = session.get(sso_url, verify=True)
+                    print ("response app", response)
+                    soup = BeautifulSoup(response.text, "html.parser")
+                    assertion = ''
+
 
                     #print("SOUP", soup)
                     # Look for the SAMLResponse attribute of the input tag (determined by
@@ -149,7 +193,7 @@ def chris(username,password,idp_entry_url,aws_appname):
                             #print(assertion)
                             client = boto3.client('sts')
                             response = client.assume_role_with_saml(
-                            RoleArn='arn:aws:iam::107274433934:role/OktaAWSAdminRole',
+                            RoleArn=role_arn,
                             PrincipalArn=idp_arn,
                             SAMLAssertion=assertion,
                             DurationSeconds=3600
@@ -284,8 +328,6 @@ def get_user_creds():
     user_creds = {}
     user_creds['username'] = username
     user_creds['password'] = password
-    ## remove
-    print (password)
     return user_creds
 
 def get_sid_from_file(sid_cache_file):
