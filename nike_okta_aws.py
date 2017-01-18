@@ -198,7 +198,7 @@ def chris(username,password,idp_entry_url,aws_appname):
                             #print(assertion)
                             client = boto3.client('sts')
                             response = client.assume_role_with_saml(
-                            RoleArn='arn:aws:iam::107274433934:role/OktaAWSAdminRole',
+                            RoleArn=role_arn,
                             PrincipalArn=idp_arn,
                             SAMLAssertion=assertion,
                             DurationSeconds=3600
