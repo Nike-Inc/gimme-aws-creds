@@ -5,6 +5,7 @@ import configparser
 import getpass
 import json
 import os
+import re
 import requests
 import sys
 #import yaml
@@ -14,10 +15,11 @@ from urllib.parse import urlparse, urlunparse
 
 #this is a mash-up of :
 # https://wiki.cis.nike.com/display/SAE/Okta+AssumeRoleWithSAML and
-#https://github.com/nimbusscale/okta_aws_login
+# https://github.com/nimbusscale/okta_aws_login
 #TODO
 #1. get API key
 #2. get app name
+#2a. get role arn
 #3. be able to select which role you want to use
 
 
@@ -72,48 +74,72 @@ sid_cache_file = file_root + '/.okta_sid'
 
 
 def chris(username,password,idp_entry_url,aws_appname):
-    idp_entry_url += '/api/v1/authn'
-    headers = {'Accept' : 'application/json', 'Content-Type' : 'application/json', 'Authorization' : 'SSWS ' + config['auth-key']}
+    idp_entry_url += '/api/v1'
+    print("idp_entry_url", idp_entry_url)
+    headers = {'Accept' : 'application/json', 'Content-Type' : 'application/json', 'Authorization' : 'SSWS ' + 'YOUR OKTA API KEY'}
 
-    r = requests.post(ipd_entry_url, json={'username': username, 'password': password}, headers=headers)
+    r = requests.post(idp_entry_url + '/authn', json={'username': username, 'password': password}, headers=headers)
 
     resp = json.loads(r.text)
+    print("resp", resp)
     if 'errorCode' in resp:
         print("ERROR: " + resp['errorSummary'])
     elif 'status' in resp and resp['status'] == 'SUCCESS':
         print("Successful Login")
         session = requests.session()
-        r2 = requests.get(idp_entry_url + resp['_embedded']['user']['id'] + '/appLinks',
-                          headers=headers, verify=False)
-        app_resp = json.loads(r2.text)
-        print(app_resp)
-        for app in app_resp:
-            print(app['label'])
-            if(app['label'] == 'AWS_API'):
-                print(app['linkUrl'])
-            if app['label'] == aws_appname:
-                sso_url = app['linkUrl'] + '/?sessionToken=' + resp['sessionToken']
-                response = session.get(sso_url, verify=False)
-                soup = BeautifulSoup(response.text.decode('utf8'))
-                assertion = ''
+        print ("r2 looks like", idp_entry_url + '/users/ '+ resp['_embedded']['user']['id'] + '/appLinks')
+        r2 = requests.get(idp_entry_url + '/users/' + resp['_embedded']['user']['id'] + '/appLinks',
+                          headers=headers, verify=True)
+        if 'errorCode' in r2:
+            print("ERROR: " + r2['errorSummary'], "Error Code ", r2['errorCode'])
+            sys.exit(2)
+        else:
+            print("r2", r2)
+            app_resp = json.loads(r2.text)
+            print("app reponse", app_resp)
+            for app in app_resp:
+                print(app['label'])
+                if(app['label'] == 'AWS_API'):
+                    print(app['linkUrl'])
+                if app['label'] == aws_appname:
+                    # for some reason -admin is getting added to ${org} in the linkUL this is a hack to remove it
+                    # http://developer.okta.com/docs/api/resources/users.html#get-assigned-app-links
+                    app['linkUrl'] = re.sub('-admin','', app['linkUrl'])
+                    print("APP LABEL MATCH")
+                    print("APP", app)
+                    sso_url = app['linkUrl'] + '/?sessionToken=' + resp['sessionToken']
+                    print("sso_url", app['linkUrl'] + '/?sessionToken=' + resp['sessionToken'])
+                    response = session.get(sso_url, verify=True)
+                    print ("response app", response)
 
-                # Look for the SAMLResponse attribute of the input tag (determined by
-                # analyzing the debug print lines above)
-                for inputtag in soup.find_all('input'):
-                    if (inputtag.get('name') == 'SAMLResponse'):
-                        # print(inputtag.get('value'))
-                        print(inputtag.get('value'))
-                        assertion = inputtag.get('value')
-                        print(assertion)
+                    soup = BeautifulSoup(response.text, "html.parser")
+                    assertion = ''
 
-                        client = boto3.client('sts')
-                        response = client.assume_role_with_saml(
-                            RoleArn=config['role_arn'],
-                            PrincipalArn=config['principal_arn'],
+                    # Get the the identityProviderArn from the aws app
+                    ##print ('APP ID', app['appInstanceId'])
+                    ##print ('APP GET', idp_entry_url + '/apps/' + app['appInstanceId'] )
+                    app_rq = requests.get(idp_entry_url + '/apps/' + app['appInstanceId'],headers=headers, verify=True)
+                    app_rp = json.loads(app_rq.text)
+                    idp_arn = app_rp['settings']['app']['identityProviderArn']
+
+
+                    # Look for the SAMLResponse attribute of the input tag (determined by
+                    # analyzing the debug print lines above)
+                    for inputtag in soup.find_all('input'):
+                        if (inputtag.get('name') == 'SAMLResponse'):
+                            #print(inputtag.get('value'))
+                            assertion = inputtag.get('value')
+                            #print(assertion)
+                            client = boto3.client('sts')
+                            response = client.assume_role_with_saml(
+                            RoleArn='arn:aws:iam::107274433934:role/OktaAWSAdminRole',
+                            PrincipalArn=idp_arn,
                             SAMLAssertion=assertion,
                             DurationSeconds=3600
-                        )
-                        print(response)
+                            )
+                            print("AccessKeyId:",response['Credentials']['AccessKeyId'])
+                            print("SecretAccessKey:", response['Credentials']['SecretAccessKey'])
+                            sys.exit(0)
 
 def update_config_file(okta_aws_login_config_file):
     """Prompts user for config details for the okta_aws_login tool.
