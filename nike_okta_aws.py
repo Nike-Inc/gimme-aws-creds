@@ -87,7 +87,24 @@ def chris(username,password,idp_entry_url,aws_appname):
     elif 'status' in resp and resp['status'] == 'SUCCESS':
         print("Successful Login")
         session = requests.session()
-        print ("r2 looks like", idp_entry_url + '/users/ '+ resp['_embedded']['user']['id'] + '/appLinks')
+
+        # get available roles for the AWS app
+        role_req = requests.get(idp_entry_url + '/apps/?filter=user.id+eq+\"' +
+            resp['_embedded']['user']['id'] + '\"&expand=user/' + resp['_embedded']['user']['id'],
+            headers=headers, verify=True)
+        ## TODO Check this a 200
+        print (role_req)
+        role_resp = json.loads(role_req.text)
+        #print("ROLE", role_resp )
+        for app in role_resp:
+            if app['label'] == aws_appname:
+                # TODO make this interactive
+                print ("pick a role:")
+                for i, role in enumerate(app['_embedded']['user']['profile']['samlRoles']):
+                    print ('[',i,']:', role)
+
+        # get the applinks available to the user
+        print ("r2 looks like", idp_entry_url + '/users/'+ resp['_embedded']['user']['id'] + '/appLinks')
         r2 = requests.get(idp_entry_url + '/users/' + resp['_embedded']['user']['id'] + '/appLinks',
                           headers=headers, verify=True)
         if 'errorCode' in r2:
@@ -122,7 +139,7 @@ def chris(username,password,idp_entry_url,aws_appname):
                     app_rp = json.loads(app_rq.text)
                     idp_arn = app_rp['settings']['app']['identityProviderArn']
 
-
+                    #print("SOUP", soup)
                     # Look for the SAMLResponse attribute of the input tag (determined by
                     # analyzing the debug print lines above)
                     for inputtag in soup.find_all('input'):
