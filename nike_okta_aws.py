@@ -20,9 +20,6 @@ from urllib.parse import urlparse, urlunparse
 # https://github.com/nimbusscale/okta_aws_login
 #TODO
 #1. get API key
-#2. get app name
-#2a. get role arn
-#3. be able to select which role you want to use
 # 4. delete user creds just to be safe
 
 
@@ -78,7 +75,7 @@ sid_cache_file = file_root + '/.okta_sid'
 
 def chris(username,password,idp_entry_url,aws_appname):
     idp_entry_url += '/api/v1'
-    print("idp_entry_url", idp_entry_url)
+    #print("idp_entry_url", idp_entry_url)
     headers = {'Accept' : 'application/json', 'Content-Type' : 'application/json', 'Authorization' : 'SSWS ' + '00iafWJesTyYnDAI8gtjaMaI-jHrskz9ZnB-iQJjM9'}
 
     r = requests.post(idp_entry_url + '/authn', json={'username': username, 'password': password}, headers=headers)
@@ -174,6 +171,14 @@ def chris(username,password,idp_entry_url,aws_appname):
                             break
                     print("ROLE ARN", role_arn)
 
+                    # get a new token
+                    r = requests.post(idp_entry_url + '/authn', json={'username': username, 'password': password}, headers=headers)
+                    resp = json.loads(r.text)
+                    print("resp", resp)
+                    if 'errorCode' in resp:
+                        print("ERROR: " + resp['errorSummary'])
+                    elif 'status' in resp and resp['status'] == 'SUCCESS':
+                        print("Successful Login")
 
                     sso_url = app['linkUrl'] + '/?sessionToken=' + resp['sessionToken']
                     print("sso_url", app['linkUrl'] + '/?sessionToken=' + resp['sessionToken'])
@@ -193,7 +198,7 @@ def chris(username,password,idp_entry_url,aws_appname):
                             #print(assertion)
                             client = boto3.client('sts')
                             response = client.assume_role_with_saml(
-                            RoleArn=role_arn,
+                            RoleArn='arn:aws:iam::107274433934:role/OktaAWSAdminRole',
                             PrincipalArn=idp_arn,
                             SAMLAssertion=assertion,
                             DurationSeconds=3600
