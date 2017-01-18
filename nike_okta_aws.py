@@ -10,7 +10,6 @@ import re
 import requests
 import sys
 import xml.etree.ElementTree as ET
-#import yaml
 from bs4 import BeautifulSoup
 from os.path import expanduser
 from urllib.parse import urlparse, urlunparse
@@ -81,7 +80,6 @@ def chris(username,password,idp_entry_url,aws_appname):
     r = requests.post(idp_entry_url + '/authn', json={'username': username, 'password': password}, headers=headers)
 
     resp = json.loads(r.text)
-    print("resp", resp)
     if 'errorCode' in resp:
         print("ERROR: " + resp['errorSummary'])
     elif 'status' in resp and resp['status'] == 'SUCCESS':
@@ -93,13 +91,12 @@ def chris(username,password,idp_entry_url,aws_appname):
             resp['_embedded']['user']['id'] + '\"&expand=user/' + resp['_embedded']['user']['id'],
             headers=headers, verify=True)
         ## TODO Check this a 200
-        print (role_req)
+        #print (role_req)
         role_resp = json.loads(role_req.text)
         #print("ROLE", role_resp )
         for app in role_resp:
             if app['label'] == aws_appname:
-                # TODO make this interactive
-                print ("pick a role:")
+                print ("Pick a role:")
                 roles = app['_embedded']['user']['profile']['samlRoles']
                 for i, role in enumerate(roles):
                     print ('[',i,']:', role)
@@ -114,26 +111,22 @@ def chris(username,password,idp_entry_url,aws_appname):
 
 
         # get the applinks available to the user
-        print ("r2 looks like", idp_entry_url + '/users/'+ resp['_embedded']['user']['id'] + '/appLinks')
+        #print ("r2 looks like", idp_entry_url + '/users/'+ resp['_embedded']['user']['id'] + '/appLinks')
         r2 = requests.get(idp_entry_url + '/users/' + resp['_embedded']['user']['id'] + '/appLinks',
                           headers=headers, verify=True)
         if 'errorCode' in r2:
             print("ERROR: " + r2['errorSummary'], "Error Code ", r2['errorCode'])
             sys.exit(2)
         else:
-            print("r2", r2)
             app_resp = json.loads(r2.text)
-            print("app reponse", app_resp)
             for app in app_resp:
-                print(app['label'])
+                #print(app['label'])
                 if(app['label'] == 'AWS_API'):
                     print(app['linkUrl'])
                 if app['label'] == aws_appname:
                     # for some reason -admin is getting added to ${org} in the linkUL this is a hack to remove it
                     # http://developer.okta.com/docs/api/resources/users.html#get-assigned-app-links
                     app['linkUrl'] = re.sub('-admin','', app['linkUrl'])
-                    print("APP LABEL MATCH")
-                    print("APP", app)
 
                     # Get the the identityProviderArn from the aws app
                     ##print ('APP ID', app['appInstanceId'])
@@ -169,21 +162,17 @@ def chris(username,password,idp_entry_url,aws_appname):
                         if role in chunks[1]:
                             role_arn = chunks[1]
                             break
-                    print("ROLE ARN", role_arn)
 
                     # get a new token
                     r = requests.post(idp_entry_url + '/authn', json={'username': username, 'password': password}, headers=headers)
                     resp = json.loads(r.text)
-                    print("resp", resp)
                     if 'errorCode' in resp:
                         print("ERROR: " + resp['errorSummary'])
-                    elif 'status' in resp and resp['status'] == 'SUCCESS':
-                        print("Successful Login")
 
                     sso_url = app['linkUrl'] + '/?sessionToken=' + resp['sessionToken']
-                    print("sso_url", app['linkUrl'] + '/?sessionToken=' + resp['sessionToken'])
                     response = session.get(sso_url, verify=True)
-                    print ("response app", response)
+                    #TODO check for error
+                    #print ("response app", response)
                     soup = BeautifulSoup(response.text, "html.parser")
                     assertion = ''
 
