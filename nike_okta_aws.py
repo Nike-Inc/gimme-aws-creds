@@ -78,6 +78,17 @@ def get_headers():
     headers = {'Accept' : 'application/json', 'Content-Type' : 'application/json', 'Authorization' : 'SSWS ' + okta_api_key}
     return headers
 
+def get_token(idp_entry_url,username,password):
+    headers = get_headers()
+    req = requests.post(idp_entry_url + '/authn', json={'username': username, 'password': password}, headers=headers)
+    resp = json.loads(req.text)
+    if 'errorCode' in resp:
+        print("ERROR: " + resp['errorSummary'], "Error Code ", resp['errorCode'])
+        sys.exit(2)
+    else:
+        return resp['sessionToken']
+
+
 # gets a list of available roles based on the aws appname provided by the user
 # ask the user to select the role they want to assume and returns the selection
 def get_role(login_resp,idp_entry_url,aws_appname):
@@ -133,6 +144,46 @@ def get_idp_arn(idp_entry_url,app_id):
     app_resp = json.loads(app_req.text)
     return app_resp['settings']['app']['identityProviderArn']
 
+# return the base64 SAML value object from the SAML Response
+def get_saml_assertion(response):
+    saml_soup = BeautifulSoup(response.text, "html.parser")
+    #print("SOUP", saml_soup)
+    # Parse the SAML Response and grab the value
+    for inputtag in saml_soup.find_all('input'):
+        if (inputtag.get('name') == 'SAMLResponse'):
+            return inputtag.get('value')
+
+# return the role arn for the selected role
+def get_role_arn(link_url,token,role):
+    headers = get_headers()
+    saml_resp = requests.get(link_url + '/?onetimetoken=' + token, headers=headers, verify=True)
+    saml_value = get_saml_assertion(saml_resp)
+    # decode the saml so we can find our arns
+    # https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/
+    aws_roles = []
+    root = ET.fromstring(base64.b64decode(saml_value))
+    #print(BeautifulSoup(saml_decoded, "lxml").prettify())
+    for saml2attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
+        if (saml2attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role'):
+            for saml2attributevalue in saml2attribute.iter('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
+                aws_roles.append(saml2attributevalue.text)
+    # grab the role ARNs that matches the role to assume
+    role_arn = ''
+    for aws_role in aws_roles:
+        chunks = aws_role.split(',')
+        if role in chunks[1]:
+            return chunks[1]
+
+# using the assertion and arns return aws sts creds
+def get_sts_creds(role_arn,idp_arn,assertion,duration=3600):
+    client = boto3.client('sts')
+    response = client.assume_role_with_saml(
+       RoleArn=role_arn,
+       PrincipalArn=idp_arn,
+       SAMLAssertion=assertion,
+       DurationSeconds=duration)
+    return response['Credentials']
+
 def chris(username,password,idp_entry_url,aws_appname):
     idp_entry_url += '/api/v1'
     print("idp_entry_url", idp_entry_url)
@@ -148,117 +199,29 @@ def chris(username,password,idp_entry_url,aws_appname):
         #resp = okta_login(username,password,idp_entry_url)
 
         # get available roles for the AWS app
-    #    role_req = requests.get(idp_entry_url + '/apps/?filter=user.id+eq+\"' +
-    #        resp['_embedded']['user']['id'] + '\"&expand=user/' + resp['_embedded']['user']['id'],
-    #        headers=headers, verify=True)
-    #    ## TODO Check this a 200
-    #    print (role_req)
-    #    role_resp = json.loads(role_req.text)
-    #    print("ROLE", role_resp )
-    #    for app in role_resp:
-    #        if app['label'] == aws_appname:
-    #            print ("Pick a role:")
-    #            roles = app['_embedded']['user']['profile']['samlRoles']
-    #            for i, role in enumerate(roles):
-    #                print ('[',i,']:', role)
-    #            selection = input("Selection: ")
-    #
-    #            # make sure the choice is valid
-    #            if int(selection) > len(roles):
-    #                print ("You selected an invalid selection")
-    #                sys.exit(1)
-#
-    #            role = roles[int(selection)]
         role = get_role(resp,idp_entry_url,aws_appname)
 
-
         # get the applinks available to the user
-        #print ("r2 looks like", idp_entry_url + '/users/'+ resp['_embedded']['user']['id'] + '/appLinks')
-    #    r2 = requests.get(idp_entry_url + '/users/' + resp['_embedded']['user']['id'] + '/appLinks',
-    #                      headers=headers, verify=True)
-    #    if 'errorCode' in r2:
-    #        print("ERROR: " + r2['errorSummary'], "Error Code ", r2['errorCode'])
-    #        sys.exit(2)
-    #    else:
-    #        app_resp = json.loads(r2.text)
-    #        for app in app_resp:
-    #            #print(app['label'])
-    #            if(app['label'] == 'AWS_API'):
-    #                print(app['linkUrl'])
-    #            if app['label'] == aws_appname:
-    #                # for some reason -admin is getting added to ${org} in the linkUL this is a hack to remove it
-    #                # http://developer.okta.com/docs/api/resources/users.html#get-assigned-app-links
-    #                app['linkUrl'] = re.sub('-admin','', app['linkUrl'])
         app_links = get_app_links(resp,idp_entry_url,aws_appname)
 
-                    # Get the the identityProviderArn from the aws app
-                    ##print ('APP ID', app['appInstanceId'])
-                    ##print ('APP GET', idp_entry_url + '/apps/' + app['appInstanceId'] )
-    #    app_rq = requests.get(idp_entry_url + '/apps/' + app_links['appInstanceId'],headers=headers, verify=True)
-    #    app_rp = json.loads(app_rq.text)
-    #    idp_arn = app_rp['settings']['app']['identityProviderArn']
+        # Get the the identityProviderArn from the aws app
         idp_arn = get_idp_arn(idp_entry_url,app_links['appInstanceId'])
 
-                    # Get the role ARNs
-        saml_req = requests.get(app_links['linkUrl'] + '/?onetimetoken=' + resp['sessionToken'], headers=headers, verify=True)
-        saml_soup = BeautifulSoup(saml_req.text, "html.parser")
-                    #print("SOUP", saml_soup)
-                    # Parse the SAML Response and grab the value
-        saml_value = ''
-        for inputtag in saml_soup.find_all('input'):
-            if (inputtag.get('name') == 'SAMLResponse'):
-                saml_value = inputtag.get('value')
-                    # decode the saml so we can find our arns
-                    # https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/
-                aws_roles = []
-                root = ET.fromstring(base64.b64decode(saml_value))
-                    #print(BeautifulSoup(saml_decoded, "lxml").prettify())
-                for saml2attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
-                    if (saml2attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role'):
-                        for saml2attributevalue in saml2attribute.iter('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
-                            aws_roles.append(saml2attributevalue.text)
-                    #print("AWSROLE", aws_roles)
+        # Get the role ARNs
+        role_arn = get_role_arn(app_links['linkUrl'],resp['sessionToken'],role)
 
-                    # grab the role ARNs that matches the role to assume
-                    role_arn = ''
-                    for aws_role in aws_roles:
-                        chunks = aws_role.split(',')
-                        if role in chunks[1]:
-                            role_arn = chunks[1]
-                            break
+    # get a new token
+    token = get_token(idp_entry_url,username,password)
+    sso_url = app_links['linkUrl'] + '/?sessionToken=' + token
+    session_resp = session.get(sso_url, verify=True)
+    #TODO check for error
+    #print ("response app", response)
+    assertion = get_saml_assertion(session_resp)
+    aws_creds = get_sts_creds(role_arn,idp_arn,assertion)
+    print("AccessKeyId:",aws_creds['AccessKeyId'])
+    print("SecretAccessKey:",aws_creds['SecretAccessKey'])
 
-                    # get a new token
-                    r = requests.post(idp_entry_url + '/authn', json={'username': username, 'password': password}, headers=headers)
-                    resp = json.loads(r.text)
-                    if 'errorCode' in resp:
-                        print("ERROR: " + resp['errorSummary'])
-
-                    sso_url = app_links['linkUrl'] + '/?sessionToken=' + resp['sessionToken']
-                    response = session.get(sso_url, verify=True)
-                    #TODO check for error
-                    #print ("response app", response)
-                    soup = BeautifulSoup(response.text, "html.parser")
-                    assertion = ''
-
-
-                    #print("SOUP", soup)
-                    # Look for the SAMLResponse attribute of the input tag (determined by
-                    # analyzing the debug print lines above)
-                    for inputtag in soup.find_all('input'):
-                        if (inputtag.get('name') == 'SAMLResponse'):
-                            #print(inputtag.get('value'))
-                            assertion = inputtag.get('value')
-                            #print(assertion)
-                            client = boto3.client('sts')
-                            response = client.assume_role_with_saml(
-                            RoleArn=role_arn,
-                            PrincipalArn=idp_arn,
-                            SAMLAssertion=assertion,
-                            DurationSeconds=3600
-                            )
-                            print("AccessKeyId:",response['Credentials']['AccessKeyId'])
-                            print("SecretAccessKey:", response['Credentials']['SecretAccessKey'])
-                            sys.exit(0)
+    sys.exit(0)
 
 def update_config_file(okta_aws_login_config_file):
     """Prompts user for config details for the okta_aws_login tool.
