@@ -69,90 +69,154 @@ okta_aws_login_config_file = file_root + '/.okta_aws_login_config'
 # sid_cache_file: The file where the Okta sid is stored.
 # only used if cache_sid is True.
 sid_cache_file = file_root + '/.okta_sid'
+# okta read only API key
+# TODO make this configurable
+okta_api_key = '00iafWJesTyYnDAI8gtjaMaI-jHrskz9ZnB-iQJjM9'
 ###
 
+def get_headers():
+    headers = {'Accept' : 'application/json', 'Content-Type' : 'application/json', 'Authorization' : 'SSWS ' + okta_api_key}
+    return headers
+
+# gets a list of available roles based on the aws appname provided by the user
+# ask the user to select the role they want to assume and returns the selection
+def get_role(login_resp,idp_entry_url,aws_appname):
+    # get available roles for the AWS app
+    headers = get_headers()
+    user_id = login_resp['_embedded']['user']['id']
+    role_req = requests.get(idp_entry_url + '/apps/?filter=user.id+eq+\"' +
+        user_id + '\"&expand=user/' + user_id,headers=headers, verify=True)
+    role_resp = json.loads(role_req.text)
+    # Check if this is a valid response
+    if 'errorCode' in role_resp:
+        print("ERROR: " + role_resp['errorSummary'], "Error Code ", role_resp['errorCode'])
+        sys.exit(2)
+    # print out roles for the app and let the uesr select
+    for app in role_resp:
+        if app['label'] == aws_appname:
+            print ("Pick a role:")
+            roles = app['_embedded']['user']['profile']['samlRoles']
+            for i, role in enumerate(roles):
+                print ('[',i,']:', role)
+            selection = input("Selection: ")
+            # make sure the choice is valid
+            if int(selection) > len(roles):
+                print ("You selected an invalid selection")
+                sys.exit(1)
+            return roles[int(selection)]
+
+# return the app link json for select aws app
+def get_app_links(login_resp,idp_entry_url,aws_appname):
+    headers = get_headers()
+    user_id = login_resp['_embedded']['user']['id']
+    app_req = requests.get(idp_entry_url + '/users/' + user_id + '/appLinks',
+          headers=headers, verify=True)
+    app_resp = json.loads(app_req.text)
+    if 'errorCode' in app_resp:
+        print("ERROR: " + app_resp['errorSummary'], "Error Code ", app_resp['errorCode'])
+        sys.exit(2)
+    else:
+        for app in app_resp:
+            #print(app['label'])
+            if(app['label'] == 'AWS_API'):
+                print(app['linkUrl'])
+            if app['label'] == aws_appname:
+                return app
+
+        print("ERROR no roles found for you in app: ", aws_appname)
+        sys.exit(2)
+
+# return the PrincipalArn based on the app instance id
+def get_idp_arn(idp_entry_url,app_id):
+    headers = get_headers()
+    app_req = requests.get(idp_entry_url + '/apps/' + app_id ,headers=headers, verify=True)
+    app_resp = json.loads(app_req.text)
+    return app_resp['settings']['app']['identityProviderArn']
 
 def chris(username,password,idp_entry_url,aws_appname):
     idp_entry_url += '/api/v1'
-    #print("idp_entry_url", idp_entry_url)
-    headers = {'Accept' : 'application/json', 'Content-Type' : 'application/json', 'Authorization' : 'SSWS ' + '00iafWJesTyYnDAI8gtjaMaI-jHrskz9ZnB-iQJjM9'}
+    print("idp_entry_url", idp_entry_url)
+    headers = get_headers()
 
     r = requests.post(idp_entry_url + '/authn', json={'username': username, 'password': password}, headers=headers)
-
     resp = json.loads(r.text)
     if 'errorCode' in resp:
         print("ERROR: " + resp['errorSummary'])
     elif 'status' in resp and resp['status'] == 'SUCCESS':
         print("Successful Login")
         session = requests.session()
+        #resp = okta_login(username,password,idp_entry_url)
 
         # get available roles for the AWS app
-        role_req = requests.get(idp_entry_url + '/apps/?filter=user.id+eq+\"' +
-            resp['_embedded']['user']['id'] + '\"&expand=user/' + resp['_embedded']['user']['id'],
-            headers=headers, verify=True)
-        ## TODO Check this a 200
-        #print (role_req)
-        role_resp = json.loads(role_req.text)
-        #print("ROLE", role_resp )
-        for app in role_resp:
-            if app['label'] == aws_appname:
-                print ("Pick a role:")
-                roles = app['_embedded']['user']['profile']['samlRoles']
-                for i, role in enumerate(roles):
-                    print ('[',i,']:', role)
-                selection = input("Selection: ")
-
-                # make sure the choice is valid
-                if int(selection) > len(roles):
-                    print ("You selected an invalid selection")
-                    sys.exit(1)
-
-                role = roles[int(selection)]
+    #    role_req = requests.get(idp_entry_url + '/apps/?filter=user.id+eq+\"' +
+    #        resp['_embedded']['user']['id'] + '\"&expand=user/' + resp['_embedded']['user']['id'],
+    #        headers=headers, verify=True)
+    #    ## TODO Check this a 200
+    #    print (role_req)
+    #    role_resp = json.loads(role_req.text)
+    #    print("ROLE", role_resp )
+    #    for app in role_resp:
+    #        if app['label'] == aws_appname:
+    #            print ("Pick a role:")
+    #            roles = app['_embedded']['user']['profile']['samlRoles']
+    #            for i, role in enumerate(roles):
+    #                print ('[',i,']:', role)
+    #            selection = input("Selection: ")
+    #
+    #            # make sure the choice is valid
+    #            if int(selection) > len(roles):
+    #                print ("You selected an invalid selection")
+    #                sys.exit(1)
+#
+    #            role = roles[int(selection)]
+        role = get_role(resp,idp_entry_url,aws_appname)
 
 
         # get the applinks available to the user
         #print ("r2 looks like", idp_entry_url + '/users/'+ resp['_embedded']['user']['id'] + '/appLinks')
-        r2 = requests.get(idp_entry_url + '/users/' + resp['_embedded']['user']['id'] + '/appLinks',
-                          headers=headers, verify=True)
-        if 'errorCode' in r2:
-            print("ERROR: " + r2['errorSummary'], "Error Code ", r2['errorCode'])
-            sys.exit(2)
-        else:
-            app_resp = json.loads(r2.text)
-            for app in app_resp:
-                #print(app['label'])
-                if(app['label'] == 'AWS_API'):
-                    print(app['linkUrl'])
-                if app['label'] == aws_appname:
-                    # for some reason -admin is getting added to ${org} in the linkUL this is a hack to remove it
-                    # http://developer.okta.com/docs/api/resources/users.html#get-assigned-app-links
-                    app['linkUrl'] = re.sub('-admin','', app['linkUrl'])
+    #    r2 = requests.get(idp_entry_url + '/users/' + resp['_embedded']['user']['id'] + '/appLinks',
+    #                      headers=headers, verify=True)
+    #    if 'errorCode' in r2:
+    #        print("ERROR: " + r2['errorSummary'], "Error Code ", r2['errorCode'])
+    #        sys.exit(2)
+    #    else:
+    #        app_resp = json.loads(r2.text)
+    #        for app in app_resp:
+    #            #print(app['label'])
+    #            if(app['label'] == 'AWS_API'):
+    #                print(app['linkUrl'])
+    #            if app['label'] == aws_appname:
+    #                # for some reason -admin is getting added to ${org} in the linkUL this is a hack to remove it
+    #                # http://developer.okta.com/docs/api/resources/users.html#get-assigned-app-links
+    #                app['linkUrl'] = re.sub('-admin','', app['linkUrl'])
+        app_links = get_app_links(resp,idp_entry_url,aws_appname)
 
                     # Get the the identityProviderArn from the aws app
                     ##print ('APP ID', app['appInstanceId'])
                     ##print ('APP GET', idp_entry_url + '/apps/' + app['appInstanceId'] )
-                    app_rq = requests.get(idp_entry_url + '/apps/' + app['appInstanceId'],headers=headers, verify=True)
-                    app_rp = json.loads(app_rq.text)
-                    idp_arn = app_rp['settings']['app']['identityProviderArn']
+    #    app_rq = requests.get(idp_entry_url + '/apps/' + app_links['appInstanceId'],headers=headers, verify=True)
+    #    app_rp = json.loads(app_rq.text)
+    #    idp_arn = app_rp['settings']['app']['identityProviderArn']
+        idp_arn = get_idp_arn(idp_entry_url,app_links['appInstanceId'])
 
                     # Get the role ARNs
-                    saml_req = requests.get(app['linkUrl'] + '/?onetimetoken=' + resp['sessionToken'], headers=headers, verify=True)
-                    saml_soup = BeautifulSoup(saml_req.text, "html.parser")
+        saml_req = requests.get(app_links['linkUrl'] + '/?onetimetoken=' + resp['sessionToken'], headers=headers, verify=True)
+        saml_soup = BeautifulSoup(saml_req.text, "html.parser")
                     #print("SOUP", saml_soup)
                     # Parse the SAML Response and grab the value
-                    saml_value = ''
-                    for inputtag in saml_soup.find_all('input'):
-                        if (inputtag.get('name') == 'SAMLResponse'):
-                            saml_value = inputtag.get('value')
+        saml_value = ''
+        for inputtag in saml_soup.find_all('input'):
+            if (inputtag.get('name') == 'SAMLResponse'):
+                saml_value = inputtag.get('value')
                     # decode the saml so we can find our arns
                     # https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/
-                    aws_roles = []
-                    root = ET.fromstring(base64.b64decode(saml_value))
+                aws_roles = []
+                root = ET.fromstring(base64.b64decode(saml_value))
                     #print(BeautifulSoup(saml_decoded, "lxml").prettify())
-                    for saml2attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
-                        if (saml2attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role'):
-                            for saml2attributevalue in saml2attribute.iter('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
-                                aws_roles.append(saml2attributevalue.text)
+                for saml2attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
+                    if (saml2attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role'):
+                        for saml2attributevalue in saml2attribute.iter('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
+                            aws_roles.append(saml2attributevalue.text)
                     #print("AWSROLE", aws_roles)
 
                     # grab the role ARNs that matches the role to assume
@@ -169,7 +233,7 @@ def chris(username,password,idp_entry_url,aws_appname):
                     if 'errorCode' in resp:
                         print("ERROR: " + resp['errorSummary'])
 
-                    sso_url = app['linkUrl'] + '/?sessionToken=' + resp['sessionToken']
+                    sso_url = app_links['linkUrl'] + '/?sessionToken=' + resp['sessionToken']
                     response = session.get(sso_url, verify=True)
                     #TODO check for error
                     #print ("response app", response)
