@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #this is a mash-up of :
-# chris guthrie's exmple, aws security blog posts, my bad code and
+# chris guthrie's example, aws security blog posts, my bad code and
 # https://github.com/nimbusscale/okta_aws_login
 #TODO
 # 1. store session id
