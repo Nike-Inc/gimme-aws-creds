@@ -68,9 +68,6 @@ file_root = expanduser("~")
 # okta_aws_login_config_file: The file were the config parameters for the
 # okta_aws_login tool is stored
 okta_aws_login_config_file = file_root + '/.okta_aws_login_config'
-# sid_cache_file: The file where the Okta sid is stored.
-# only used if cache_sid is True.
-sid_cache_file = file_root + '/.okta_sid'
 # okta read only API key
 # TODO make this configurable
 okta_api_key = '00iafWJesTyYnDAI8gtjaMaI-jHrskz9ZnB-iQJjM9'
