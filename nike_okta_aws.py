@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+#this is a mash-up of :
+# chris guthrie's exmple, aws security blog posts, my bad code and
+# https://github.com/nimbusscale/okta_aws_login
+#TODO
+# 1. store session id
+# 2. write out to an aws config file
+# 3. write a web service
+
 import argparse
 import base64
 import boto3
@@ -14,12 +22,6 @@ from bs4 import BeautifulSoup
 from os.path import expanduser
 from urllib.parse import urlparse, urlunparse
 
-#this is a mash-up of :
-# https://wiki.cis.nike.com/display/SAE/Okta+AssumeRoleWithSAML and
-# https://github.com/nimbusscale/okta_aws_login
-#TODO
-#1. get API key
-# 4. delete user creds just to be safe
 
 
 parser = argparse.ArgumentParser(
@@ -78,15 +80,15 @@ def get_headers():
     headers = {'Accept' : 'application/json', 'Content-Type' : 'application/json', 'Authorization' : 'SSWS ' + okta_api_key}
     return headers
 
-def get_token(idp_entry_url,username,password):
+def get_login_response(idp_entry_url,username,password):
     headers = get_headers()
-    req = requests.post(idp_entry_url + '/authn', json={'username': username, 'password': password}, headers=headers)
-    resp = json.loads(req.text)
-    if 'errorCode' in resp:
-        print("ERROR: " + resp['errorSummary'], "Error Code ", resp['errorCode'])
+    response = requests.post(idp_entry_url + '/authn', json={'username': username, 'password': password}, headers=headers)
+    jresponse = json.loads(response.text)
+    if 'errorCode' in jresponse:
+        print("ERROR: " + jresponse['errorSummary'], "Error Code ", jresponse['errorCode'])
         sys.exit(2)
     else:
-        return resp['sessionToken']
+        return jresponse
 
 
 # gets a list of available roles based on the aws appname provided by the user
@@ -95,9 +97,9 @@ def get_role(login_resp,idp_entry_url,aws_appname):
     # get available roles for the AWS app
     headers = get_headers()
     user_id = login_resp['_embedded']['user']['id']
-    role_req = requests.get(idp_entry_url + '/apps/?filter=user.id+eq+\"' +
+    response = requests.get(idp_entry_url + '/apps/?filter=user.id+eq+\"' +
         user_id + '\"&expand=user/' + user_id,headers=headers, verify=True)
-    role_resp = json.loads(role_req.text)
+    role_resp = json.loads(response.text)
     # Check if this is a valid response
     if 'errorCode' in role_resp:
         print("ERROR: " + role_resp['errorSummary'], "Error Code ", role_resp['errorCode'])
@@ -120,9 +122,9 @@ def get_role(login_resp,idp_entry_url,aws_appname):
 def get_app_links(login_resp,idp_entry_url,aws_appname):
     headers = get_headers()
     user_id = login_resp['_embedded']['user']['id']
-    app_req = requests.get(idp_entry_url + '/users/' + user_id + '/appLinks',
+    response = requests.get(idp_entry_url + '/users/' + user_id + '/appLinks',
           headers=headers, verify=True)
-    app_resp = json.loads(app_req.text)
+    app_resp = json.loads(response.text)
     if 'errorCode' in app_resp:
         print("ERROR: " + app_resp['errorSummary'], "Error Code ", app_resp['errorCode'])
         sys.exit(2)
@@ -140,8 +142,8 @@ def get_app_links(login_resp,idp_entry_url,aws_appname):
 # return the PrincipalArn based on the app instance id
 def get_idp_arn(idp_entry_url,app_id):
     headers = get_headers()
-    app_req = requests.get(idp_entry_url + '/apps/' + app_id ,headers=headers, verify=True)
-    app_resp = json.loads(app_req.text)
+    response = requests.get(idp_entry_url + '/apps/' + app_id ,headers=headers, verify=True)
+    app_resp = json.loads(response.text)
     return app_resp['settings']['app']['identityProviderArn']
 
 # return the base64 SAML value object from the SAML Response
@@ -184,45 +186,6 @@ def get_sts_creds(role_arn,idp_arn,assertion,duration=3600):
        DurationSeconds=duration)
     return response['Credentials']
 
-def chris(username,password,idp_entry_url,aws_appname):
-    idp_entry_url += '/api/v1'
-    print("idp_entry_url", idp_entry_url)
-    headers = get_headers()
-
-    r = requests.post(idp_entry_url + '/authn', json={'username': username, 'password': password}, headers=headers)
-    resp = json.loads(r.text)
-    if 'errorCode' in resp:
-        print("ERROR: " + resp['errorSummary'])
-    elif 'status' in resp and resp['status'] == 'SUCCESS':
-        print("Successful Login")
-        session = requests.session()
-        #resp = okta_login(username,password,idp_entry_url)
-
-        # get available roles for the AWS app
-        role = get_role(resp,idp_entry_url,aws_appname)
-
-        # get the applinks available to the user
-        app_links = get_app_links(resp,idp_entry_url,aws_appname)
-
-        # Get the the identityProviderArn from the aws app
-        idp_arn = get_idp_arn(idp_entry_url,app_links['appInstanceId'])
-
-        # Get the role ARNs
-        role_arn = get_role_arn(app_links['linkUrl'],resp['sessionToken'],role)
-
-    # get a new token
-    token = get_token(idp_entry_url,username,password)
-    sso_url = app_links['linkUrl'] + '/?sessionToken=' + token
-    session_resp = session.get(sso_url, verify=True)
-    #TODO check for error
-    #print ("response app", response)
-    assertion = get_saml_assertion(session_resp)
-    aws_creds = get_sts_creds(role_arn,idp_arn,assertion)
-    print("AccessKeyId:",aws_creds['AccessKeyId'])
-    print("SecretAccessKey:",aws_creds['SecretAccessKey'])
-
-    sys.exit(0)
-
 def update_config_file(okta_aws_login_config_file):
     """Prompts user for config details for the okta_aws_login tool.
     Either updates exisiting config file or creates new one."""
@@ -234,14 +197,12 @@ def update_config_file(okta_aws_login_config_file):
         idp_entry_url_default = config['DEFAULT']['idp_entry_url']
         aws_appname_default = config['DEFAULT']['aws_appname']
         output_format_default = config['DEFAULT']['output_format']
-        cache_sid_default = config['DEFAULT']['cache_sid']
         cred_profile_default = config['DEFAULT']['cred_profile']
     # otherwise use these values for defaults
     else:
         idp_entry_url_default = ""
         aws_appname_default = "AWS Console"
         output_format_default = "json"
-        cache_sid_default = "yes"
         cred_profile_default = "role"
     # Prompt user for config details and store in config_dict
     config_dict = {}
@@ -276,25 +237,6 @@ def update_config_file(okta_aws_login_config_file):
             print("output format must be a valid format: {}".format(
                                                             valid_formats))
     config_dict['output_format'] = output_format
-    # Get and validate cache_sid
-    print("cache_sid determines if the session id from Okta should be saved "
-            "to a local file. If enabled it allows for new tokens to be "
-            "retrieved without a login to Okta for the lifetime of the "
-            "session. Either 'yes' or 'no'")
-    cache_sid_valid = False
-    while cache_sid_valid == False:
-        cache_sid = get_user_input("cache_sid",cache_sid_default)
-        cache_sid = cache_sid.lower()
-        # validate if either true or false were entered
-        if cache_sid in ["yes","y"]:
-            cache_sid = "yes"
-            cache_sid_valid = True
-        elif cache_sid in ["no","n"]:
-            cache_sid = "no"
-            cache_sid_valid = True
-        else:
-            print("cache_sid must be either yes or no")
-    config_dict['cache_sid'] = cache_sid
     # Get and validate cred_profile
     print("cred_profile defines which profile is used to store the temp AWS "
             "creds. If set to 'role' then a new profile will be created "
@@ -351,15 +293,6 @@ def get_user_creds():
     user_creds['password'] = password
     return user_creds
 
-def get_sid_from_file(sid_cache_file):
-    """Checks to see if a file exists at the provided path. If so file is read
-    and checked to see if the contents looks to be a valid sid.
-    if so sid is returned"""
-    if os.path.isfile(sid_cache_file) == True:
-        with open(sid_cache_file) as sid_file:
-            sid = sid_file.read()
-            if len(sid) == 25:
-                return sid
 
 def main ():
     # Create/Update config when configure arg set
@@ -376,25 +309,39 @@ def main ():
         print(".okta_aws_login_config is needed. Use --configure flag to "
                 "generate file.")
         sys.exit(1)
-    assertion = None
-    # if sid cache is enabled, see if a sid file exists
-    if conf_dict['cache_sid'] == "yes":
-        sid = get_sid_from_file(sid_cache_file)
-    else:
-        sid = None
-    # If a sid has been set from file then attempt login via the sid
-    if sid is not None:
-        response = okta_cookie_login(sid,conf_dict['idp_entry_url'])
-        assertion = get_saml_assertion(response)
-    # if the assertion equals None, means there was no sid, the sid expired
-    # or is otherwise invalid, so do a password login
-    if assertion is None:
-        # If sid file exists, remove it because the contained sid has expired
-        if os.path.isfile(sid_cache_file):
-            os.remove(sid_cache_file)
-        user_creds = get_user_creds()
-        chris(user_creds['username'],user_creds['password'],conf_dict['idp_entry_url'],conf_dict['aws_appname'])
 
+    user_creds = get_user_creds()
+    username = user_creds['username']
+    password = user_creds['password']
+    idp_entry_url = conf_dict['idp_entry_url'] + '/api/v1'
+    aws_appname = conf_dict['aws_appname']
+    headers = get_headers()
+
+    resp = get_login_response(idp_entry_url,username,password)
+    session = requests.session()
+    # get available roles for the AWS app
+    role = get_role(resp,idp_entry_url,aws_appname)
+    # get the applinks available to the user
+    app_links = get_app_links(resp,idp_entry_url,aws_appname)
+    # Get the the identityProviderArn from the aws app
+    idp_arn = get_idp_arn(idp_entry_url,app_links['appInstanceId'])
+    # Get the role ARNs
+    role_arn = get_role_arn(app_links['linkUrl'],resp['sessionToken'],role)
+    # get a new token for aws_creds
+    login_res = get_login_response(idp_entry_url,username,password)
+    resp2 = requests.get(app_links['linkUrl'] + '/?sessionToken=' + login_res['sessionToken'], verify=True)
+    session = requests.session()
+    assertion = get_saml_assertion(resp2)
+    aws_creds = get_sts_creds(role_arn,idp_arn,assertion)
+    print("AccessKeyId:",aws_creds['AccessKeyId'])
+    print("SecretAccessKey:",aws_creds['SecretAccessKey'])
+
+    # delete creds
+    del username
+    del password
+    del user_creds
+
+    sys.exit(0)
 
 if __name__ == '__main__':
     main()
