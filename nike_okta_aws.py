@@ -5,8 +5,6 @@
 #TODO
 # 1. store session id
 # 2. write out to an aws config file
-# 3. select aws app
-# 4. add app to config
 # 3. write a web service
 
 import argparse
@@ -109,8 +107,8 @@ def get_role(login_resp,idp_entry_url,aws_appname):
                 sys.exit(1)
             return roles[int(selection)]
 
-# return the app link json for select aws app
-def get_app_links(login_resp,idp_entry_url,aws_appname):
+# return appLinks obejct for the user
+def get_app_links(login_resp,idp_entry_url):
     headers = get_headers()
     user_id = login_resp['_embedded']['user']['id']
     response = requests.get(idp_entry_url + '/users/' + user_id + '/appLinks',
@@ -120,15 +118,35 @@ def get_app_links(login_resp,idp_entry_url,aws_appname):
         print("ERROR: " + app_resp['errorSummary'], "Error Code ", app_resp['errorCode'])
         sys.exit(2)
     else:
-        for app in app_resp:
-            #print(app['label'])
-            if(app['label'] == 'AWS_API'):
-                print(app['linkUrl'])
-            if app['label'] == aws_appname:
-                return app
+        return app_resp
 
-        print("ERROR app not found:", aws_appname)
-        sys.exit(2)
+# gets a list of available apps
+# ask the user to select the app they want to assume a roles for and returns the selection
+def get_app(login_resp,idp_entry_url):
+    app_resp = get_app_links(login_resp,idp_entry_url)
+    print ("Pick an app:")
+    # print out the apps and let the user select
+    for i, app in enumerate(app_resp):
+        print ('[',i,']', app["label"])
+    selection = input("Selection: ")
+    # make sure the choice is valid
+    if int(selection) > len(app_resp):
+        print ("You selected an invalid selection")
+        sys.exit(1)
+    return app_resp[int(selection)]["label"]
+
+# return the app link json for select aws app
+def get_app_url(login_resp,idp_entry_url,aws_appname):
+    app_resp = get_app_links(login_resp,idp_entry_url)
+    for app in app_resp:
+        #print(app['label'])
+        if(app['label'] == 'AWS_API'):
+            print(app['linkUrl'])
+        if app['label'] == aws_appname:
+            return app
+
+    print("ERROR app not found:", aws_appname)
+    sys.exit(2)
 
 # return the PrincipalArn based on the app instance id
 def get_idp_arn(idp_entry_url,app_id):
@@ -194,7 +212,7 @@ def update_config_file(okta_aws_login_config_file):
     # otherwise use these values for defaults
     else:
         idp_entry_url_default = ""
-        aws_appname_default = "AWS Console"
+        aws_appname_default = ""
         aws_rolename_default = ""
         output_format_default = "json"
         cred_profile_default = "role"
@@ -214,12 +232,13 @@ def update_config_file(okta_aws_login_config_file):
             print("idp_entry_url must be HTTPS URL for okta.com or oktapreview.com domain")
     config_dict['idp_entry_url'] = idp_entry_url
     # Get Okta AWS App name
-    print('Enter the AWS Okta App Name ')
+    print('Enter the AWS Okta App Name '
+           "This is optional, you can select the App when you run the CLI.")
     aws_appname = get_user_input("aws_appname",aws_appname_default)
     config_dict['aws_appname'] = aws_appname
     # Get the AWS Role name - this is optional to make the program less interactive
     print("Enter the AWS role name you want credentials for."
-           "This is optional, you can select the role when run the CLI.")
+           "This is optional, you can select the role when you run the CLI.")
     aws_rolename = get_user_input("aws_rolename",aws_rolename_default)
     config_dict['aws_rolename'] = aws_rolename
     # get default output format
@@ -313,11 +332,17 @@ def main ():
     username = user_creds['username']
     password = user_creds['password']
     idp_entry_url = conf_dict['idp_entry_url'] + '/api/v1'
-    aws_appname = conf_dict['aws_appname']
     headers = get_headers()
 
     resp = get_login_response(idp_entry_url,username,password)
     session = requests.session()
+
+    # check to see if appname and rolename are set
+    # in the config, if not give user a selection to pick from
+    if not conf_dict['aws_appname']:
+        aws_appname = get_app(resp,idp_entry_url)
+    else:
+        aws_appname = conf_dict['aws_appname']
 
     if not conf_dict['aws_rolename']:
         # get available roles for the AWS app
@@ -326,14 +351,14 @@ def main ():
         role = conf_dict['aws_rolename']
 
     # get the applinks available to the user
-    app_links = get_app_links(resp,idp_entry_url,aws_appname)
+    app_url = get_app_url(resp,idp_entry_url,aws_appname)
     # Get the the identityProviderArn from the aws app
-    idp_arn = get_idp_arn(idp_entry_url,app_links['appInstanceId'])
+    idp_arn = get_idp_arn(idp_entry_url,app_url['appInstanceId'])
     # Get the role ARNs
-    role_arn = get_role_arn(app_links['linkUrl'],resp['sessionToken'],role)
+    role_arn = get_role_arn(app_url['linkUrl'],resp['sessionToken'],role)
     # get a new token for aws_creds
     login_res = get_login_response(idp_entry_url,username,password)
-    resp2 = requests.get(app_links['linkUrl'] + '/?sessionToken=' + login_res['sessionToken'], verify=True)
+    resp2 = requests.get(app_url['linkUrl'] + '/?sessionToken=' + login_res['sessionToken'], verify=True)
     session = requests.session()
     assertion = get_saml_assertion(resp2)
     aws_creds = get_sts_creds(role_arn,idp_arn,assertion)
