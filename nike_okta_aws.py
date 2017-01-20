@@ -127,7 +127,7 @@ def get_app_links(login_resp,idp_entry_url,aws_appname):
             if app['label'] == aws_appname:
                 return app
 
-        print("ERROR no roles found for you in app: ", aws_appname)
+        print("ERROR app not found:", aws_appname)
         sys.exit(2)
 
 # return the PrincipalArn based on the app instance id
@@ -318,8 +318,13 @@ def main ():
 
     resp = get_login_response(idp_entry_url,username,password)
     session = requests.session()
-    # get available roles for the AWS app
-    role = get_role(resp,idp_entry_url,aws_appname)
+
+    if not conf_dict['aws_rolename']:
+        # get available roles for the AWS app
+        role = get_role(resp,idp_entry_url,aws_appname)
+    else:
+        role = conf_dict['aws_rolename']
+
     # get the applinks available to the user
     app_links = get_app_links(resp,idp_entry_url,aws_appname)
     # Get the the identityProviderArn from the aws app
