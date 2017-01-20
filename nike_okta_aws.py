@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 #this is a mash-up of :
 # chris guthrie's example, aws security blog posts, my bad code and
-# https://github.com/nimbusscale/okta_aws_login
+# https://github.com/nimbusscale/okta_aws_login -  Joe@nimbusscale.com
 #TODO
 # 1. store session id
 # 2. write out to an aws config file
+# 3. select aws app
+# 4. add app to config
 # 3. write a web service
 
 import argparse
@@ -22,41 +24,33 @@ from bs4 import BeautifulSoup
 from os.path import expanduser
 from urllib.parse import urlparse, urlunparse
 
-
-
 parser = argparse.ArgumentParser(
     description = "Gets a STS token to use for AWS CLI based "
                   "on a SAML assertion from Okta")
-
 parser.add_argument(
     '--username', '-u',
     help = "The username to use when logging into Okta. The username can "
            "also be set via the OKTA_USERNAME env variable. If not provided "
            "you will be prompted to enter a username."
 )
-
 parser.add_argument(
     '--profile', '-p',
     help = "The name of the profile to use when storing the credentials in "
            "the AWS credentials file. If not provided then the name of "
            "the role assumed will be used as the profile name."
 )
-
 parser.add_argument(
     '--verbose', '-v',
     action = 'store_true',
     help = "If set, will print a message about the AWS CLI profile "
            "that was created."
 )
-
 parser.add_argument(
     '--configure', '-c',
     action = 'store_true',
     help = "If set, will prompt user for configuration parameters "
             " and then exit."
 )
-
-
 args = parser.parse_args()
 
 ##########################################################################
@@ -183,6 +177,7 @@ def get_sts_creds(role_arn,idp_arn,assertion,duration=3600):
        DurationSeconds=duration)
     return response['Credentials']
 
+# this is modified code from https://github.com/nimbusscale/okta_aws_login
 def update_config_file(okta_aws_login_config_file):
     """Prompts user for config details for the okta_aws_login tool.
     Either updates exisiting config file or creates new one."""
@@ -193,12 +188,14 @@ def update_config_file(okta_aws_login_config_file):
         config.read(okta_aws_login_config_file)
         idp_entry_url_default = config['DEFAULT']['idp_entry_url']
         aws_appname_default = config['DEFAULT']['aws_appname']
+        aws_rolename_default = config['DEFAULT']['aws_rolename']
         output_format_default = config['DEFAULT']['output_format']
         cred_profile_default = config['DEFAULT']['cred_profile']
     # otherwise use these values for defaults
     else:
         idp_entry_url_default = ""
         aws_appname_default = "AWS Console"
+        aws_rolename_default = ""
         output_format_default = "json"
         cred_profile_default = "role"
     # Prompt user for config details and store in config_dict
@@ -214,13 +211,18 @@ def update_config_file(okta_aws_login_config_file):
                                      "okta.com" or "oktapreview.com" in idp_entry_url):
             idp_entry_url_valid = True
         else:
-            print("idp_entry_url must be HTTPS URL for okta.com domain")
+            print("idp_entry_url must be HTTPS URL for okta.com or oktapreview.com domain")
     config_dict['idp_entry_url'] = idp_entry_url
     # Get Okta AWS App name
-    print('Enter AWS Okta App Name ')
+    print('Enter the AWS Okta App Name ')
     aws_appname = get_user_input("aws_appname",aws_appname_default)
     config_dict['aws_appname'] = aws_appname
-    # Get and validate output_format
+    # Get the AWS Role name - this is optional to make the program less interactive
+    print("Enter the AWS role name you want credentials for."
+           "This is optional, you can select the role when run the CLI.")
+    aws_rolename = get_user_input("aws_rolename",aws_rolename_default)
+    config_dict['aws_rolename'] = aws_rolename
+    # get default output format
     print("Enter the default output format that will be configured as part of "
             "CLI profile")
     valid_formats = ["json","text","table"]
@@ -254,6 +256,7 @@ def update_config_file(okta_aws_login_config_file):
     with open(okta_aws_login_config_file, 'w') as configfile:
         config.write(configfile)
 
+# this is modified code from https://github.com/nimbusscale/okta_aws_login
 def get_user_input(message,default):
     """formats message to include default and then prompts user for input
     via keyboard with message. Returns user's input or if user doesn't
@@ -265,7 +268,7 @@ def get_user_input(message,default):
         return default
     else:
         return user_input
-
+#  this is modified code from https://github.com/nimbusscale/okta_aws_login
 def get_user_creds():
     """Get's creds for Okta login from the user. Retruns user_creds dict"""
     # Check to see if the username arg has been set, if so use that
@@ -276,7 +279,7 @@ def get_user_creds():
         username = os.environ.get("OKTA_USERNAME")
     # Otherwise just ask the user
     else:
-        username = input("Username: ")
+        username = input("Email address: ")
     # Set prompt to include the user name, since username could be set
     # via OKTA_USERNAME env and user might not remember.
     passwd_prompt = "Password for {}: ".format(username)
@@ -289,7 +292,6 @@ def get_user_creds():
     user_creds['username'] = username
     user_creds['password'] = password
     return user_creds
-
 
 def main ():
     # Create/Update config when configure arg set
@@ -330,8 +332,8 @@ def main ():
     session = requests.session()
     assertion = get_saml_assertion(resp2)
     aws_creds = get_sts_creds(role_arn,idp_arn,assertion)
-    print("AccessKeyId:",aws_creds['AccessKeyId'])
-    print("SecretAccessKey:",aws_creds['SecretAccessKey'])
+    print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'])
+    print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'])
 
     # delete creds
     del username
