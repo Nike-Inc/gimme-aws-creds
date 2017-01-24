@@ -1,0 +1,14 @@
+argparse
+base64
+boto3
+beautifulsoup
+configparser
+et
+expanduser
+getpass
+json
+os
+re
+requests
+sys
+urlunparse
