@@ -80,6 +80,32 @@ def get_login_response(idp_entry_url,username,password):
     else:
         return jresponse
 
+def get_cerberus_token(username,password):
+    headers = {'Content-Type' : 'application/json'}
+    cerberus_url = 'https://prod.cerberus.nikecloud.com/'
+    auth_req = requests.get(cerberus_url + '/v2/auth/user', auth=(username, password))
+    auth_resp = json.loads(auth_req.text)
+    if 'errors' in auth_resp:
+        print("ERROR: " + auth_resp['errors'][0]['message'])
+        sys.exit(2)
+    # check if MFA is required, if so get the security code
+    if auth_resp['status'] == 'mfa_req':
+        print('MFA is required')
+        # TODO check if there is more than 1 device.
+        # currently cerberus only support Google Authenicator
+        sec_code = input('Enter ' + auth_resp['data']['devices'][0]['name'] + 'security code: ')
+        print("Token", sec_code)
+        mfa_req = requests.post(cerberus_url + '/v2/auth/mfa_check',
+                               json={'otp_token': sec_code,
+                                     'device_id': auth_resp['data']['devices'][0]['id'],
+                                     'state_token': auth_resp['data']['state_token']},
+                                headers=headers)
+        print("mfa", mfa_req)
+        #TODO check for errors
+        mfa_resp = json.loads(mfa_req.text)
+        print("MFA JSON", mfa_resp)
+
+
 
 # gets a list of available roles based on the aws appname provided by the user
 # ask the user to select the role they want to assume and returns the selection
