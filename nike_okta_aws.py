@@ -7,6 +7,7 @@
 # 2. write out to an aws config file
 # 3. write a web service
 # 4. use cerberus to store API key
+# 5. use self.
 
 import argparse
 import base64
@@ -80,7 +81,7 @@ def get_login_response(idp_entry_url,username,password):
     else:
         return jresponse
 
-def get_cerberus_token(username,password):
+def get_cerberus_token(username,password,okta_env):
     headers = {'Content-Type' : 'application/json'}
     cerberus_url = 'https://prod.cerberus.nikecloud.com/'
     auth_req = requests.get(cerberus_url + '/v2/auth/user', auth=(username, password))
@@ -104,8 +105,30 @@ def get_cerberus_token(username,password):
         #TODO check for errors
         mfa_resp = json.loads(mfa_req.text)
         print("MFA JSON", mfa_resp)
-
-
+        print("Token", mfa_resp['data']['client_token']['client_token'])
+        token = mfa_resp['data']['client_token']['client_token']
+        for app in mfa_resp['data']['client_token']['policies']:
+            print('APP', app)
+        sdb_req = requests.get(cerberus_url + '/v1/safe-deposit-box', headers={'Content-Type' : 'application/json', 'X-Vault-Token': token})
+        print("SDB", sdb_req)
+        sdb_resp = json.loads(sdb_req.text)
+        print("SDB", sdb_resp)
+        for app in sdb_resp:
+            if app['name'] == 'Okta':
+                print("ID",app['id'])
+                print('PATH',app['path'])
+                secret_resp = requests.get(cerberus_url + '/v1/secret/' + app['path'] + 'api_key',
+                                          headers={'Content-Type' : 'application/json', 'X-Vault-Token': token})
+                if secret_resp.status_code != 200:
+                    print("ERROR: " + secret_resp.json()['errors'][0]['message'])
+                    sys.exit(2)
+                print("SJ", secret_resp.json())
+                if okta_env in secret_resp.json()['data']:
+                    print("API KEY", secret_resp.json()['data'][okta_env])
+                    #return API KEY
+                else
+                    print("ERROR: there is no API Key in Cerberus for " + okta_env)
+        #print ("ERROR: Okta SDB not found in Cerberus")
 
 # gets a list of available roles based on the aws appname provided by the user
 # ask the user to select the role they want to assume and returns the selection
@@ -358,6 +381,10 @@ def main ():
     user_creds = get_user_creds()
     username = user_creds['username']
     password = user_creds['password']
+    okta_env = urlparse(conf_dict['idp_entry_url']).netloc
+    get_cerberus_token(username,password,okta_env)
+    sys.exit()
+
     idp_entry_url = conf_dict['idp_entry_url'] + '/api/v1'
     headers = get_headers()
 
