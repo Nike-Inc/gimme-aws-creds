@@ -65,7 +65,7 @@ file_root = expanduser("~")
 okta_aws_login_config_file = file_root + '/.okta_aws_login_config'
 # okta read only API key
 # TODO make this configurable
-okta_api_key = ''
+okta_api_key = '00iafWJesTyYnDAI8gtjaMaI-jHrskz9ZnB-iQJjM9'
 ###
 
 def get_headers():
@@ -74,7 +74,11 @@ def get_headers():
 
 def get_login_response(idp_entry_url,username,password):
     headers = get_headers()
+    print("headers", headers)
+    print("u,p", username, password)
+    print("url", idp_entry_url)
     response = requests.post(idp_entry_url + '/authn', json={'username': username, 'password': password}, headers=headers)
+    print("response", response.text)
     jresponse = json.loads(response.text)
     if 'errorCode' in jresponse:
         print("ERROR: " + jresponse['errorSummary'], "Error Code ", jresponse['errorCode'])
@@ -349,6 +353,7 @@ def main ():
 
     resp = get_login_response(idp_entry_url,username,password)
     session = requests.session()
+    sys.exit()
 
     # check to see if appname and rolename are set
     # in the config, if not give user a selection to pick from
