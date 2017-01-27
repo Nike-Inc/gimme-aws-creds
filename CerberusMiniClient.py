@@ -1,8 +1,6 @@
 import json
 import requests
 import sys
-from pprint import pprint
-
 
 class CerberusMiniClient(object):
     """THis is a Cerberus Mini Client Class that does Cerberus stuff"""
