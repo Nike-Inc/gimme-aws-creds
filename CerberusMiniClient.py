@@ -91,14 +91,15 @@ class CerberusMiniClient(object):
         sys.exit(2)
 
     def get_secret(self,vault_path,key):
-        secret_resp = requests.get(cerberus_url + '/v1/secret/' + vault_path,
-                                  headers={'Content-Type' : 'application/json', 'X-Vault-Token': token})
+        """Returs the secret based on the vault_path and key"""
+        secret_resp = requests.get(self.cerberus_url + '/v1/secret/' + vault_path,
+                                  headers={'Content-Type' : 'application/json', 'X-Vault-Token': self.token})
         if secret_resp.status_code != 200:
             print("ERROR: " + secret_resp.json()['errors'][0]['message'])
             sys.exit(2)
         secret_resp_json = json.loads(secret_resp.text)
         if key in secret_resp_json['data']:
-            return secret_resp_json['data'][key])
+            return secret_resp_json['data'][key]
         else:
             print("ERROR: key " + key + " not found")
             sys.exit(2)
