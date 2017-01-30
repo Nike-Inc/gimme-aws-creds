@@ -1,10 +1,12 @@
 # gimme aws creds
 
-gimme_aws_creds is a CLI that utilizes Okta to get temporary AWS credentials via AWS STS.
+gimme_aws_creds is a CLI that utilizes Okta IdP (SAML) to get temporary AWS credentials via AWS STS.
 
 ## Usage
 
 ### prerequisites
+
+Cerberus
 
 ### uses cerberus
 
