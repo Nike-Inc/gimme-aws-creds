@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-#this is a mash-up of :
-# chris guthrie's example, aws security blog posts, my bad code and
-# https://github.com/nimbusscale/okta_aws_login -  Joe@nimbusscale.com
-#TODO in no certain order
+# TODO in no certain order
 # 1. store session id
 # 2. write out to an aws config file
 # 3. write a web service

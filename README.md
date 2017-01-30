@@ -1,10 +1,10 @@
 # gimme aws creds
 
-this is what this thing does
+gimme_aws_creds is a CLI that utilizes Okta to get temporary AWS credentials via AWS STS.
 
 ## Usage
 
-### requirements
+### prerequisites
 
 ### uses cerberus
 
@@ -18,10 +18,11 @@ USERNAME VAR
 
 ## Thanks and Credit
 https://github.com/nimbusscale/okta_aws_login Written by Joe Keegan - joe@nimbusscale.com
-https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/
 
 ## Extras
 
 Okta's Java tool that does similar stuff https://github.com/oktadeveloper/okta-aws-cli-assume-role
+
+AWS Security Blog https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/
 
 ## License
