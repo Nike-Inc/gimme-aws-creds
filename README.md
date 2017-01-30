@@ -10,9 +10,9 @@ With gimme_aws_creds all you need to know is your username, password, Okta url a
 
 ### Prerequisites
 
-Okta SAML integration to AWS https://support.okta.com/help/articles/Knowledge_Article/Amazon-Web-Services-and-Okta-Integration-Guide?popup=true&retURL=%2Fhelp%2Fapex%2FKnowledgeArticleJson%3Fc%3DOkta_Documentation%3ATechnical_Documentation&p=101&inline=1
+[Okta SAML integration to AWS](https://support.okta.com/help/articles/Knowledge_Article/Amazon-Web-Services-and-Okta-Integration-Guide?popup=true&retURL=%2Fhelp%2Fapex%2FKnowledgeArticleJson%3Fc%3DOkta_Documentation%3ATechnical_Documentation&p=101&inline=1)
 
-Cerberus for storing Okta API keys http://engineering.nike.com/cerberus/ The API keys could be hardcoded in the code, but this isn't recommended.
+[Cerberus](http://engineering.nike.com/cerberus/) is used for storing Okta API keys.The API keys could be hardcoded in the code, but this isn't recommended.
 
 Python 3
 
@@ -34,8 +34,8 @@ https://github.com/nimbusscale/okta_aws_login Written by Joe Keegan - joe@nimbus
 
 ## Extras
 
-Okta's Java tool https://github.com/oktadeveloper/okta-aws-cli-assume-role
+[Okta's Java tool](https://github.com/oktadeveloper/okta-aws-cli-assume-role)
 
-AWS Security Blog https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/
+[AWS - How to Implement Federated API and CLI Access Using SAML 2.0 and AD FS](https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/)
 
 ## License
