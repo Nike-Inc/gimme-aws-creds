@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # TODO in no certain order
-# 1. store session id
+# 1. add MFA for Okta
 # 2. write out to an aws config file
 # 3. write a web service
+# 4. store session id
 
 import argparse
 import base64

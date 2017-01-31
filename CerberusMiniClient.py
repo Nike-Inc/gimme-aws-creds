@@ -3,7 +3,7 @@ import requests
 import sys
 
 class CerberusMiniClient(object):
-    """THis is a Cerberus Mini Client Class that does Cerberus stuff"""
+    """This is a Cerberus Mini Client Class that does Cerberus stuff"""
     HEADERS = {"Content-Type": "application/json"}
 
     def __init__(self, username, password):
