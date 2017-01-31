@@ -1,4 +1,4 @@
-# THIS IS A WORK IN PROGRESS 
+# THIS IS A WORK IN PROGRESS
 # gimme aws creds
 
 gimme_aws_creds is a CLI that utilizes Okta IdP via SAML to acquire a temporary AWS credentials via AWS STS.
@@ -8,6 +8,22 @@ Okta is a SAML identity provider (IdP), that can be easily set-up to do SSO to y
 With gimme_aws_creds all you need to know is your username, password, Okta url and MFA token, if MFA is enabled. gimme_aws_creds gives you the option to select which application you want to assume for and which role to assume. Alternatively, you can pre-configure the app and role name by passing -c or editing the config file. This is all covered in the usage section.
 
 ## Usage
+
+```
+usage: gimme_aws_creds.py [-h] [--username USERNAME] [--configure]
+
+Gets a STS token to use for AWS CLI based on a SAML assertion from Okta
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --username USERNAME, -u USERNAME
+                        The username to use when logging into Okta. The
+                        username can also be set via the OKTA_USERNAME env
+                        variable. If not provided you will be prompted to
+                        enter a username.
+  --configure, -c       If set, will prompt user for configuration parameters
+                        and then exit.
+```
 
 ### Prerequisites
 
