@@ -28,7 +28,7 @@ To set-up the configuration run:
 gimme_aws_creds.py --configure
 ```
 
-A configuration wizard will prompt you to enter the necessary configuration parameters for the tool to run, the only one that is required is the idp_entry_url.
+A configuration wizard will prompt you to enter the necessary configuration parameters for the tool to run, the only one that is required is the idp_entry_url. The configuration file is written to ~/.okta_aws_login_config.
 
 - idp_entry_url - This is your Okta entry url, which is typically something like https://companyname.okta.com.
 - aws_appname - This is optional. The Okta AWS App name, which has the role you want to assume.
