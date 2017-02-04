@@ -1,6 +1,6 @@
 # Stuff for tests...
 from unittest.mock import Mock, patch, MagicMock
-from nose.tools import assert_equals, assert_dict_equal
+from nose.tools import assert_equals, assert_dict_equal, assert_list_equal
 
 # other stuff
 import argparse
@@ -37,9 +37,30 @@ class TestGimmeAWSCreds(object):
 
     @patch('requests.post')
     def test_get_login_response(self,mock_post):
-        login = '{"expiresAt":"2017-02-04T00:26:24.000Z", "status":"SUCCESS", "sessionToken":"20111ZTiraxruM-0S_nbP3KoaY6nzSVaDYkBoaA3cQh7RgG9lMqPiVk", "_embedded":{"user":{"id":"00u937qp9ym9stuhL0h7", "profile":{"login":"Ann.Wallace@nike.com", "firstName":"Ann","lastName":"Wallace", "locale":"en","timeZone":"America/Los_Angeles"}}}}'
+        login = """{"expiresAt":"2017-02-04T00:26:24.000Z", "status":"SUCCESS",
+                    "sessionToken":"20111ZTiraxruMoaA3cQh7RgG9lMqPiVk",
+                    "_embedded":{"user":{"id":"00000",
+                    "profile":{"login":"Jane.Doe@example.com", "firstName":"Jane",
+                    "lastName":"Doe", "locale":"en","timeZone":"America/Los_Angeles"}}}}"""
         mock_post.return_value = Mock()
         mock_post.return_value.status_code = 200
         mock_post.return_value.text = login
         response = self.gac.get_login_response()
         assert_dict_equal(response, json.loads(login))
+
+    @patch('requests.get')
+    def test_get_app_links(self,mock_get):
+        login_resp = {
+                        "_embedded": {
+                            "user": {
+                                "id": "00000",
+                            }
+                        },
+                        "status": "SUCCESS"
+                    }
+        app_links = """[{"id":"1","label":"AWS Prod","linkUrl":"https://example.oktapreview.com/1"},
+                       {"id":"2","label":"AWS Dev","linkUrl":"https://example.oktapreview.com/2"}]"""
+        mock_get.return_value = Mock()
+        mock_get.return_value.text = app_links
+        response = self.gac.get_app_links(login_resp)
+        assert_list_equal(response, json.loads(app_links))

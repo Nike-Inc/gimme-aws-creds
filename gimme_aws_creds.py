@@ -319,7 +319,6 @@ class GimmeAWSCreds(object):
             self.aws_appname = self.get_app(resp)
         else:
             self.aws_appname = conf_dict['aws_appname']
-
         if not conf_dict['aws_rolename']:
             # get available roles for the AWS app
             self.aws_rolename = self.get_role(resp)
