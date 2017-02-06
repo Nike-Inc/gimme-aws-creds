@@ -101,4 +101,27 @@ class TestGimmeAWSCreds(object):
         # confirm that the correct role was returned
         assert_equals(response, "OktaAWSReadOnlyRole")
 
-    
+    @patch('requests.get')
+    def test_set_idp_arn(self,mock_get):
+        app_id = '1q2w3e4r5t'
+        idp_arn = """{
+                      "id": "1q2w3e4r5t",
+                      "settings": {
+                        "app": {
+                          "accessKey": null,
+                          "secretKey": null,
+                          "sessionDuration": 3600,
+                          "identityProviderArn": "arn:aws:iam::0987654321:saml-provider/OktaIdP",
+                          "awsEnvironmentType": "aws.amazon",
+                          "loginURL": "https://cdt-test.signin.aws.amazon.com/console"
+                        }
+                      }
+                    }"""
+
+        # mock the response
+        mock_get.return_value = Mock()
+        mock_get.return_value.text = idp_arn
+        response = self.gac.set_idp_arn(app_id)
+
+        # confirm that self.idp_arn got set correctly
+        assert_equals(self.gac.idp_arn, 'arn:aws:iam::0987654321:saml-provider/OktaIdP')
