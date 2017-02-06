@@ -1,6 +1,6 @@
 # Stuff for tests...
 from unittest.mock import Mock, patch, MagicMock
-from nose.tools import assert_equals, assert_dict_equal, assert_list_equal
+from nose.tools import assert_equals, assert_dict_equal, assert_list_equal, assert_true
 
 # other stuff
 import argparse
@@ -18,6 +18,14 @@ class TestGimmeAWSCreds(object):
         self.gac.okta_api_key = 'XXXXXX'
         self.gac.idp_entry_url = 'https://example.okta.com'
         self.maxDiff = None
+        self.login_resp =     login_resp = {
+                            "_embedded": {
+                                "user": {
+                                    "id": "00000",
+                                }
+                            },
+                            "status": "SUCCESS"
+                        }
 
     def test_get_headers(self):
         header = self.gac.get_headers()
@@ -50,17 +58,32 @@ class TestGimmeAWSCreds(object):
 
     @patch('requests.get')
     def test_get_app_links(self,mock_get):
-        login_resp = {
-                        "_embedded": {
-                            "user": {
-                                "id": "00000",
-                            }
-                        },
-                        "status": "SUCCESS"
-                    }
         app_links = """[{"id":"1","label":"AWS Prod","linkUrl":"https://example.oktapreview.com/1"},
                        {"id":"2","label":"AWS Dev","linkUrl":"https://example.oktapreview.com/2"}]"""
         mock_get.return_value = Mock()
         mock_get.return_value.text = app_links
-        response = self.gac.get_app_links(login_resp)
+        response = self.gac.get_app_links(self.login_resp)
         assert_list_equal(response, json.loads(app_links))
+
+    @patch('gimme_aws_creds.GimmeAWSCreds.get_app_links')
+    @patch('builtins.input', return_value='0')
+    def test_get_app(self,mock_input,mock_app_links):
+        app_links = [{"id":"1","label":"AWS Prod","linkUrl":"https://example.oktapreview.com/1"},
+                       {"id":"2","label":"AWS Dev","linkUrl":"https://example.oktapreview.com/2"}]
+
+        # mock get_app_links response
+        mock_app_links.return_value = Mock()
+        mock_app_links.return_value = app_links
+        response = self.gac.get_app(self.login_resp)
+
+        # confirm the mock was called
+        assert_true(mock_app_links.called)
+
+        # confirm the correct apps were returned
+        assert_equals(response, "AWS Prod")
+
+    @patch('requests.get')
+    def test_get_role(self,mock_get):
+        mock_post.return_value = Mock()
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.text = login
