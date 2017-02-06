@@ -15,6 +15,7 @@ class TestGimmeAWSCreds(object):
     @classmethod
     def setup_class(self):
         self.gac = GimmeAWSCreds()
+        self.gac.aws_appname = "My AWS App"
         self.gac.okta_api_key = 'XXXXXX'
         self.gac.idp_entry_url = 'https://example.okta.com'
         self.maxDiff = None
@@ -83,7 +84,21 @@ class TestGimmeAWSCreds(object):
         assert_equals(response, "AWS Prod")
 
     @patch('requests.get')
-    def test_get_role(self,mock_get):
-        mock_post.return_value = Mock()
-        mock_post.return_value.status_code = 200
-        mock_post.return_value.text = login
+    @patch('builtins.input', return_value='1')
+    def test_get_role(self,mock_input,mock_get):
+        roles = """[ { "name": "amazon_aws", "label": "My AWS App",
+                    "status": "ACTIVE", "_embedded": { "user":
+                    { "id": "000000", "credentials":
+                    { "userName": "joe.blow@example.com" }, "profile":
+                    { "samlRoles": [ "OktaAWSAdminRole", "OktaAWSReadOnlyRole" ] } } } } ]"""
+
+        # mock response and status code
+        mock_get.return_value = Mock()
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.text = roles
+        response = self.gac.get_role(self.login_resp)
+
+        # confirm that the correct role was returned
+        assert_equals(response, "OktaAWSReadOnlyRole")
+
+    

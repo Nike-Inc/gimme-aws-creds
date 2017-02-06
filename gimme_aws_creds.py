@@ -198,7 +198,6 @@ class GimmeAWSCreds(object):
         user_id = login_resp['_embedded']['user']['id']
         response = requests.get(self.idp_entry_url + '/apps/?filter=user.id+eq+\"' +
             user_id + '\"&expand=user/' + user_id,headers=headers, verify=True)
-        print(response.text)
         role_resp = json.loads(response.text)
         # Check if this is a valid response
         if 'errorCode' in role_resp:
@@ -325,8 +324,6 @@ class GimmeAWSCreds(object):
             self.aws_rolename = self.get_role(resp)
         else:
             self.aws_rolename = conf_dict['aws_rolename']
-
-        sys.exit(0)
 
         # get the applinks available to the user
         app_url = self.get_app_url(resp)
