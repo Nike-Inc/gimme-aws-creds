@@ -66,6 +66,13 @@ If all goes well you will get your temporary AWS access and secret key.
 
 You can always run ```gimme_aws_creds.py --help``` for all the available options.
 
+## Running Tests
+
+You can run all the unit tests using nosetests. Most of the tests are mocked.
+
+```
+$ nosetests --verbosity=2 tests/
+```
 
 ## Thanks and Credit
 I came across [okta_aws_login](https://github.com/nimbusscale/okta_aws_login) written by Joe Keegan, when I was searching for a CLI tool that generates AWS tokens via Okta. Unfortunately it hasn't been updated since 2015 and didn't seem to work with the current Okta version. But there was still some great code I was able to reuse under the MIT license for gimme_aws_creds. I have noted in the comments where I used his code, to make sure he receives proper credit.  

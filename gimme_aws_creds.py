@@ -336,6 +336,7 @@ class GimmeAWSCreds(object):
         resp2 = requests.get(app_url['linkUrl'] + '/?sessionToken=' + login_resp['sessionToken'], verify=True)
         #session = requests.session()
         assertion = self.get_saml_assertion(resp2)
+        print (assertion)
         aws_creds = self.get_sts_creds(assertion)
         # print out creds
         print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'])

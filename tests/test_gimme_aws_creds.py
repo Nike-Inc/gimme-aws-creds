@@ -1,6 +1,6 @@
 # Stuff for tests...
 from unittest.mock import Mock, patch, MagicMock
-from nose.tools import assert_equals, assert_dict_equal, assert_list_equal, assert_true
+from nose.tools import assert_equals, assert_dict_equal, assert_list_equal, assert_true, assert_is_none
 
 # other stuff
 import argparse
@@ -28,6 +28,9 @@ class TestGimmeAWSCreds(object):
                             },
                             "status": "SUCCESS"
                         }
+    @classmethod
+    def teardown_class(self):
+        self.gac.clean_up()
 
     def test_get_headers(self):
         header = self.gac.get_headers()
