@@ -6,8 +6,8 @@ class CerberusMiniClient(object):
     """This is a Cerberus Mini Client Class that does Cerberus stuff"""
     HEADERS = {"Content-Type": "application/json"}
 
-    def __init__(self, username, password):
-        self.cerberus_url = 'https://prod.cerberus.nikecloud.com/'
+    def __init__(self, username, password, cerberus_url = 'https://prod.cerberus.nikecloud.com/'):
+        self.cerberus_url = cerberus_url
         self.username = username
         self.password = password
         self.token = None
@@ -29,7 +29,8 @@ class CerberusMiniClient(object):
 
     def get_auth(self):
         """Returns auth respose which has client token unless MFA is required"""
-        auth_resp = requests.get(self.cerberus_url + '/v2/auth/user', auth=(self.username, self.password))
+        auth_resp = requests.get(self.cerberus_url + '/v2/auth/user',
+                                 auth=(self.username, self.password))
         if auth_resp.status_code != 200:
            print("ERROR: " + auth_resp.json()['errors'][0]['message'])
            sys.exit(2)
