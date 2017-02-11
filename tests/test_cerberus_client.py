@@ -15,6 +15,12 @@ class TestCerberusClient(object):
     @patch('CerberusMiniClient.CerberusMiniClient.set_token', return_value='1234-asdf-1234hy-qwer6')
     def setup_class(self, mock_token):
         self.client = CerberusMiniClient('testuser', 'hardtoguesspasswd')
+        self.auth_resp = """{"status": "mfa_req", "data":
+                        {"username": "unicorn@rainbow.com",
+                        "state_token": "0127a384d305138d4e",
+                        "client_token": "None", "user_id": "1325",
+                        "devices": [{"id": "223", "name":
+                        "Google Authenticator"}]}}"""
 
     """
     modeled after https://goo.gl/WV2WGe
@@ -51,21 +57,13 @@ class TestCerberusClient(object):
 
     @patch('requests.get')
     def test_get_auth(self, mock_get):
-        auth_resp = """{"status": "mfa_req", "data":
-                        {"username": "unicorn@rainbow.com",
-                        "state_token": "0127a384d305138d4e",
-                        "client_token": "None", "user_id": "1325",
-                        "devices": [{"id": "223", "name":
-                        "Google Authenticator"}]}}"""
-
         # mock return response
-        mock_resp = self._mock_response(text=auth_resp)
+        mock_resp = self._mock_response(text=self.auth_resp)
         mock_get.return_value = mock_resp
-
         response = self.client.get_auth()
 
         # confirm response matches the mock
-        assert_dict_equal(response, json.loads(auth_resp))
+        assert_dict_equal(response, json.loads(self.auth_resp))
 
     @raises(HTTPError)
     @patch('requests.get')
@@ -74,6 +72,79 @@ class TestCerberusClient(object):
         mock_get.return_value = mock_resp
         self.client.get_auth()
 
+    @patch('builtins.input', return_value='0987654321')
+    @patch('requests.post')
+    def test_mfa_response(self,mock_post,mock_input):
+        mfa_data =""" {
+                      "status" : "success",
+                      "data" : {
+                        "user_id" : "134",
+                        "username" : "unicorn@rainbow.com",
+                        "state_token" : null,
+                        "devices" : [ ],
+                        "client_token" : {
+                          "client_token" : "61e3-f3f-6536-a3e6-b498161d",
+                          "policies" : [ "cloud-events-owner", "pixie-dust-owner"],
+                          "metadata" : {
+                            "groups" : "Rainbow.Playgroun.User,CareBear.users",
+                            "is_admin" : "false",
+                            "username" : "unicorn@rainbow.com"
+                          },
+                          "lease_duration" : 3600,
+                          "renewable" : true
+                        }
+                      }
+                    }"""
+        # mock all the things
+        mock_post.return_value = Mock()
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.text = mfa_data
 
-    def test_mfa(self):
-        print("hello world")
+        response = self.client.get_mfa(json.loads(self.auth_resp))
+
+        # confirm the json matches
+        assert_dict_equal(response, json.loads(mfa_data))
+
+    @patch('requests.get')
+    def test_get_sdb_id(self,mock_get):
+        sdb_data = """[{
+                 "id" : "5f0-99-414-bc-e5909c",
+                 "name" : "Disco Events",
+                 "path" : "app/disco-events/",
+                 "category_id" : "b07-42d0-e6-9-0a47c03" },
+                 {
+                  "id" : "a7192aa7-83f0-45b7-91fb-f6b0eb",
+                  "name" : "snowflake",
+                  "path" : "app/snowflake/",
+                  "category_id" : "b042d0-e6-90-0aec03"}]"""
+
+        # don't mock me!
+        mock_resp = self._mock_response(text=sdb_data)
+        mock_get.return_value = mock_resp
+
+        id = self.client.get_sdb_id("snowflake")
+        sdb_json = json.loads(sdb_data)
+
+        # confirm the id matches
+        assert_equals(id, sdb_json[1]['id'])
+
+
+    @patch('CerberusMiniClient.CerberusMiniClient.get_sdb_id',
+            return_value="5f0-99-414-bc-e5909c")
+    @patch('requests.get')
+    def test_get_sdb_path(self,mock_get,mock_sdb_id):
+        sdb_data = """{
+                    "id" : "5f0-99-414-bc-e5909c",
+                    "name" : "Disco Events",
+                    "description" : "Studio 54",
+                    "path" : "app/disco-events/" }"""
+        mock_resp = self._mock_response(text=sdb_data)
+        mock_get.return_value = mock_resp
+
+        path = self.client.get_sdb_path("Disco Events")
+        sdb_json = json.loads(sdb_data)
+
+        assert_equals(path, sdb_json['path'])
+
+#        def test_get_secret(self):
+#        def test_get_sdb_keys(self):

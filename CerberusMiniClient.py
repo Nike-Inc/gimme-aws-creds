@@ -25,7 +25,6 @@ class CerberusMiniClient(object):
 
     def get_token(self):
         """Returns a client token from Cerberus"""
-        print ("BOOGER")
         return self.token
 
     def get_auth(self):
