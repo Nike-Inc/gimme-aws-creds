@@ -1,8 +1,10 @@
 # Stuff for tests...
 from unittest.mock import Mock, patch, MagicMock
-from nose.tools import assert_equals, assert_dict_equal, assert_list_equal, assert_true, assert_is_none
+from nose.tools import raises, assert_raises, assert_equals, assert_dict_equal, assert_list_equal, assert_true, assert_is_none
 
 # other stuff
+import json
+from requests.exceptions import HTTPError
 
 # Local imports...
 from CerberusMiniClient import CerberusMiniClient
@@ -14,6 +16,31 @@ class TestCerberusClient(object):
     def setup_class(self, mock_token):
         self.client = CerberusMiniClient('testuser', 'hardtoguesspasswd')
 
+    """
+    modeled after https://goo.gl/WV2WGe
+    """
+    def _mock_response(
+            self,
+            status=200,
+            content="SUTFF",
+            json_data=None,
+            text="""{"key": "value"}""",
+            raise_for_status=None):
+
+        mock_resp = Mock()
+        mock_resp.raise_for_status = Mock()
+        if raise_for_status:
+            mock_resp.raise_for_status.side_effect = raise_for_status
+        mock_resp.status_code = status
+        mock_resp.content = content
+        mock_resp.text = text
+        # add json data if provided
+        if json_data:
+            mock_resp.json = mock.Mock(
+                return_value=json_data
+            )
+        return mock_resp
+
 
     def test_username(self):
         assert_equals(self.client.username, 'testuser')
@@ -24,16 +51,29 @@ class TestCerberusClient(object):
 
     @patch('requests.get')
     def test_get_auth(self, mock_get):
-        auth_resp = """{u'status': u'mfa_req', u'data':
-                        {u'username': u'unicorn@rainbow.com',
-                        u'state_token': u'0127a384d305138d4e3',
-                        u'client_token': None, u'user_id': u'1325',
-                        u'devices': [{u'id': u'223', u'name':
-                        u'Google Authenticator'}]}}"""
-        mock_get.return_value = Mock()
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.text = auth_resp
+        auth_resp = """{"status": "mfa_req", "data":
+                        {"username": "unicorn@rainbow.com",
+                        "state_token": "0127a384d305138d4e",
+                        "client_token": "None", "user_id": "1325",
+                        "devices": [{"id": "223", "name":
+                        "Google Authenticator"}]}}"""
+
+        # mock return response
+        mock_resp = self._mock_response(text=auth_resp)
+        mock_get.return_value = mock_resp
 
         response = self.client.get_auth()
 
-        assert_list_equal(response, auth_resp)
+        # confirm response matches the mock
+        assert_dict_equal(response, json.loads(auth_resp))
+
+    @raises(HTTPError)
+    @patch('requests.get')
+    def test_when_not_200_status_code(self, mock_get):
+        mock_resp = self._mock_response(status=404, raise_for_status=HTTPError("google is down"))
+        mock_get.return_value = mock_resp
+        self.client.get_auth()
+
+
+    def test_mfa(self):
+        print("hello world")

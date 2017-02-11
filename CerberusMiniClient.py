@@ -25,16 +25,16 @@ class CerberusMiniClient(object):
 
     def get_token(self):
         """Returns a client token from Cerberus"""
+        print ("BOOGER")
         return self.token
 
     def get_auth(self):
         """Returns auth respose which has client token unless MFA is required"""
         auth_resp = requests.get(self.cerberus_url + '/v2/auth/user',
                                  auth=(self.username, self.password))
-        if auth_resp.status_code != 200:
-           print("ERROR: " + auth_resp.json()['errors'][0]['message'])
-           sys.exit(2)
         auth_resp_json = json.loads(auth_resp.text)
+        if auth_resp.status_code != 200:
+           auth_resp.raise_for_status()
         return auth_resp_json
 
     def get_mfa(self, auth_resp):
@@ -47,10 +47,9 @@ class CerberusMiniClient(object):
                                       'device_id': auth_resp['data']['devices'][0]['id'],
                                       'state_token': auth_resp['data']['state_token']},
                                        headers=self.HEADERS)
-        if mfa_resp.status_code != 200:
-            print("ERROR: " + auth_resp['errors'][0]['message'])
-            sys.exit(2)
         mfa_resp_json = json.loads(mfa_resp.text)
+        if mfa_resp.status_code != 200:
+            mfa_resp.raise_for_status()
         return mfa_resp_json
 
     def get_sdb_path(self,sdb):
@@ -58,10 +57,9 @@ class CerberusMiniClient(object):
         id = self.get_sdb_id(sdb)
         sdb_resp = requests.get(self.cerberus_url + '/v1/safe-deposit-box/' + id + '/',
                                 headers={'Content-Type' : 'application/json', 'X-Vault-Token': self.token})
-        if sdb_resp.status_code != 200:
-           print("ERROR: " + sdb_resp.json()['errors'][0]['message'])
-           sys.exit(2)
         sdb_resp_json = json.loads(sdb_resp.text)
+        if sdb_resp.status_code != 200:
+            sdb_resp.raise_for_status()
         path = sdb_resp_json['path']
         return path
 
@@ -69,20 +67,18 @@ class CerberusMiniClient(object):
         """Returns the keys for a SDB, which are need for the full vault path"""
         list_resp = requests.get(self.cerberus_url + '/v1/secret/' + path + '/?list=true',
                                 headers= {'Content-Type' : 'application/json', 'X-Vault-Token': self.token})
-        if list_resp.status_code != 200:
-           print("ERROR: " + list_resp.json()['errors'][0]['message'])
-           sys.exit(2)
         list_resp_json = json.loads(list_resp.text)
+        if list_resp.status_code != 200:
+            list_resp.raise_for_status()
         return list_resp_json['data']['keys']
 
     def get_sdb_id(self,sdb):
         """ Return the ID for the given safety deposit box"""
         sdb_resp = requests.get(self.cerberus_url + '/v1/safe-deposit-box',
                                 headers= {'Content-Type' : 'application/json', 'X-Vault-Token': self.token})
-        if sdb_resp.status_code != 200:
-           print("ERROR: " + sdb_resp.json()['errors'][0]['message'])
-           sys.exit(2)
         sdb_resp_json = json.loads(sdb_resp.text)
+        if sdb_resp.status_code != 200:
+            sdb_resp.raise_for_status()
         for r in sdb_resp_json:
             if r['name'] == sdb:
                 return str(r['id'])
@@ -93,10 +89,9 @@ class CerberusMiniClient(object):
         """Returs the secret based on the vault_path and key"""
         secret_resp = requests.get(self.cerberus_url + '/v1/secret/' + vault_path,
                                   headers={'Content-Type' : 'application/json', 'X-Vault-Token': self.token})
-        if secret_resp.status_code != 200:
-            print("ERROR: " + secret_resp.json()['errors'][0]['message'])
-            sys.exit(2)
         secret_resp_json = json.loads(secret_resp.text)
+        if secret_resp.status_code != 200:
+            secret_resp.raise_for_status()
         if key in secret_resp_json['data']:
             return secret_resp_json['data'][key]
         else:
