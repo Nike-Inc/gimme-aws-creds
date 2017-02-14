@@ -1,6 +1,6 @@
 # Stuff for tests...
 from unittest.mock import Mock, patch, MagicMock
-from nose.tools import raises, assert_raises, assert_equals, assert_dict_equal, assert_list_equal, assert_true, assert_is_none
+from nose.tools import raises, assert_equals, assert_dict_equal
 
 # other stuff
 import json
@@ -146,5 +146,31 @@ class TestCerberusClient(object):
 
         assert_equals(path, sdb_json['path'])
 
-#        def test_get_secret(self):
-#        def test_get_sdb_keys(self):
+    @patch('requests.get')
+    def test_get_sdb_keys(self,mock_get):
+        list_data = """{
+                        "lease_id":"","renewable":false,"lease_duration":0,
+                        "data":{"keys":["magic","princess"]},
+                         "wrap_info":null,"warnings":null,"auth":null }"""
+        mock_resp = self._mock_response(text=list_data)
+        mock_get.return_value = mock_resp
+
+        keys = self.client.get_sdb_keys('fake/path')
+
+        # check that the first key is magic!
+        assert_equals(keys[0], 'magic')
+
+    @patch('requests.get')
+    def test_getting_a_secret(self,mock_get):
+        secret_data = """{
+                        "data":{
+                            "mykey": "mysecretdata",
+                            "myotherkey": "moretopsecretstuff"
+                        }}"""
+        mock_resp = self._mock_response(text=secret_data)
+        mock_get.return_value = mock_resp
+
+        secret = self.client.get_secret('fake/path', 'myotherkey')
+
+        # check to make sure we got the right secret
+        assert_equals(secret, 'moretopsecretstuff')
