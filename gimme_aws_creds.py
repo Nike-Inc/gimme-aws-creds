@@ -29,6 +29,7 @@ class GimmeAWSCreds(object):
         self.aws_appname = None
         self.aws_rolename = None
         self.configure = False
+        self.cerberus_url = None
         self.idp_entry_url = None
         self.idp_arn = None
         self.okta_api_key = None
@@ -71,13 +72,16 @@ class GimmeAWSCreds(object):
             idp_entry_url_default = config['DEFAULT']['idp_entry_url']
             aws_appname_default = config['DEFAULT']['aws_appname']
             aws_rolename_default = config['DEFAULT']['aws_rolename']
+            cerberus_url_default = config['DEFAULT']['cerberus_url']
         # otherwise use these values for defaults
         else:
             idp_entry_url_default = ""
             aws_appname_default = ""
             aws_rolename_default = ""
+            cerberus_url_default = ""
         # Prompt user for config details and store in config_dict
         config_dict = {}
+
         # Get and validate idp_entry_url
         print("Enter the IDP Entry URL. This is https://something.okta[preview].com")
         idp_entry_url_valid = False
@@ -91,18 +95,29 @@ class GimmeAWSCreds(object):
             else:
                 print("idp_entry_url must be HTTPS URL for okta.com or oktapreview.com domain")
         config_dict['idp_entry_url'] = idp_entry_url
+
         # Get Okta AWS App name
         print('Enter the AWS Okta App Name '
                "This is optional, you can select the App when you run the CLI.")
         aws_appname = self.get_user_input("aws_appname",aws_appname_default)
         config_dict['aws_appname'] = aws_appname
+
         # Get the AWS Role name - this is optional to make the program less interactive
-        print("Enter the AWS role name you want credentials for."
+        print("Enter the AWS role name you want credentials for. "
                "This is optional, you can select the role when you run the CLI.")
         aws_rolename = self.get_user_input("aws_rolename",aws_rolename_default)
         config_dict['aws_rolename'] = aws_rolename
+
+        # Get and validate cerberus url - this is optional
+        print("If you are using Cerberus to store your Okta API Key, this is optional."
+               "Enter your Cerberus URL.")
+        cerberus_url =  self.get_user_input("cerberus_url", cerberus_url_default)
+        config_dict['cerberus_url'] = cerberus_url
+
         # Set default config
         config['DEFAULT'] = config_dict
+
+        # write out the conf file
         with open(self.OKTA_CONFIG, 'w') as configfile:
             config.write(configfile)
 
@@ -142,7 +157,7 @@ class GimmeAWSCreds(object):
         self.username = username
         self.password = password
 
-    def set_okta_api_key(self,key):
+    def set_okta_api_key(self):
         """returns the Okta API key from
         env var OKTA_API_KEY or from cerberus.
         This assumes your SDB is named Okta and
@@ -150,8 +165,9 @@ class GimmeAWSCreds(object):
         if os.environ.get("OKTA_API_KEY") is not None:
             secret = os.environ.get("OKTA_API_KEY")
         else:
-            cerberus = CerberusMiniClient(self.username,self.password)
+            cerberus = CerberusMiniClient(self.cerberus_url,self.username,self.password)
             path = cerberus.get_sdb_path('Okta')
+            key = urlparse(self.idp_entry_url).netloc
             secret = cerberus.get_secret(path + '/api_key', key)
         self.okta_api_key = secret
 
@@ -313,8 +329,10 @@ class GimmeAWSCreds(object):
         # this assumes you are using a cerberus backend
         # to store your okta api key, and the key name
         # is the hostname for your okta env
-        cerberus_key = urlparse(self.idp_entry_url).netloc
-        self.set_okta_api_key(cerberus_key)
+        # otherwise set OKTA_API_KEY env variable
+        if conf_dict['cerberus_url'] :
+            self.cerberus_url = conf_dict['cerberus_url']
+        self.set_okta_api_key()
 
         resp = self.get_login_response()
         session = requests.session()
