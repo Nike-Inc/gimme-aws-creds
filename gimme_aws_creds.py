@@ -17,7 +17,7 @@ import requests
 import sys
 import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
-from CerberusMiniClient import CerberusMiniClient
+from cerberus.client import CerberusClient
 from os.path import expanduser
 from urllib.parse import urlparse, urlunparse
 
@@ -37,7 +37,9 @@ class GimmeAWSCreds(object):
         self.username = None
 
     def get_headers(self):
-        headers = {'Accept' : 'application/json', 'Content-Type' : 'application/json', 'Authorization' : 'SSWS ' + self.okta_api_key}
+        headers = {'Accept' : 'application/json',
+                   'Content-Type' : 'application/json',
+                   'Authorization' : 'SSWS ' + self.okta_api_key}
         return headers
 
     def get_args(self):
@@ -141,12 +143,16 @@ class GimmeAWSCreds(object):
         self.password = password
 
     def set_okta_api_key(self,key):
-        """returns the Okta API key from cerberus.
+        """returns the Okta API key from
+        env var OKTA_API_KEY or from cerberus.
         This assumes your SDB is named Okta and
         your Vault path ends is api_key"""
-        cerberus = CerberusMiniClient(self.username,self.password)
-        path = cerberus.get_sdb_path('Okta')
-        secret = cerberus.get_secret(path + '/api_key', key)
+        if os.environ.get("OKTA_API_KEY") is not None:
+            secret = os.environ.get("OKTA_API_KEY")
+        else:
+            cerberus = CerberusMiniClient(self.username,self.password)
+            path = cerberus.get_sdb_path('Okta')
+            secret = cerberus.get_secret(path + '/api_key', key)
         self.okta_api_key = secret
 
     def get_login_response(self):

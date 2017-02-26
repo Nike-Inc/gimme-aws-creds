@@ -7,12 +7,12 @@ import json
 from requests.exceptions import HTTPError
 
 # Local imports...
-from CerberusMiniClient import CerberusMiniClient
+from cerberus_client import CerberusMiniClient
 
 class TestCerberusClient(object):
 
     @classmethod
-    @patch('CerberusMiniClient.CerberusMiniClient.set_token', return_value='1234-asdf-1234hy-qwer6')
+    @patch('cerberus_client.CerberusMiniClient.set_token', return_value='1234-asdf-1234hy-qwer6')
     def setup_class(self, mock_token):
         self.client = CerberusMiniClient('testuser', 'hardtoguesspasswd')
         self.auth_resp = """{"status": "mfa_req", "data":
@@ -129,7 +129,7 @@ class TestCerberusClient(object):
         assert_equals(id, sdb_json[1]['id'])
 
 
-    @patch('CerberusMiniClient.CerberusMiniClient.get_sdb_id',
+    @patch('cerberus_client.CerberusMiniClient.get_sdb_id',
             return_value="5f0-99-414-bc-e5909c")
     @patch('requests.get')
     def test_get_sdb_path(self,mock_get,mock_sdb_id):
