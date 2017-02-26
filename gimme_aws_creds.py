@@ -74,6 +74,7 @@ class GimmeAWSCreds(object):
             aws_appname_default = config['DEFAULT']['aws_appname']
             aws_rolename_default = config['DEFAULT']['aws_rolename']
             cerberus_url_default = config['DEFAULT']['cerberus_url']
+            write_aws_creds_default = config['DEFAULT']['write_aws_creds']
             cred_profile_default = config['DEFAULT']['cred_profile']
         # otherwise use these values for defaults
         else:
@@ -81,6 +82,7 @@ class GimmeAWSCreds(object):
             aws_appname_default = ""
             aws_rolename_default = ""
             cerberus_url_default = ""
+            write_aws_creds_default = ""
             cred_profile_default = "role"
         # Prompt user for config details and store in config_dict
         config_dict = {}
@@ -99,21 +101,38 @@ class GimmeAWSCreds(object):
                 print("idp_entry_url must be HTTPS URL for okta.com or oktapreview.com domain")
         config_dict['idp_entry_url'] = idp_entry_url
 
-        # Get and validate cred_profile
-        print("cred_profile defines which profile is used to store the temp AWS "
-            "creds. If set to 'role' then a new profile will be created "
-            "matching the role name assumed by the user. If set to 'default' "
-            "then the temp creds will be stored in the default profile")
-        cred_profile_valid = False
-        while cred_profile_valid == False:
-            cred_profile = self.get_user_input("cred_profile",cred_profile_default)
-            cred_profile = cred_profile.lower()
-            # validate if either role or default was entered
-            if cred_profile in ["default","role"]:
-                cred_profile_valid = True
+        # To write to the ~/.aws/credentials or to stdouVt
+        print("Do you want to write the temporary AWS to ~/.aws/credentials?"
+              " If no, the credentials will be written to stdout."
+              " Please answer y or n.")
+        write_aws_creds = ""
+        while write_aws_creds != True and write_aws_creds != False :
+            write_aws_creds = self.get_user_input("write_aws_creds", write_aws_creds_default)
+            write_aws_creds = write_aws_creds.lower()
+            if write_aws_creds == 'y':
+                write_aws_creds = True
+            elif write_aws_creds == 'n':
+                write_aws_creds = False
             else:
-                print("cred_profile must be either default or role")
-        config_dict['cred_profile'] = cred_profile
+                print ("write_aws_creds must be either y or n.")
+        config_dict['write_aws_creds'] = write_aws_creds
+
+        # Get and validate cred_profile if write_aws_creds is true
+        if write_aws_creds == True:
+            print("cred_profile defines which profile is used to store the temp AWS "
+                "creds. If set to 'role' then a new profile will be created "
+                "matching the role name assumed by the user. If set to 'default' "
+                "then the temp creds will be stored in the default profile")
+            cred_profile_valid = False
+            while cred_profile_valid == False:
+                cred_profile = self.get_user_input("cred_profile",cred_profile_default)
+                cred_profile = cred_profile.lower()
+                # validate if either role or default was entered
+                if cred_profile in ["default","role"]:
+                    cred_profile_valid = True
+                else:
+                    print("cred_profile must be either default or role")
+            config_dict['cred_profile'] = cred_profile
 
         # Get Okta AWS App name
         print('Enter the AWS Okta App Name '
@@ -390,12 +409,6 @@ class GimmeAWSCreds(object):
         else:
             self.aws_rolename = conf_dict['aws_rolename']
 
-        # set the profile name
-        if conf_dict['cred_profile'] == 'default':
-            profile_name = 'default'
-        elif conf_dict['cred_profile'] == 'role':
-            profile_name = self.aws_rolename
-
         # get the applinks available to the user
         app_url = self.get_app_url(resp)
         # Get the the identityProviderArn from the aws app
@@ -408,16 +421,23 @@ class GimmeAWSCreds(object):
         #session = requests.session()
         assertion = self.get_saml_assertion(resp2)
         aws_creds = self.get_sts_creds(assertion)
-        print ("CREDS", aws_creds)
-        # print out creds
-        print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'])
-        print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'])
-        print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'])
-        # write out the AWS Config file
-        self.write_aws_creds(profile_name,
-                             aws_creds['AccessKeyId'],
-                             aws_creds['SecretAccessKey'],
-                             aws_creds['SessionToken'] )
+        if conf_dict['write_aws_creds']:
+            print('writing to ', self.AWS_CONFIG)
+            # set the profile name
+            if conf_dict['cred_profile'] == 'default':
+                profile_name = 'default'
+            elif conf_dict['cred_profile'] == 'role':
+                profile_name = self.aws_rolename
+            # write out the AWS Config file
+            self.write_aws_creds(profile_name,
+                                 aws_creds['AccessKeyId'],
+                                 aws_creds['SecretAccessKey'],
+                                 aws_creds['SessionToken'] )
+        else:
+            # print out creds
+            print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'])
+            print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'])
+            print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'])
 
         self.clean_up()
 
