@@ -24,6 +24,7 @@ from urllib.parse import urlparse, urlunparse
 class GimmeAWSCreds(object):
     FILE_ROOT = expanduser("~")
     OKTA_CONFIG = FILE_ROOT + '/.okta_aws_login_config'
+    AWS_CONFIG = FILE_ROOT + '/.aws/credentials'
 
     def __init__(self):
         self.aws_appname = None
@@ -73,12 +74,14 @@ class GimmeAWSCreds(object):
             aws_appname_default = config['DEFAULT']['aws_appname']
             aws_rolename_default = config['DEFAULT']['aws_rolename']
             cerberus_url_default = config['DEFAULT']['cerberus_url']
+            cred_profile_default = config['DEFAULT']['cred_profile']
         # otherwise use these values for defaults
         else:
             idp_entry_url_default = ""
             aws_appname_default = ""
             aws_rolename_default = ""
             cerberus_url_default = ""
+            cred_profile_default = "role"
         # Prompt user for config details and store in config_dict
         config_dict = {}
 
@@ -95,6 +98,22 @@ class GimmeAWSCreds(object):
             else:
                 print("idp_entry_url must be HTTPS URL for okta.com or oktapreview.com domain")
         config_dict['idp_entry_url'] = idp_entry_url
+
+        # Get and validate cred_profile
+        print("cred_profile defines which profile is used to store the temp AWS "
+            "creds. If set to 'role' then a new profile will be created "
+            "matching the role name assumed by the user. If set to 'default' "
+            "then the temp creds will be stored in the default profile")
+        cred_profile_valid = False
+        while cred_profile_valid == False:
+            cred_profile = self.get_user_input("cred_profile",cred_profile_default)
+            cred_profile = cred_profile.lower()
+            # validate if either role or default was entered
+            if cred_profile in ["default","role"]:
+                cred_profile_valid = True
+            else:
+                print("cred_profile must be either default or role")
+        config_dict['cred_profile'] = cred_profile
 
         # Get Okta AWS App name
         print('Enter the AWS Okta App Name '
@@ -157,6 +176,28 @@ class GimmeAWSCreds(object):
         self.username = username
         self.password = password
 
+    #  this is modified code from https://github.com/nimbusscale/okta_aws_login
+    def write_aws_creds(self, profile, access_key, secret_key, token):
+        """ Writes the AWS STS token into the AWS credential file"""
+        # Check to see if the aws creds path exists, if not create it
+        creds_dir = os.path.dirname(self.AWS_CONFIG)
+        if os.path.exists(creds_dir) == False:
+           os.makedirs(creds_dir)
+        config = configparser.RawConfigParser()
+        # Read in the existing config file if it exists
+        if os.path.isfile(self.AWS_CONFIG):
+            config.read(self.AWS_CONFIG)
+        # Put the credentials into a saml specific section instead of clobbering
+        # the default credentials
+        if not config.has_section(profile):
+            config.add_section(profile)
+        config.set(profile, 'aws_access_key_id', access_key)
+        config.set(profile, 'aws_secret_access_key', secret_key)
+        config.set(profile, 'aws_session_token', token)
+        # Write the updated config file
+        with open(self.AWS_CONFIG, 'w+') as configfile:
+            config.write(configfile)
+
     def set_okta_api_key(self):
         """returns the Okta API key from
         env var OKTA_API_KEY or from cerberus.
@@ -165,7 +206,7 @@ class GimmeAWSCreds(object):
         if os.environ.get("OKTA_API_KEY") is not None:
             secret = os.environ.get("OKTA_API_KEY")
         else:
-            cerberus = CerberusMiniClient(self.cerberus_url,self.username,self.password)
+            cerberus = CerberusClient(self.cerberus_url,self.username,self.password)
             path = cerberus.get_sdb_path('Okta')
             key = urlparse(self.idp_entry_url).netloc
             secret = cerberus.get_secret(path + '/api_key', key)
@@ -349,6 +390,12 @@ class GimmeAWSCreds(object):
         else:
             self.aws_rolename = conf_dict['aws_rolename']
 
+        # set the profile name
+        if conf_dict['cred_profile'] == 'default':
+            profile_name = 'default'
+        elif conf_dict['cred_profile'] == 'role':
+            profile_name = self.aws_rolename
+
         # get the applinks available to the user
         app_url = self.get_app_url(resp)
         # Get the the identityProviderArn from the aws app
@@ -361,9 +408,16 @@ class GimmeAWSCreds(object):
         #session = requests.session()
         assertion = self.get_saml_assertion(resp2)
         aws_creds = self.get_sts_creds(assertion)
+        print ("CREDS", aws_creds)
         # print out creds
         print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'])
         print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'])
+        print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'])
+        # write out the AWS Config file
+        self.write_aws_creds(profile_name,
+                             aws_creds['AccessKeyId'],
+                             aws_creds['SecretAccessKey'],
+                             aws_creds['SessionToken'] )
 
         self.clean_up()
 
