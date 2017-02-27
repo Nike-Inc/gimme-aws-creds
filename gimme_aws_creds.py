@@ -9,7 +9,7 @@
 import base64
 import boto3
 
-import getpass
+
 import json
 import os
 import re
@@ -30,7 +30,6 @@ class GimmeAWSCreds(object):
     def __init__(self):
         self.aws_appname = None
         self.aws_rolename = None
-        self.configure = False
         self.cerberus_url = None
         self.idp_entry_url = None
         self.idp_arn = None
@@ -47,27 +46,7 @@ class GimmeAWSCreds(object):
 
 
 
-    #  this is modified code from https://github.com/nimbusscale/okta_aws_login
-    def get_user_creds(self):
-        """Get's creds for Okta login from the user."""
-        # Check to see if the username arg has been set, if so use that
-        if self.username is not None:
-            username = self.username
-        # Next check to see if the OKTA_USERNAME env var is set
-        elif os.environ.get("OKTA_USERNAME") is not None:
-            username = os.environ.get("OKTA_USERNAME")
-        # Otherwise just ask the user
-        else:
-            username = input("Email address: ")
-        # Set prompt to include the user name, since username could be set
-        # via OKTA_USERNAME env and user might not remember.
-        passwd_prompt = "Password for {}: ".format(username)
-        password = getpass.getpass(prompt=passwd_prompt)
-        if len(password) == 0:
-            print( "Password must be provided")
-            sys.exit(1)
-        self.username = username
-        self.password = password
+
 
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
     def write_aws_creds(self, profile, access_key, secret_key, token):
@@ -248,18 +227,13 @@ class GimmeAWSCreds(object):
         if config.configure == True:
             config.update_config_file()
             sys.exit()
-        # Check to see if config file exists, if not complain and exit
-        # If config file does exist create config dict from file
-        if os.path.isfile(config.OKTA_CONFIG):
-            config = configparser.ConfigParser()
-            config.read(config.OKTA_CONFIG)
-            conf_dict = dict(config['DEFAULT'])
-        else:
-            print(self.OKTA_CONFIG + " is needed. Use --configure flag to "
-                    "generate file.")
-            sys.exit(1)
 
-        self.get_user_creds()
+        # get the config dict
+        conf_dict = config.get_config_dict()
+
+        config.get_user_creds()
+
+        START HERE
         self.idp_entry_url = conf_dict['idp_entry_url'] + '/api/v1'
         # this assumes you are using a cerberus backend
         # to store your okta api key, and the key name

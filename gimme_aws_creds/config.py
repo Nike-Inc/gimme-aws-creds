@@ -1,5 +1,6 @@
 import argparse
 import configparser
+import getpass
 import os
 from os.path import expanduser
 from urllib.parse import urlparse, urlunparse
@@ -11,6 +12,7 @@ class Config(object):
 
     def __init__(self):
         self.configure = False
+        self.password = None
         self.username = None
 
     def get_args(self):
@@ -29,13 +31,39 @@ class Config(object):
         self.configure = args.configure
         self.username = args.username
 
-    def check_if_configfile_exists(self):
+    def get_config_dict(self):
         # Check to see if config file exists, if not complain and exit
-        # If config file does exist create config dict from file
+        # If config file does exist return config dict from file
         if os.path.isfile(self.OKTA_CONFIG):
             config = configparser.ConfigParser()
             config.read(self.OKTA_CONFIG)
+            return dict(config['DEFAULT'])
+        else:
+            print(self.OKTA_CONFIG + " is needed. Use --configure flag to "
+                    "generate file.")
+            sys.exit(1)
 
+    #  this is modified code from https://github.com/nimbusscale/okta_aws_login
+    def get_user_creds(self):
+        """Get's creds for Okta login from the user."""
+        # Check to see if the username arg has been set, if so use that
+        if self.username is not None:
+            username = self.username
+        # Next check to see if the OKTA_USERNAME env var is set
+        elif os.environ.get("OKTA_USERNAME") is not None:
+            username = os.environ.get("OKTA_USERNAME")
+        # Otherwise just ask the user
+        else:
+            username = input("Email address: ")
+        # Set prompt to include the user name, since username could be set
+        # via OKTA_USERNAME env and user might not remember.
+        passwd_prompt = "Password for {}: ".format(username)
+        password = getpass.getpass(prompt=passwd_prompt)
+        if len(password) == 0:
+            print( "Password must be provided")
+            sys.exit(1)
+        self.username = username
+        self.password = password
 
     # this is modified code from https://github.com/nimbusscale/okta_aws_login
     def update_config_file(self):
