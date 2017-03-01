@@ -65,6 +65,20 @@ class Config(object):
         self.username = username
         self.password = password
 
+    def set_okta_api_key(self):
+        """returns the Okta API key from
+        env var OKTA_API_KEY or from cerberus.
+        This assumes your SDB is named Okta and
+        your Vault path ends is api_key"""
+        if os.environ.get("OKTA_API_KEY") is not None:
+            secret = os.environ.get("OKTA_API_KEY")
+        else:
+            cerberus = CerberusClient(self.cerberus_url,self.username,self.password)
+            path = cerberus.get_sdb_path('Okta')
+            key = urlparse(self.idp_entry_url).netloc
+            secret = cerberus.get_secret(path + '/api_key', key)
+        self.okta_api_key = secret
+
     # this is modified code from https://github.com/nimbusscale/okta_aws_login
     def update_config_file(self):
         """Prompts user for config details for the okta_aws_login tool.

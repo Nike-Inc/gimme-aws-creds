@@ -233,7 +233,6 @@ class GimmeAWSCreds(object):
 
         config.get_user_creds()
 
-        START HERE
         self.idp_entry_url = conf_dict['idp_entry_url'] + '/api/v1'
         # this assumes you are using a cerberus backend
         # to store your okta api key, and the key name
