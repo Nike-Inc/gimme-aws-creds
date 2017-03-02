@@ -4,6 +4,7 @@ import getpass
 import os
 from os.path import expanduser
 from urllib.parse import urlparse, urlunparse
+from cerberus.client import CerberusClient
 
 class Config(object):
     FILE_ROOT = expanduser("~")
@@ -65,7 +66,7 @@ class Config(object):
         self.username = username
         self.password = password
 
-    def set_okta_api_key(self):
+    def get_okta_api_key(self):
         """returns the Okta API key from
         env var OKTA_API_KEY or from cerberus.
         This assumes your SDB is named Okta and
@@ -73,11 +74,12 @@ class Config(object):
         if os.environ.get("OKTA_API_KEY") is not None:
             secret = os.environ.get("OKTA_API_KEY")
         else:
-            cerberus = CerberusClient(self.cerberus_url,self.username,self.password)
+            conf_dict = self.get_config_dict()
+            cerberus = CerberusClient(conf_dict['cerberus_url'],self.username,self.password)
             path = cerberus.get_sdb_path('Okta')
-            key = urlparse(self.idp_entry_url).netloc
+            key = urlparse(conf_dict['idp_entry_url']).netloc
             secret = cerberus.get_secret(path + '/api_key', key)
-        self.okta_api_key = secret
+        return secret
 
     # this is modified code from https://github.com/nimbusscale/okta_aws_login
     def update_config_file(self):

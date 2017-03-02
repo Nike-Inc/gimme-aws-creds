@@ -70,19 +70,7 @@ class GimmeAWSCreds(object):
         with open(self.AWS_CONFIG, 'w+') as configfile:
             config.write(configfile)
 
-    def set_okta_api_key(self):
-        """returns the Okta API key from
-        env var OKTA_API_KEY or from cerberus.
-        This assumes your SDB is named Okta and
-        your Vault path ends is api_key"""
-        if os.environ.get("OKTA_API_KEY") is not None:
-            secret = os.environ.get("OKTA_API_KEY")
-        else:
-            cerberus = CerberusClient(self.cerberus_url,self.username,self.password)
-            path = cerberus.get_sdb_path('Okta')
-            key = urlparse(self.idp_entry_url).netloc
-            secret = cerberus.get_secret(path + '/api_key', key)
-        self.okta_api_key = secret
+
 
     def get_login_response(self):
         """ gets the login response from Okta and returns the json response"""
@@ -240,7 +228,10 @@ class GimmeAWSCreds(object):
         # otherwise set OKTA_API_KEY env variable
         if conf_dict['cerberus_url'] :
             self.cerberus_url = conf_dict['cerberus_url']
-        self.set_okta_api_key()
+        api_key = config.get_okta_api_key()
+
+        print(api_key)
+        sys.exit()
 
         resp = self.get_login_response()
         session = requests.session()
