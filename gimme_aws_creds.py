@@ -81,18 +81,7 @@ class GimmeAWSCreds(object):
 
 
 
-    def get_app_url(self,login_resp):
-        """ return the app link json for select aws app """
-        app_resp = self.get_app_links(login_resp)
-        for app in app_resp:
-            #print(app['label'])
-            if(app['label'] == 'AWS_API'):
-                print(app['linkUrl'])
-            if app['label'] == self.aws_appname:
-                return app
 
-        print("ERROR app not found:", self.aws_appname)
-        sys.exit(2)
 
     def set_idp_arn(self,app_id):
         """ return the PrincipalArn based on the app instance id """
@@ -187,10 +176,9 @@ class GimmeAWSCreds(object):
         else:
             self.aws_rolename = conf_dict['aws_rolename']
 
-        print(self.aws_rolename)
-        sys.exit()
+
         # get the applinks available to the user
-        app_url = self.get_app_url(resp)
+        app_url = okta.get_app_url(resp,self.aws_appname)
         # Get the the identityProviderArn from the aws app
         self.set_idp_arn(app_url['appInstanceId'])
         # Get the role ARNs

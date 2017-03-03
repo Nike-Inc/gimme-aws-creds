@@ -81,3 +81,15 @@ class OktaClient(object):
                     print ("You selected an invalid selection")
                     sys.exit(1)
                 return roles[int(selection)]
+
+    def get_app_url(self,login_resp,aws_appname):
+        """ return the app link json for select aws app """
+        app_resp = self.get_app_links(login_resp)
+        for app in app_resp:
+            #print(app['label'])
+            if(app['label'] == 'AWS_API'):
+                print(app['linkUrl'])
+            if app['label'] == aws_appname:
+                return app
+        print("ERROR app not found:", aws_appname)
+        sys.exit(2)
