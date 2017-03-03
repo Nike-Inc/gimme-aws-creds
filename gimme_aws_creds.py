@@ -80,33 +80,6 @@ class GimmeAWSCreds(object):
         return response_json
 
 
-    def get_role(self,login_resp):
-        """ gets a list of available roles and
-        ask the user to select the app they want
-        to assume and returns the selection"""
-        # get available roles for the AWS app
-        headers = self.get_headers()
-        user_id = login_resp['_embedded']['user']['id']
-        response = requests.get(self.idp_entry_url + '/apps/?filter=user.id+eq+\"' +
-            user_id + '\"&expand=user/' + user_id,headers=headers, verify=True)
-        role_resp = json.loads(response.text)
-        # Check if this is a valid response
-        if 'errorCode' in role_resp:
-            print("ERROR: " + role_resp['errorSummary'], "Error Code ", role_resp['errorCode'])
-            sys.exit(2)
-        # print out roles for the app and let the uesr select
-        for app in role_resp:
-            if app['label'] == self.aws_appname:
-                print ("Pick a role:")
-                roles = app['_embedded']['user']['profile']['samlRoles']
-                for i, role in enumerate(roles):
-                    print ('[',i,']:', role)
-                selection = input("Selection: ")
-                # make sure the choice is valid
-                if int(selection) > len(roles):
-                    print ("You selected an invalid selection")
-                    sys.exit(1)
-                return roles[int(selection)]
 
     def get_app_url(self,login_resp):
         """ return the app link json for select aws app """
@@ -208,13 +181,14 @@ class GimmeAWSCreds(object):
             self.aws_appname = okta.get_app(resp)
         else:
             self.aws_appname = conf_dict['aws_appname']
-        sys.exit()
         if not conf_dict['aws_rolename']:
             # get available roles for the AWS app
-            self.aws_rolename = self.get_role(resp)
+            self.aws_rolename = okta.get_role(resp,self.aws_appname)
         else:
             self.aws_rolename = conf_dict['aws_rolename']
 
+        print(self.aws_rolename)
+        sys.exit()
         # get the applinks available to the user
         app_url = self.get_app_url(resp)
         # Get the the identityProviderArn from the aws app
