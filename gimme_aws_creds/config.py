@@ -9,7 +9,6 @@ from cerberus.client import CerberusClient
 class Config(object):
     FILE_ROOT = expanduser("~")
     OKTA_CONFIG = FILE_ROOT + '/.okta_aws_login_config'
-    AWS_CONFIG = FILE_ROOT + '/.aws/credentials'
 
     def __init__(self):
         self.configure = False
@@ -192,3 +191,8 @@ class Config(object):
             return default
         else:
             return user_input
+
+    def clean_up(self):
+        """ clean up secret stuff"""
+        del self.username
+        del self.password

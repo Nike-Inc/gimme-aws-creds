@@ -1,29 +1,17 @@
 #!/usr/bin/env python3
-# TODO in no certain order
-# 1. add MFA for Okta
-# 2. write out to an aws config file
-# 3. write a web service
-# 4. store session id
-
-
 
 import boto3
-
-
 import json
 import os
 import re
 import requests
 import sys
 
-
-
-#from os.path import expanduser
-#from urllib.parse import urlparse, urlunparse
 from gimme_aws_creds.config import Config
 from gimme_aws_creds.okta import OktaClient
 
 class GimmeAWSCreds(object):
+    AWS_CONFIG = FILE_ROOT + '/.aws/credentials'
 
     def __init__(self):
         self.aws_appname = None
@@ -35,13 +23,6 @@ class GimmeAWSCreds(object):
         self.password = None
         self.role_arn = None
         self.username = None
-
-    def get_headers(self):
-        headers = {'Accept' : 'application/json',
-                   'Content-Type' : 'application/json',
-                   'Authorization' : 'SSWS ' + self.okta_api_key}
-        return headers
-
 
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
     def write_aws_creds(self, profile, access_key, secret_key, token):
@@ -65,28 +46,6 @@ class GimmeAWSCreds(object):
         with open(self.AWS_CONFIG, 'w+') as configfile:
             config.write(configfile)
 
-
-
-    def get_login_response(self):
-        """ gets the login response from Okta and returns the json response"""
-        headers = self.get_headers()
-        response = requests.post(self.idp_entry_url + '/authn',
-                                 json={'username': self.username, 'password': self.password},
-                                 headers=headers)
-        if response.status_code != 200:
-            print("ERROR: " + response['errors'][0]['message'])
-            sys.exit(2)
-        response_json = json.loads(response.text)
-        return response_json
-
-
-
-
-
-
-
-
-
     def get_sts_creds(self,assertion,duration=3600):
         """ using the assertion and arns return aws sts creds """
         client = boto3.client('sts')
@@ -96,13 +55,6 @@ class GimmeAWSCreds(object):
            SAMLAssertion=assertion,
            DurationSeconds=duration)
         return response['Credentials']
-
-    def clean_up(self):
-        """ clean up secret stuff"""
-        del self.username
-        del self.password
-        del self.okta_api_key
-
 
     def run(self):
         """ let's do this """
@@ -115,7 +67,6 @@ class GimmeAWSCreds(object):
 
         # get the config dict
         conf_dict = config.get_config_dict()
-
         config.get_user_creds()
 
         self.idp_entry_url = conf_dict['idp_entry_url'] + '/api/v1'
@@ -143,7 +94,6 @@ class GimmeAWSCreds(object):
         else:
             self.aws_rolename = conf_dict['aws_rolename']
 
-
         # get the applinks available to the user
         app_url = okta.get_app_url(resp,self.aws_appname)
         # Get the the identityProviderArn from the aws app
@@ -151,10 +101,10 @@ class GimmeAWSCreds(object):
         # Get the role ARNs
         self.role_arn = okta.get_role_arn(app_url['linkUrl'],resp['sessionToken'],self.aws_rolename)
         # get a new token for aws_creds
-        login_resp = self.get_login_response()
+        login_resp = okta.get_login_response(config.username, config.password)
         resp2 = requests.get(app_url['linkUrl'] + '/?sessionToken=' + login_resp['sessionToken'], verify=True)
         #session = requests.session()
-        assertion = self.get_saml_assertion(resp2)
+        assertion = okta.get_saml_assertion(resp2)
         aws_creds = self.get_sts_creds(assertion)
         if conf_dict['write_aws_creds']:
             print('writing to ', self.AWS_CONFIG)
@@ -174,7 +124,7 @@ class GimmeAWSCreds(object):
             print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'])
             print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'])
 
-        self.clean_up()
+        config.clean_up()
 
 if __name__ == '__main__':
     GimmeAWSCreds().run()
