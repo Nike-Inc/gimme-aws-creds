@@ -1,5 +1,9 @@
+import base64
 import json
 import requests
+import xml.etree.ElementTree as ET
+
+from bs4 import BeautifulSoup
 
 class OktaClient(object):
 
@@ -100,3 +104,33 @@ class OktaClient(object):
         response = requests.get(self.idp_entry_url + '/apps/' + app_id ,headers=headers, verify=True)
         app_resp = json.loads(response.text)
         return app_resp['settings']['app']['identityProviderArn']
+
+    def get_role_arn(self,link_url,token,aws_rolename):
+        """ return the role arn for the selected role """
+        headers = self.get_headers()
+        saml_resp = requests.get(link_url + '/?onetimetoken=' + token, headers=headers, verify=True)
+        saml_value = self.get_saml_assertion(saml_resp)
+        # decode the saml so we can find our arns
+        # https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/
+        aws_roles = []
+        root = ET.fromstring(base64.b64decode(saml_value))
+        #print(BeautifulSoup(saml_decoded, "lxml").prettify())
+        for saml2attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
+            if (saml2attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role'):
+                for saml2attributevalue in saml2attribute.iter('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
+                    aws_roles.append(saml2attributevalue.text)
+        # grab the role ARNs that matches the role to assume
+        role_arn = ''
+        for aws_role in aws_roles:
+            chunks = aws_role.split(',')
+            if aws_rolename in chunks[1]:
+                return chunks[1]
+
+    @staticmethod
+    def get_saml_assertion(response):
+        """return the base64 SAML value object from the SAML Response"""
+        saml_soup = BeautifulSoup(response.text, "html.parser")
+        #print("SOUP", saml_soup)
+        for inputtag in saml_soup.find_all('input'):
+            if (inputtag.get('name') == 'SAMLResponse'):
+                return inputtag.get('value')

@@ -6,7 +6,7 @@
 # 4. store session id
 
 
-import base64
+
 import boto3
 
 
@@ -15,8 +15,8 @@ import os
 import re
 import requests
 import sys
-import xml.etree.ElementTree as ET
-from bs4 import BeautifulSoup
+
+
 
 #from os.path import expanduser
 #from urllib.parse import urlparse, urlunparse
@@ -85,35 +85,7 @@ class GimmeAWSCreds(object):
 
 
 
-    def set_role_arn(self,link_url,token):
-        """ return the role arn for the selected role """
-        headers = self.get_headers()
-        saml_resp = requests.get(link_url + '/?onetimetoken=' + token, headers=headers, verify=True)
-        saml_value = self.get_saml_assertion(saml_resp)
-        # decode the saml so we can find our arns
-        # https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/
-        aws_roles = []
-        root = ET.fromstring(base64.b64decode(saml_value))
-        #print(BeautifulSoup(saml_decoded, "lxml").prettify())
-        for saml2attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
-            if (saml2attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role'):
-                for saml2attributevalue in saml2attribute.iter('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
-                    aws_roles.append(saml2attributevalue.text)
-        # grab the role ARNs that matches the role to assume
-        role_arn = ''
-        for aws_role in aws_roles:
-            chunks = aws_role.split(',')
-            if self.aws_rolename in chunks[1]:
-                self.role_arn = chunks[1]
 
-    @staticmethod
-    def get_saml_assertion(response):
-        """return the base64 SAML value object from the SAML Response"""
-        saml_soup = BeautifulSoup(response.text, "html.parser")
-        #print("SOUP", saml_soup)
-        for inputtag in saml_soup.find_all('input'):
-            if (inputtag.get('name') == 'SAMLResponse'):
-                return inputtag.get('value')
 
     def get_sts_creds(self,assertion,duration=3600):
         """ using the assertion and arns return aws sts creds """
@@ -177,7 +149,7 @@ class GimmeAWSCreds(object):
         # Get the the identityProviderArn from the aws app
         self.idp_arn = okta.get_idp_arn(app_url['appInstanceId'])
         # Get the role ARNs
-        self.set_role_arn(app_url['linkUrl'],resp['sessionToken'])
+        self.role_arn = okta.get_role_arn(app_url['linkUrl'],resp['sessionToken'],self.aws_rolename)
         # get a new token for aws_creds
         login_resp = self.get_login_response()
         resp2 = requests.get(app_url['linkUrl'] + '/?sessionToken=' + login_resp['sessionToken'], verify=True)
