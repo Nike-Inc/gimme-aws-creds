@@ -83,12 +83,7 @@ class GimmeAWSCreds(object):
 
 
 
-    def set_idp_arn(self,app_id):
-        """ return the PrincipalArn based on the app instance id """
-        headers = self.get_headers()
-        response = requests.get(self.idp_entry_url + '/apps/' + app_id ,headers=headers, verify=True)
-        app_resp = json.loads(response.text)
-        self.idp_arn = app_resp['settings']['app']['identityProviderArn']
+
 
     def set_role_arn(self,link_url,token):
         """ return the role arn for the selected role """
@@ -180,7 +175,7 @@ class GimmeAWSCreds(object):
         # get the applinks available to the user
         app_url = okta.get_app_url(resp,self.aws_appname)
         # Get the the identityProviderArn from the aws app
-        self.set_idp_arn(app_url['appInstanceId'])
+        self.idp_arn = okta.get_idp_arn(app_url['appInstanceId'])
         # Get the role ARNs
         self.set_role_arn(app_url['linkUrl'],resp['sessionToken'])
         # get a new token for aws_creds

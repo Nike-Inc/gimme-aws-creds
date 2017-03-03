@@ -93,3 +93,10 @@ class OktaClient(object):
                 return app
         print("ERROR app not found:", aws_appname)
         sys.exit(2)
+
+    def get_idp_arn(self,app_id):
+        """ return the PrincipalArn based on the app instance id """
+        headers = self.get_headers()
+        response = requests.get(self.idp_entry_url + '/apps/' + app_id ,headers=headers, verify=True)
+        app_resp = json.loads(response.text)
+        return app_resp['settings']['app']['identityProviderArn']
