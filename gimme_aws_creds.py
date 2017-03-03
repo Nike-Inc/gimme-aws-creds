@@ -79,33 +79,6 @@ class GimmeAWSCreds(object):
         response_json = json.loads(response.text)
         return response_json
 
-    def get_app_links(self,login_resp):
-        """ return appLinks obejct for the user """
-        headers = self.get_headers()
-        user_id = login_resp['_embedded']['user']['id']
-        response = requests.get(self.idp_entry_url + '/users/' + user_id + '/appLinks',
-              headers=headers, verify=True)
-        app_resp = json.loads(response.text)
-        if 'errorCode' in app_resp:
-            print("ERROR: " + app_resp['errorSummary'], "Error Code ", app_resp['errorCode'])
-            sys.exit(2)
-        return app_resp
-
-    def get_app(self,login_resp):
-        """ gets a list of available apps and
-        ask the user to select the app they want
-        to assume a roles for and returns the selection"""
-        app_resp = self.get_app_links(login_resp)
-        print ("Pick an app:")
-        # print out the apps and let the user select
-        for i, app in enumerate(app_resp):
-            print ('[',i,']', app["label"])
-        selection = input("Selection: ")
-        # make sure the choice is valid
-        if int(selection) > len(app_resp):
-            print ("You selected an invalid selection")
-            sys.exit(1)
-        return app_resp[int(selection)]["label"]
 
     def get_role(self,login_resp):
         """ gets a list of available roles and
@@ -227,16 +200,15 @@ class GimmeAWSCreds(object):
 
         okta = OktaClient(api_key, self.idp_entry_url)
         resp = okta.get_login_response(config.username, config.password)
-        print(resp)
-        sys.exit()
         session = requests.session()
 
         # check to see if appname and rolename are set
         # in the config, if not give user a selection to pick from
         if not conf_dict['aws_appname']:
-            self.aws_appname = self.get_app(resp)
+            self.aws_appname = okta.get_app(resp)
         else:
             self.aws_appname = conf_dict['aws_appname']
+        sys.exit()
         if not conf_dict['aws_rolename']:
             # get available roles for the AWS app
             self.aws_rolename = self.get_role(resp)
