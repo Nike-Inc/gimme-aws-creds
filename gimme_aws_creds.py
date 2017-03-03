@@ -17,15 +17,13 @@ import requests
 import sys
 import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
-from cerberus.client import CerberusClient
+
 #from os.path import expanduser
 #from urllib.parse import urlparse, urlunparse
 from gimme_aws_creds.config import Config
+from gimme_aws_creds.okta import OktaClient
 
 class GimmeAWSCreds(object):
-    #FILE_ROOT = expanduser("~")
-    #OKTA_CONFIG = FILE_ROOT + '/.okta_aws_login_config'
-    #AWS_CONFIG = FILE_ROOT + '/.aws/credentials'
 
     def __init__(self):
         self.aws_appname = None
@@ -43,9 +41,6 @@ class GimmeAWSCreds(object):
                    'Content-Type' : 'application/json',
                    'Authorization' : 'SSWS ' + self.okta_api_key}
         return headers
-
-
-
 
 
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
@@ -230,10 +225,10 @@ class GimmeAWSCreds(object):
             self.cerberus_url = conf_dict['cerberus_url']
         api_key = config.get_okta_api_key()
 
-        print(api_key)
+        okta = OktaClient(api_key, self.idp_entry_url)
+        resp = okta.get_login_response(config.username, config.password)
+        print(resp)
         sys.exit()
-
-        resp = self.get_login_response()
         session = requests.session()
 
         # check to see if appname and rolename are set
