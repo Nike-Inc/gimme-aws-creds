@@ -48,7 +48,8 @@ class OktaClient(object):
     def get_app(self, login_resp):
         """ gets a list of available apps and
         ask the user to select the app they want
-        to assume a roles for and returns the selection"""
+        to assume a roles for and returns the selection
+        """
         app_resp = self.get_app_links(login_resp)
         print("Pick an app:")
         # print out the apps and let the user select
@@ -64,7 +65,8 @@ class OktaClient(object):
     def get_role(self, login_resp, aws_appname):
         """ gets a list of available roles and
         ask the user to select the app they want
-        to assume and returns the selection"""
+        to assume and returns the selection
+        """
         # get available roles for the AWS app
         headers = self.get_headers()
         user_id = login_resp['_embedded']['user']['id']
@@ -93,7 +95,6 @@ class OktaClient(object):
         """ return the app link json for select aws app """
         app_resp = self.get_app_links(login_resp)
         for app in app_resp:
-            #print(app['label'])
             if app['label'] == 'AWS_API':
                 print(app['linkUrl'])
             if app['label'] == aws_appname:
@@ -119,7 +120,6 @@ class OktaClient(object):
         # https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/
         aws_roles = []
         root = ET.fromstring(base64.b64decode(saml_value))
-        #print(BeautifulSoup(saml_decoded, "lxml").prettify())
         for saml2attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
             if saml2attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role':
                 for saml2attributevalue in saml2attribute.iter(
@@ -135,7 +135,6 @@ class OktaClient(object):
     def get_saml_assertion(response):
         """return the base64 SAML value object from the SAML Response"""
         saml_soup = BeautifulSoup(response.text, "html.parser")
-        #print("SOUP", saml_soup)
         for inputtag in saml_soup.find_all('input'):
             if inputtag.get('name') == 'SAMLResponse':
                 return inputtag.get('value')
