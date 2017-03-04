@@ -3,3 +3,4 @@ boto3
 bs4
 configparser >= 3.5
 nose
+requests
