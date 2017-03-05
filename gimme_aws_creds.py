@@ -26,7 +26,7 @@ class GimmeAWSCreds(object):
        --configure was ran.
 
        Usage:
-         -h, --help            show this help message and exit
+         -h, --help     show this help message and exit
          --username USERNAME, -u USERNAME
                         The username to use when logging into Okta. The
                         username can also be set via the OKTA_USERNAME env
@@ -83,7 +83,7 @@ class GimmeAWSCreds(object):
         return response['Credentials']
 
     def run(self):
-        """ put a more meaningful message here """
+        """ Pulling it all together to make the CLI """
         config = Config()
         config.get_args()
         #Create/Update config when configure arg set

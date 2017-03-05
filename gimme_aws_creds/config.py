@@ -12,6 +12,9 @@ class Config(object):
     """
        The Config Class gets the CLI arguments, writes out the okta config file,
        gets and returns username and password and the Okta API key.
+
+       A lot of this code is modified from https://github.com/nimbusscale/okta_aws_login
+       under the MIT license.
     """
     FILE_ROOT = expanduser("~")
     OKTA_CONFIG = FILE_ROOT + '/.okta_aws_login_config'
@@ -51,7 +54,6 @@ class Config(object):
                   "generate file.")
             sys.exit(1)
 
-    #  this is modified code from https://github.com/nimbusscale/okta_aws_login
     def get_user_creds(self):
         """Get's creds for Okta login from the user."""
         # Check to see if the username arg has been set, if so use that
@@ -88,7 +90,6 @@ class Config(object):
             secret = cerberus.get_secret(path + '/api_key', key)
         return secret
 
-    # this is modified code from https://github.com/nimbusscale/okta_aws_login
     def update_config_file(self):
         """
            Prompts user for config details for the okta_aws_login tool.
@@ -212,7 +213,6 @@ class Config(object):
         return cerberus_url
 
     @staticmethod
-    # this is modified code from https://github.com/nimbusscale/okta_aws_login
     def get_user_input(message, default):
         """formats message to include default and then prompts user for input
         via keyboard with message. Returns user's input or if user doesn't
