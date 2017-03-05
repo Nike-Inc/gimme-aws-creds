@@ -28,9 +28,11 @@ class OktaClient(object):
     def get_login_response(self, username, password):
         """ gets the login response from Okta and returns the json response"""
         headers = self.get_headers()
-        response = requests.post(self.idp_entry_url + '/authn',
-                                 json={'username': username, 'password': password},
-                                 headers=headers)
+        response = requests.post(
+            self.idp_entry_url + '/authn',
+            json={'username': username, 'password': password},
+            headers=headers
+        )
         if response.status_code != 200:
             print("ERROR: " + response['errors'][0]['message'])
             sys.exit(2)
@@ -74,8 +76,11 @@ class OktaClient(object):
         # get available roles for the AWS app
         headers = self.get_headers()
         user_id = login_resp['_embedded']['user']['id']
-        response = requests.get(self.idp_entry_url + '/apps/?filter=user.id+eq+\"' +
-                                user_id + '\"&expand=user/' + user_id, headers=headers, verify=True)
+        response = requests.get(
+            self.idp_entry_url + '/apps/?filter=user.id+eq+\"' +
+            user_id + '\"&expand=user/' + user_id,
+            headers=headers, verify=True
+        )
         role_resp = json.loads(response.text)
         # Check if this is a valid response
         if 'errorCode' in role_resp:
