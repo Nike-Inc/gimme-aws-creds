@@ -12,4 +12,5 @@ setup(
     description="A CLI to get temporary AWS credentials from Okta",
     packages=find_packages(exclude=('tests', 'docs')),
     test_suite="tests",
+    scripts=['bin/gimme-aws-creds'],
   )

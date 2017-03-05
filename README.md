@@ -1,10 +1,10 @@
 # Gimme AWS Creds
 
-gimme_aws_creds is a CLI that utilizes [Okta](https://www.okta.com/) IdP via SAML to acquire a temporary AWS credentials via AWS STS.
+gimme-aws-creds is a CLI that utilizes [Okta](https://www.okta.com/) IdP via SAML to acquire a temporary AWS credentials via AWS STS.
 
 Okta is a SAML identity provider (IdP), that can be easily set-up to do SSO to your AWS console. Okta does offer an [OSS java CLI]((https://github.com/oktadeveloper/okta-aws-cli-assume-role)) tool to obtain temporary AWS credentials, but I found it needs more information than the average Okta user would have and doesn't scale well if have more than one Okta App.
 
-With gimme_aws_creds all you need to know is your username, password, Okta url and MFA token, if MFA is enabled. gimme_aws_creds gives you the option to select which Okta AWS application and role you want credentials for. Alternatively, you can pre-configure the app and role name by passing -c or editing the config file. This is all covered in the usage section.
+With gimme-aws-creds all you need to know is your username, password, Okta url and MFA token, if MFA is enabled. gimme-aws-creds gives you the option to select which Okta AWS application and role you want credentials for. Alternatively, you can pre-configure the app and role name by passing -c or editing the config file. This is all covered in the usage section.
 
 
 ## Prerequisites
@@ -14,7 +14,7 @@ With gimme_aws_creds all you need to know is your username, password, Okta url a
 Python 3
 
 ### Optional
-[Cerberus](http://engineering.nike.com/cerberus/) can be used for storing the Okta API key. gimme_aws_creds uses the [Cerberus Python Client](https://github.com/Nike-Inc/cerberus-python-client) for interacting with Cerberus. It would be very easy to drop something else besides Cerberus to retrieve your API key. Otherwise, you can set the OKTA_API_KEY environment variable.
+[Cerberus](http://engineering.nike.com/cerberus/) can be used for storing the Okta API key. gimme-aws-creds uses the [Cerberus Python Client](https://github.com/Nike-Inc/cerberus-python-client) for interacting with Cerberus. It would be very easy to drop something else besides Cerberus to retrieve your API key. Otherwise, you can set the OKTA_API_KEY environment variable.
 
 
 ## Installation
@@ -22,7 +22,7 @@ This is a Python 3 project.
 
 If using Cerberus clone the [Cerberus Python Client repo](https://github.com/Nike-Inc/cerberus-python-client) and follow the set-up instructions.
 
-Install the gimme_aws_creds and required python packages:
+Install the gimme-aws-creds and required python packages:
 ```bash
 python3 setup.py install
 ```
@@ -31,7 +31,7 @@ python3 setup.py install
 
 To set-up the configuration run:
 ```bash
-gimme_aws_creds.py --configure
+gimme-aws-creds --configure
 ```
 
 A configuration wizard will prompt you to enter the necessary configuration parameters for the tool to run, the only one that is required is the idp_entry_url. The configuration file is written to ~/.okta_aws_login_config.
@@ -48,11 +48,11 @@ A configuration wizard will prompt you to enter the necessary configuration para
 
 **If you are not using Cerberus to store your Okta API key make sure you the OKTA_API_KEY environment variable.**
 
-After running --configure, just run gimme_aws_creds.py. You will be prompted for the necessary information.
+After running --configure, just run gimme-aws-creds. You will be prompted for the necessary information.
 
 
 ```bash
-$ ./gimme_aws_creds.py
+$ ./gimme-aws-creds
 Email address: user@domain.com
 Password for user@domain.com:
 Enter Google Authenticator security code: 098765
@@ -76,7 +76,7 @@ If you have not configure an Okta App or Role, you will prompted to select one.
 
 If all goes well you will get your temporary AWS access, secret key and token, these will either be written to stdout or ~/.aws/credentials.
 
-You can always run ```gimme_aws_creds.py --help``` for all the available options.
+You can always run ```gimme-aws-creds --help``` for all the available options.
 
 ## Running Tests
 
@@ -90,7 +90,7 @@ $ nosetests --verbosity=2 tests/
 This project is maintained by Ann Wallace `ann.wallace@nike.com`
 
 ## Thanks and Credit
-I came across [okta_aws_login](https://github.com/nimbusscale/okta_aws_login) written by Joe Keegan, when I was searching for a CLI tool that generates AWS tokens via Okta. Unfortunately it hasn't been updated since 2015 and didn't seem to work with the current Okta version. But there was still some great code I was able to reuse under the MIT license for gimme_aws_creds. I have noted in the comments where I used his code, to make sure he receives proper credit.  
+I came across [okta_aws_login](https://github.com/nimbusscale/okta_aws_login) written by Joe Keegan, when I was searching for a CLI tool that generates AWS tokens via Okta. Unfortunately it hasn't been updated since 2015 and didn't seem to work with the current Okta version. But there was still some great code I was able to reuse under the MIT license for gimme-aws-creds. I have noted in the comments where I used his code, to make sure he receives proper credit.  
 
 ## Etc.
 
