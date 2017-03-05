@@ -9,7 +9,10 @@ from urllib.parse import urlparse
 from cerberus.client import CerberusClient
 
 class Config(object):
-    """Config options for CLI tool"""
+    """
+       The Config Class gets the CLI arguments, writes out the okta config file,
+       gets and returns username and password and the Okta API key.
+    """
     FILE_ROOT = expanduser("~")
     OKTA_CONFIG = FILE_ROOT + '/.okta_aws_login_config'
 
@@ -87,8 +90,17 @@ class Config(object):
 
     # this is modified code from https://github.com/nimbusscale/okta_aws_login
     def update_config_file(self):
-        """Prompts user for config details for the okta_aws_login tool.
-        Either updates exisiting config file or creates new one."""
+        """
+           Prompts user for config details for the okta_aws_login tool.
+           Either updates exisiting config file or creates new one.
+           Config Options:
+                idp_entry_url = Okta URL
+                write_aws_creds = Option to write creds to ~/.aws/credentials
+                cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
+                aws_appname = (optional) Okta AWS App Name
+                aws_rolename =  (optional) Okta Role Name
+                cerberus_url = (optional) Cerberus URL, for retrieving Okta API key
+        """
         config = configparser.ConfigParser()
         # See if a config file already exists.
         # If so, use current values as defaults

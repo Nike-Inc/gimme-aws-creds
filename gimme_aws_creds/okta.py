@@ -8,7 +8,11 @@ import requests
 from bs4 import BeautifulSoup
 
 class OktaClient(object):
-    """Okta Client Class"""
+    """
+       The Okta Client Class performes the necessary API
+       calls to Okta to get temporary AWS credentials. An
+       Okta API key and URL must be provided.
+    """
     def __init__(self, okta_api_key, idp_entry_url):
         self.okta_api_key = okta_api_key
         self.idp_entry_url = idp_entry_url
