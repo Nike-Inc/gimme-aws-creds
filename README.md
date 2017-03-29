@@ -20,8 +20,6 @@ Python 3
 ## Installation
 This is a Python 3 project.
 
-If using Cerberus clone the [Cerberus Python Client repo](https://github.com/Nike-Inc/cerberus-python-client) and follow the set-up instructions.
-
 Install the gimme-aws-creds script and required python packages:
 ```bash
 python3 setup.py install
