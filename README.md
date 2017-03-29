@@ -98,5 +98,6 @@ I came across [okta_aws_login](https://github.com/nimbusscale/okta_aws_login) wr
 
 ## License
 Gimme AWS Creds is released under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
+
 [license]:LICENSE.txt
 [license img]:https://img.shields.io/badge/License-Apache%202-blue.svg
