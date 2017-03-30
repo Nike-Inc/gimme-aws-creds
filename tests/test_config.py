@@ -27,7 +27,8 @@ class TestConfig(unittest.TestCase):
         assert_equals(self.config.username, 'ann')
 
     @patch('getpass.getpass', return_value='1234qwert')
-    def test_get_password(self, mock_pass):
+    @patch('builtins.input', return_value='ann')
+    def test_get_password(self, mock_pass, mock_input):
         """Test that password gets set properly"""
         self.config.get_user_creds()
         assert_equals(self.config.password, '1234qwert')

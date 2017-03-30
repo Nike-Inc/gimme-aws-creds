@@ -1,7 +1,7 @@
 argparse >= 1.4
 boto3
 bs4
-cerberus-python-client >= 0.1.2
+cerberus-python-client >= 0.2.0
 configparser >= 3.5
 mock
 nose
