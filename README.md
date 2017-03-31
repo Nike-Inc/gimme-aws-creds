@@ -1,7 +1,7 @@
 # Gimme AWS Creds
 
-[![][travis img]][travis]
 [![][license img]][license]
+[![][travis img]][travis]
 
 gimme-aws-creds is a CLI that utilizes [Okta](https://www.okta.com/) IdP via SAML to acquire a temporary AWS credentials via AWS STS.
 
