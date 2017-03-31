@@ -43,10 +43,10 @@ class OktaClient(object):
             json={'username': username, 'password': password},
             headers=headers
         )
-        if response.status_code != 200:
-            print("ERROR: " + response['errors'][0]['message'])
-            sys.exit(2)
         response_json = json.loads(response.text)
+        if 'errorCode' in response_json:
+            print("LOGIN ERROR: " + response_json['errorSummary'], "Error Code ", response_json['errorCode'])
+            sys.exit(2)
         return response_json
 
     def get_app_links(self, login_resp):
@@ -57,7 +57,7 @@ class OktaClient(object):
                                 headers=headers, verify=True)
         app_resp = json.loads(response.text)
         if 'errorCode' in app_resp:
-            print("ERROR: " + app_resp['errorSummary'], "Error Code ", app_resp['errorCode'])
+            print("APP LINK ERROR: " + app_resp['errorSummary'], "Error Code ", app_resp['errorCode'])
             sys.exit(2)
         return app_resp
 
