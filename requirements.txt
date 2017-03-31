@@ -1,4 +1,4 @@
-argparse >= 1.4
+argparse 
 boto3
 bs4
 cerberus-python-client >= 0.2.0
