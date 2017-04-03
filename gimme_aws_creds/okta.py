@@ -43,10 +43,10 @@ class OktaClient(object):
             json={'username': username, 'password': password},
             headers=headers
         )
-        if response.status_code != 200:
-            print("ERROR: " + response['errors'][0]['message'])
-            sys.exit(2)
         response_json = json.loads(response.text)
+        if 'errorCode' in response_json:
+            print("LOGIN ERROR: " + response_json['errorSummary'], "Error Code ", response_json['errorCode'])
+            sys.exit(2)
         return response_json
 
     def get_app_links(self, login_resp):
@@ -56,10 +56,15 @@ class OktaClient(object):
         response = requests.get(self.idp_entry_url + '/users/' + user_id + '/appLinks',
                                 headers=headers, verify=True)
         app_resp = json.loads(response.text)
+        # create a list from appName = amazon_aws
+        apps = []
+        for app in app_resp:
+            if app['appName'] == 'amazon_aws':
+                apps.append(app)
         if 'errorCode' in app_resp:
-            print("ERROR: " + app_resp['errorSummary'], "Error Code ", app_resp['errorCode'])
+            print("APP LINK ERROR: " + app_resp['errorSummary'], "Error Code ", app_resp['errorCode'])
             sys.exit(2)
-        return app_resp
+        return apps
 
     def get_app(self, login_resp):
         """ gets a list of available apps and
@@ -76,11 +81,12 @@ class OktaClient(object):
         if int(selection) > len(app_resp):
             print("You selected an invalid selection")
             sys.exit(1)
+        # delete
         return app_resp[int(selection)]["label"]
 
     def get_role(self, login_resp, aws_appname):
         """ gets a list of available roles and
-        ask the user to select the app they want
+        ask the user to select the role they want
         to assume and returns the selection
         """
         # get available roles for the AWS app
@@ -146,9 +152,14 @@ class OktaClient(object):
                     aws_roles.append(saml2attributevalue.text)
         # grab the role ARNs that matches the role to assume
         for aws_role in aws_roles:
+            print('role', aws_role)
             chunks = aws_role.split(',')
+            print("chunks", chunks)
             if aws_rolename in chunks[1]:
                 return chunks[1]
+        # if you got this far something went wrong
+        print("ERROR no ARN found for", aws_rolename)
+        sys.exit(2)
 
     @staticmethod
     def get_saml_assertion(response):
