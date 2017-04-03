@@ -29,6 +29,20 @@ class TestOktaClient(unittest.TestCase):
             },
             "status": "SUCCESS"
         }
+        self.app_links = [
+            {
+                "id":"1",
+                "label":"AWS Prod",
+                "linkUrl":"https://example.oktapreview.com/1",
+                "appName":"amazon_aws"
+            },
+            {
+                "id":"2",
+                "label":"AWS Dev",
+                "linkUrl":"https://example.oktapreview.com/2",
+                "appName":"amazon_aws"
+            }
+        ]
 
     @staticmethod
     def _mock_response(status=200, reason='OK', content=''):
@@ -76,38 +90,32 @@ class TestOktaClient(unittest.TestCase):
             {
                 "id":"1",
                 "label":"AWS Prod",
-                "linkUrl":"https://example.oktapreview.com/1"
+                "linkUrl":"https://example.oktapreview.com/1",
+                "appName":"amazon_aws"
             },
             {
                 "id":"2",
                 "label":"AWS Dev",
-                "linkUrl":"https://example.oktapreview.com/2"
+                "linkUrl":"https://example.oktapreview.com/2",
+                "appName":"amazon_aws"
+            },
+            {
+                "id":"3",
+                "label":"Splunk",
+                "appName":"splunk_app"
             }
         ]
         mock_resp = self._mock_response(content=json.dumps(app_links))
         mock_get.return_value = mock_resp
         response = self.client.get_app_links(self.login_resp)
-        assert_list_equal(response, app_links)
+        assert_list_equal(response, self.app_links)
 
     @patch('gimme_aws_creds.okta.OktaClient.get_app_links')
     @patch('builtins.input', return_value='0')
     def test_get_app(self, mock_input, mock_app_links):
         """Testing correct app was returned from get_app"""
-        app_links = [
-            {
-                "id":"1",
-                "label":"AWS Prod",
-                "linkUrl":"https://example.oktapreview.com/1"
-            },
-            {
-                "id":"2",
-                "label":"AWS Dev",
-                "linkUrl":"https://example.oktapreview.com/2"
-            }
-        ]
-
         # mock get_app_links response
-        mock_app_links.return_value = app_links
+        mock_app_links.return_value = self.app_links
         response = self.client.get_app(self.login_resp)
 
         # confirm the mock was called
