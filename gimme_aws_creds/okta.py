@@ -94,7 +94,7 @@ class OktaClient(object):
         user_id = login_resp['_embedded']['user']['id']
         response = requests.get(
             self.idp_entry_url + '/apps/?filter=user.id+eq+\"' +
-            user_id + '\"&expand=user/' + user_id,
+            user_id + '\"&expand=user/' + user_id + '&limit=200',
             headers=headers, verify=True
         )
         role_resp = json.loads(response.text)
