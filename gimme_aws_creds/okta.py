@@ -141,6 +141,7 @@ class OktaClient(object):
         headers = self.get_headers()
         saml_resp = requests.get(link_url + '/?onetimetoken=' + token, headers=headers, verify=True)
         saml_value = self.get_saml_assertion(saml_resp)
+        print("SAML", saml_resp.text)
         # decode the saml so we can find our arns
         # https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/
         aws_roles = []
@@ -152,9 +153,7 @@ class OktaClient(object):
                     aws_roles.append(saml2attributevalue.text)
         # grab the role ARNs that matches the role to assume
         for aws_role in aws_roles:
-            print('role', aws_role)
             chunks = aws_role.split(',')
-            print("chunks", chunks)
             if aws_rolename in chunks[1]:
                 return chunks[1]
         # if you got this far something went wrong
