@@ -149,7 +149,7 @@ class GimmeAWSCreds(object):
 
         # check if write_aws_creds is true if so
         # get the profile name and write out the file
-        if conf_dict['write_aws_creds']:
+        if str(conf_dict['write_aws_creds']) == 'True':
             print('writing to ', self.AWS_CONFIG)
             # set the profile name
             if conf_dict['cred_profile'] == 'default':
