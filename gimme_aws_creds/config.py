@@ -139,6 +139,8 @@ class Config(object):
         # if write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
             config_dict['cred_profile'] = self.get_cred_profile(cred_profile_default)
+        else:
+            config_dict['cred_profile'] = cred_profile_default
         config_dict['aws_appname'] = self.get_aws_appname(aws_appname_default)
         config_dict['aws_rolename'] = self.get_aws_rolename(aws_rolename_default)
         config_dict['cerberus_url'] = self.get_cerberus_url(cerberus_url_default)
