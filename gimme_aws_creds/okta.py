@@ -9,13 +9,14 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
-import sys
 import base64
 import json
+import sys
 import xml.etree.ElementTree as ET
-import requests
 
+import requests
 from bs4 import BeautifulSoup
+
 
 class OktaClient(object):
     """
@@ -29,11 +30,11 @@ class OktaClient(object):
 
     def get_headers(self):
         """sets the default header"""
-        headers = {'Accept' : 'application/json',
-                   'Content-Type' : 'application/json',
-                   'Authorization' : 'SSWS ' + self.okta_api_key}
+        headers = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'SSWS ' + self.okta_api_key}
         return headers
-
 
     def get_login_response(self, username, password):
         """ gets the login response from Okta and returns the json response"""

@@ -13,10 +13,12 @@ import argparse
 import configparser
 import getpass
 import os
-from os.path import expanduser
 import sys
+from os.path import expanduser
 from urllib.parse import urlparse
+
 from cerberus.client import CerberusClient
+
 
 class Config(object):
     """
@@ -33,23 +35,33 @@ class Config(object):
         self.configure = False
         self.password = None
         self.username = None
+        self.conf_profile = 'DEFAULT'
 
     def get_args(self):
         """Get the CLI args"""
         parser = argparse.ArgumentParser(
-            description="Gets a STS token to use for AWS CLI based "
-                        "on a SAML assertion from Okta")
-        parser.add_argument('--username', '-u',
-                            help="The username to use when logging into Okta. The username can "
-                            "also be set via the OKTA_USERNAME env variable. If not provided "
-                            "you will be prompted to enter a username.")
-        parser.add_argument('--configure', '-c',
-                            action='store_true',
-                            help="If set, will prompt user for configuration parameters "
-                            " and then exit.")
+            description="Gets a STS token to use for AWS CLI based on a SAML assertion from Okta"
+        )
+        parser.add_argument(
+            '--username', '-u',
+            help="The username to use when logging into Okta. The username can "
+            "also be set via the OKTA_USERNAME env variable. If not provided "
+            "you will be prompted to enter a username."
+        )
+        parser.add_argument(
+            '--configure', '-c',
+            action='store_true',
+            help="If set, will prompt user for configuration parameters and then exit."
+        )
+        parser.add_argument(
+            '--profile', '-p',
+            help='If set, the specified configuration profile will be used instead of the default.'
+        )
         args = parser.parse_args()
+
         self.configure = args.configure
         self.username = args.username
+        self.conf_profile = args.profile or 'DEFAULT'
 
     def get_config_dict(self):
         """returns the conf dict from the okta config file"""
@@ -58,10 +70,14 @@ class Config(object):
         if os.path.isfile(self.OKTA_CONFIG):
             config = configparser.ConfigParser()
             config.read(self.OKTA_CONFIG)
-            return dict(config['DEFAULT'])
+
+            try:
+                return dict(config[self.conf_profile])
+            except KeyError:
+                print('Configuration profile not found!  Use the --configure flag to generate the profile.')
+                sys.exit(1)
         else:
-            print(self.OKTA_CONFIG + " is needed. Use --configure flag to "
-                  "generate file.")
+            print('Configuration file not found! Use the --configure flag to generate file.')
             sys.exit(1)
 
     def get_user_creds(self):
@@ -94,6 +110,11 @@ class Config(object):
             secret = os.environ.get("OKTA_API_KEY")
         else:
             conf_dict = self.get_config_dict()
+
+            if conf_dict['cerberus_url'] == ('' or None):
+                print('No Cerberus URL in configuration or OKTA_API_KEY environmental variable; unable to continue.')
+                sys.exit(1)
+
             cerberus = CerberusClient(conf_dict['cerberus_url'], self.username, self.password)
             path = cerberus.get_sdb_path('Okta')
             key = urlparse(conf_dict['idp_entry_url']).netloc
@@ -113,16 +134,21 @@ class Config(object):
                 cerberus_url = (optional) Cerberus URL, for retrieving Okta API key
         """
         config = configparser.ConfigParser()
+        if self.configure:
+            self.conf_profile = self.get_conf_profile_name(self.conf_profile)
+
         # See if a config file already exists.
         # If so, use current values as defaults
-        if os.path.isfile(self.OKTA_CONFIG) is True:
+        if os.path.isfile(self.OKTA_CONFIG):
             config.read(self.OKTA_CONFIG)
-            idp_entry_url_default = config['DEFAULT']['idp_entry_url']
-            aws_appname_default = config['DEFAULT']['aws_appname']
-            aws_rolename_default = config['DEFAULT']['aws_rolename']
-            cerberus_url_default = config['DEFAULT']['cerberus_url']
-            write_aws_creds_default = config['DEFAULT']['write_aws_creds']
-            cred_profile_default = config['DEFAULT']['cred_profile']
+
+        if self.conf_profile in config:
+            idp_entry_url_default = config[self.conf_profile]['idp_entry_url']
+            aws_appname_default = config[self.conf_profile]['aws_appname']
+            aws_rolename_default = config[self.conf_profile]['aws_rolename']
+            cerberus_url_default = config[self.conf_profile]['cerberus_url']
+            write_aws_creds_default = config[self.conf_profile]['write_aws_creds']
+            cred_profile_default = config[self.conf_profile]['cred_profile']
         # otherwise use these values for defaults
         else:
             idp_entry_url_default = ""
@@ -146,7 +172,7 @@ class Config(object):
         config_dict['cerberus_url'] = self.get_cerberus_url(cerberus_url_default)
 
         # Set default config
-        config['DEFAULT'] = config_dict
+        config[self.conf_profile] = config_dict
 
         # write out the conf file
         with open(self.OKTA_CONFIG, 'w') as configfile:
@@ -156,16 +182,18 @@ class Config(object):
         """ Get and validate idp_entry_url """
         print("Enter the IDP Entry URL. This is https://something.okta[preview].com")
         idp_entry_url_valid = False
+        idp_entry_url = default_entry
+        
         while idp_entry_url_valid is False:
-            idp_entry_url = self.get_user_input("idp_entry_url", default_entry)
+            idp_entry_url = self.get_user_input("IDP Entry URL", default_entry)
             # Validate that idp_entry_url is a well formed okta URL
             url_parse_results = urlparse(idp_entry_url)
-            if (url_parse_results.scheme ==
-                    "https" and "okta.com" or "oktapreview.com" in idp_entry_url
-               ):
+            
+            if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" in idp_entry_url:
                 idp_entry_url_valid = True
             else:
-                print("idp_entry_url must be HTTPS URL for okta.com or oktapreview.com domain")
+                print("IDP Entry URL must be HTTPS URL for okta.com or oktapreview.com domain")
+        
         return idp_entry_url
 
     def get_write_aws_creds(self, default_entry):
@@ -174,63 +202,78 @@ class Config(object):
               "\nIf no, the credentials will be written to stdout."
               "\nPlease answer y or n.")
         write_aws_creds = None
-        while write_aws_creds != True and write_aws_creds != False:
-            answer = self.get_user_input("write_aws_creds", default_entry)
+        while write_aws_creds is not True and write_aws_creds is not False:
+            default_entry = 'y' if default_entry is True else 'n'
+            answer = self.get_user_input("Write AWS Credentials", default_entry)
             answer = answer.lower()
+
             if answer == 'y':
                 write_aws_creds = True
             elif answer == 'n':
                 write_aws_creds = False
             else:
-                print("write_aws_creds must be either y or n.")
+                print("Write AWS Credentials must be either y or n.")
+
         return write_aws_creds
 
     def get_cred_profile(self, default_entry):
         """sets the aws credential profile name"""
-        print("cred_profile defines which profile is used to store the temp AWS "
+        print("The AWS credential profile defines which profile is used to store the temp AWS "
               "creds.\nIf set to 'role' then a new profile will be created "
               "matching the role name assumed by the user.\nIf set to 'default' "
               "then the temp creds will be stored in the default profile")
         cred_profile_valid = False
         cred_profile = None
+
         while cred_profile_valid is False:
-            cred_profile = self.get_user_input("cred_profile", default_entry)
+            cred_profile = self.get_user_input("AWS Credential Profile", default_entry)
             cred_profile = cred_profile.lower()
             # validate if either role or default was entered
             if cred_profile in ["default", "role"]:
                 cred_profile_valid = True
             else:
-                print("cred_profile must be either default or role")
+                print("AWS credential profile name must be either default or role.")
         return cred_profile
 
     def get_aws_appname(self, default_entry):
         """ Get Okta AWS App name """
         print("Enter the AWS Okta App Name."
               "\nThis is optional, you can select the App when you run the CLI.")
-        aws_appname = self.get_user_input("aws_appname", default_entry)
+        aws_appname = self.get_user_input("AWS App Name", default_entry)
         return aws_appname
 
     def get_aws_rolename(self, default_entry):
         """ Get the AWS Role name"""
         print("Enter the AWS role name you want credentials for."
               "\nThis is optional, you can select the role when you run the CLI.")
-        aws_rolename = self.get_user_input("aws_rolename", default_entry)
+        aws_rolename = self.get_user_input("AWS Role Name", default_entry)
         return aws_rolename
 
     def get_cerberus_url(self, default_entry):
         """ Get and validate cerberus url - this is optional"""
         print("If you are using Cerberus to store your Okta API Key, this is optional."
               "Enter your Cerberus URL.")
-        cerberus_url = self.get_user_input("cerberus_url", default_entry)
+        cerberus_url = self.get_user_input("Cerberus URL", default_entry)
         return cerberus_url
 
+    def get_conf_profile_name(self, default_entry):
+        """Get and validate configuration profile name. [Optional]"""
+        print("If you'd like to assign this configuration to a specific profile instead of to the default profile, "
+              "specify the name of the profile.  This is optional.")
+        conf_profile = self.get_user_input("Configuration Profile Name", default_entry)
+        return conf_profile
+
     @staticmethod
-    def get_user_input(message, default):
+    def get_user_input(message, default=None):
         """formats message to include default and then prompts user for input
         via keyboard with message. Returns user's input or if user doesn't
         enter input will return the default."""
-        message_with_default = message + " [{}]: ".format(default)
-        user_input = input(message_with_default)
+        if default and default != '':
+            prompt_message = message + " [{}]: ".format(default)
+        else:
+            prompt_message = message + ':'
+
+        user_input = input(prompt_message)
         print("")
         if len(user_input) == 0:
             return default

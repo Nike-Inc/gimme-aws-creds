@@ -1,11 +1,12 @@
 """Unit tests for gimme_aws_creds.config.Config"""
 import argparse
-
 import unittest
+
 from mock import patch
 from nose.tools import assert_equals
 
 from gimme_aws_creds.config import Config
+
 
 class TestConfig(unittest.TestCase):
     """Class to test Config Class.
@@ -20,7 +21,7 @@ class TestConfig(unittest.TestCase):
         self.config.clean_up()
 
     @patch('argparse.ArgumentParser.parse_args',
-           return_value=argparse.Namespace(username='ann', configure=False))
+           return_value=argparse.Namespace(username='ann', configure=False, profile=None))
     def test_get_args_username(self, mock_arg):
         """Test to make sure username gets returned"""
         self.config.get_args()

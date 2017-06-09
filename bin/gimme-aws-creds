@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and* limitations
 # standard imports
 import configparser
 import os
-from os.path import expanduser
 import sys
+from os.path import expanduser
 
 # extras
 import boto3
@@ -23,6 +23,7 @@ import requests
 # local imports
 from gimme_aws_creds.config import Config
 from gimme_aws_creds.okta import OktaClient
+
 
 class GimmeAWSCreds(object):
     """
@@ -44,6 +45,8 @@ class GimmeAWSCreds(object):
                         enter a username.
          --configure, -c  If set, will prompt user for configuration
                           parameters and then exit.
+         --profile, -p  If set, the specified configuration profile will
+                        be used instead of the default profile.
 
         Config Options:
            idp_entry_url = Okta URL
@@ -96,7 +99,7 @@ class GimmeAWSCreds(object):
         """ Pulling it all together to make the CLI """
         config = Config()
         config.get_args()
-        #Create/Update config when configure arg set
+        # Create/Update config when configure arg set
         if config.configure is True:
             config.update_config_file()
             sys.exit()
@@ -156,6 +159,11 @@ class GimmeAWSCreds(object):
                 profile_name = 'default'
             elif conf_dict['cred_profile'] == 'role':
                 profile_name = aws_rolename
+            else:
+                # To prevent the script from bombing out.
+                print('Invalid cred_profile setting in configuration. "'
+                      'Storing AWS credentials under "temp" profile name.')
+                profile_name = 'temp'
             # write out the AWS Config file
             self.write_aws_creds(
                 profile_name,
