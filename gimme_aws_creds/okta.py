@@ -11,11 +11,14 @@ See the License for the specific language governing permissions and* limitations
 """
 import base64
 import json
+import os
 import sys
 import xml.etree.ElementTree as ET
+from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
+from cerberus.client import CerberusClient
 
 
 class OktaClient(object):
@@ -24,39 +27,90 @@ class OktaClient(object):
        calls to Okta to get temporary AWS credentials. An
        Okta API key and URL must be provided.
     """
-    def __init__(self, okta_api_key, idp_entry_url):
-        self.okta_api_key = okta_api_key
-        self.idp_entry_url = idp_entry_url
 
-    def get_headers(self):
+    def __init__(self, idp_entry_url, username, password, cerberus_url=None):
+        """
+        :param idp_entry_url: Base URL for Okta IDP.
+        :param username: User's username.
+        :param password: User's password.
+        :param cerberus_url: Optional-- URL of Cerberus instance.
+        """
+        self._okta_api_key = self._get_okta_api_key(cerberus_url=cerberus_url)
+        self._idp_entry_url = idp_entry_url
+
+        self._user_id = None
+        self._session_token = None
+        self._saml_assertion = None
+
+        # Unfortunately we have to store credentials in memory since we'll need them more than once.
+        self._username = username
+        self._password = password
+
+        self._get_login_response()
+
+    def _get_okta_api_key(self, cerberus_url=None):
+        """returns the Okta API key from
+        env var OKTA_API_KEY or from cerberus.
+        This assumes your SDB is named Okta and
+        your Vault path ends is api_key"""
+        if os.environ.get("OKTA_API_KEY") is not None:
+            secret = os.environ.get("OKTA_API_KEY")
+        else:
+            if cerberus_url == ('' or None):
+                print('No Cerberus URL in configuration or OKTA_API_KEY environmental variable; unable to continue.')
+                sys.exit(1)
+
+            cerberus = CerberusClient(cerberus_url, self._username, self._password)
+            path = cerberus.get_sdb_path('Okta')
+            key = urlparse(self._idp_entry_url).netloc
+            secret = cerberus.get_secret(path + '/api_key', key)
+        return secret
+
+    def _get_headers(self):
         """sets the default header"""
         headers = {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
-            'Authorization': 'SSWS ' + self.okta_api_key}
+            'Authorization': 'SSWS ' + self._okta_api_key}
         return headers
 
-    def get_login_response(self, username, password):
+    def _get_session_token(self):
+        if self._session_token is not None:
+            return self._session_token
+        else:
+            self._get_login_response()
+            return self._session_token
+
+    def _get_login_response(self):
         """ gets the login response from Okta and returns the json response"""
-        headers = self.get_headers()
+        headers = self._get_headers()
         response = requests.post(
-            self.idp_entry_url + '/authn',
-            json={'username': username, 'password': password},
+            self._idp_entry_url + '/authn',
+            json={'username': self._username, 'password': self._password},
             headers=headers
         )
-        response_json = json.loads(response.text)
-        if 'errorCode' in response_json:
-            print("LOGIN ERROR: " + response_json['errorSummary'], "Error Code ", response_json['errorCode'])
-            sys.exit(2)
-        return response_json
 
-    def get_app_links(self, login_resp):
+        login_data = response.json()
+
+        if 'errorCode' in login_data:
+            print("LOGIN ERROR: " + login_data['errorSummary'], "Error Code ", login_data['errorCode'])
+            sys.exit(2)
+        elif login_data['status'] == 'MFA_REQUIRED':
+            raise RuntimeError('Okta MFA not yet implemented.')
+
+        self._user_id = login_data['_embedded']['user']['id']
+        self._session_token = login_data['sessionToken']
+
+    def get_app_links(self):
         """ return appLinks obejct for the user """
-        headers = self.get_headers()
-        user_id = login_resp['_embedded']['user']['id']
-        response = requests.get(self.idp_entry_url + '/users/' + user_id + '/appLinks',
-                                headers=headers, verify=True)
+        headers = self._get_headers()
+        response = requests.get(
+            self._idp_entry_url + '/users/' + self._user_id + '/appLinks',
+            headers=headers,
+            verify=True
+        )
         app_resp = json.loads(response.text)
+
         # create a list from appName = amazon_aws
         apps = []
         for app in app_resp:
@@ -67,12 +121,12 @@ class OktaClient(object):
             sys.exit(2)
         return apps
 
-    def get_app(self, login_resp):
+    def get_app(self):
         """ gets a list of available apps and
         ask the user to select the app they want
         to assume a roles for and returns the selection
         """
-        app_resp = self.get_app_links(login_resp)
+        app_resp = self.get_app_links()
         print("Pick an app:")
         # print out the apps and let the user select
         for i, app in enumerate(app_resp):
@@ -85,17 +139,16 @@ class OktaClient(object):
         # delete
         return app_resp[int(selection)]["label"]
 
-    def get_role(self, login_resp, aws_appname):
+    def get_role(self, aws_appname):
         """ gets a list of available roles and
         ask the user to select the role they want
         to assume and returns the selection
         """
         # get available roles for the AWS app
-        headers = self.get_headers()
-        user_id = login_resp['_embedded']['user']['id']
+        headers = self._get_headers()
         response = requests.get(
-            self.idp_entry_url + '/apps/?filter=user.id+eq+\"' +
-            user_id + '\"&expand=user/' + user_id + '&limit=200',
+            self._idp_entry_url + '/apps/?filter=user.id+eq+\"' +
+            self._user_id + '\"&expand=user/' + self._user_id + '&limit=200',
             headers=headers, verify=True
         )
         role_resp = json.loads(response.text)
@@ -117,9 +170,9 @@ class OktaClient(object):
                     sys.exit(1)
                 return roles[int(selection)]
 
-    def get_app_url(self, login_resp, aws_appname):
+    def get_app_url(self, aws_appname):
         """ return the app link json for select aws app """
-        app_resp = self.get_app_links(login_resp)
+        app_resp = self.get_app_links()
         for app in app_resp:
             if app['label'] == 'AWS_API':
                 print(app['linkUrl'])
@@ -130,19 +183,16 @@ class OktaClient(object):
 
     def get_idp_arn(self, app_id):
         """ return the PrincipalArn based on the app instance id """
-        headers = self.get_headers()
+        headers = self._get_headers()
         response = requests.get(
-            self.idp_entry_url + '/apps/' +
+            self._idp_entry_url + '/apps/' +
             app_id, headers=headers, verify=True)
         app_resp = json.loads(response.text)
         return app_resp['settings']['app']['identityProviderArn']
 
-    def get_role_arn(self, link_url, token, aws_rolename):
+    def get_role_arn(self, link_url, aws_rolename):
         """ return the role arn for the selected role """
-        headers = self.get_headers()
-        saml_resp = requests.get(link_url + '/?onetimetoken=' + token, headers=headers, verify=True)
-        saml_value = self.get_saml_assertion(saml_resp)
-        print("SAML", saml_resp.text)
+        saml_value = self.get_saml_assertion(link_url)
         # decode the saml so we can find our arns
         # https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/
         aws_roles = []
@@ -161,10 +211,17 @@ class OktaClient(object):
         print("ERROR no ARN found for", aws_rolename)
         sys.exit(2)
 
-    @staticmethod
-    def get_saml_assertion(response):
+    def get_saml_assertion(self, app_url):
         """return the base64 SAML value object from the SAML Response"""
-        saml_soup = BeautifulSoup(response.text, "html.parser")
-        for inputtag in saml_soup.find_all('input'):
-            if inputtag.get('name') == 'SAMLResponse':
-                return inputtag.get('value')
+        if self._saml_assertion is None:
+            response = requests.get(
+                app_url + '/?sessionToken=' + self._get_session_token(),
+                verify=True
+            )
+
+            saml_soup = BeautifulSoup(response.text, "html.parser")
+            for inputtag in saml_soup.find_all('input'):
+                if inputtag.get('name') == 'SAMLResponse':
+                    self._saml_assertion = inputtag.get('value')
+
+        return self._saml_assertion

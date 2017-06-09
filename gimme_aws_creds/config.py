@@ -17,8 +17,6 @@ import sys
 from os.path import expanduser
 from urllib.parse import urlparse
 
-from cerberus.client import CerberusClient
-
 
 class Config(object):
     """
@@ -96,35 +94,15 @@ class Config(object):
         passwd_prompt = "Password for {}: ".format(username)
         password = getpass.getpass(prompt=passwd_prompt)
         if len(password) == 0:
-            print("Password must be provided")
+            print("Password must be provided.")
             sys.exit(1)
         self.username = username
         self.password = password
 
-    def get_okta_api_key(self):
-        """returns the Okta API key from
-        env var OKTA_API_KEY or from cerberus.
-        This assumes your SDB is named Okta and
-        your Vault path ends is api_key"""
-        if os.environ.get("OKTA_API_KEY") is not None:
-            secret = os.environ.get("OKTA_API_KEY")
-        else:
-            conf_dict = self.get_config_dict()
-
-            if conf_dict['cerberus_url'] == ('' or None):
-                print('No Cerberus URL in configuration or OKTA_API_KEY environmental variable; unable to continue.')
-                sys.exit(1)
-
-            cerberus = CerberusClient(conf_dict['cerberus_url'], self.username, self.password)
-            path = cerberus.get_sdb_path('Okta')
-            key = urlparse(conf_dict['idp_entry_url']).netloc
-            secret = cerberus.get_secret(path + '/api_key', key)
-        return secret
-
     def update_config_file(self):
         """
            Prompts user for config details for the okta_aws_login tool.
-           Either updates exisiting config file or creates new one.
+           Either updates existing config file or creates new one.
            Config Options:
                 idp_entry_url = Okta URL
                 write_aws_creds = Option to write creds to ~/.aws/credentials
@@ -137,39 +115,40 @@ class Config(object):
         if self.configure:
             self.conf_profile = self.get_conf_profile_name(self.conf_profile)
 
+        defaults = {
+            'idp_entry_url': '',
+            'aws_appname': '',
+            'aws_rolename': '',
+            'cerberus_url': '',
+            'write_aws_creds': '',
+            'cred_profile': 'role'
+        }
+
         # See if a config file already exists.
         # If so, use current values as defaults
         if os.path.isfile(self.OKTA_CONFIG):
             config.read(self.OKTA_CONFIG)
 
-        if self.conf_profile in config:
-            idp_entry_url_default = config[self.conf_profile]['idp_entry_url']
-            aws_appname_default = config[self.conf_profile]['aws_appname']
-            aws_rolename_default = config[self.conf_profile]['aws_rolename']
-            cerberus_url_default = config[self.conf_profile]['cerberus_url']
-            write_aws_creds_default = config[self.conf_profile]['write_aws_creds']
-            cred_profile_default = config[self.conf_profile]['cred_profile']
-        # otherwise use these values for defaults
-        else:
-            idp_entry_url_default = ""
-            aws_appname_default = ""
-            aws_rolename_default = ""
-            cerberus_url_default = ""
-            write_aws_creds_default = ""
-            cred_profile_default = "role"
+            if self.conf_profile in config:
+                profile = config[self.conf_profile]
+
+                for default in defaults:
+                    defaults[default] = profile.get(default, defaults[default])
 
         # Prompt user for config details and store in config_dict
-        config_dict = {}
-        config_dict['idp_entry_url'] = self.get_idp_entry(idp_entry_url_default)
-        config_dict['write_aws_creds'] = self.get_write_aws_creds(write_aws_creds_default)
-        # if write_aws_creds is True get the profile name
+        config_dict = {
+            'idp_entry_url': self.get_idp_entry(defaults['idp_entry_url']),
+            'write_aws_creds': self.get_write_aws_creds(defaults['write_aws_creds']),
+            'aws_appname': self.get_aws_appname(defaults['aws_appname']),
+            'aws_rolename': self.get_aws_rolename(defaults['aws_rolename']),
+            'cerberus_url': self.get_cerberus_url(defaults['cerberus_url'])
+        }
+
+        # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
-            config_dict['cred_profile'] = self.get_cred_profile(cred_profile_default)
+            config_dict['cred_profile'] = self.get_cred_profile(defaults['cred_profile'])
         else:
-            config_dict['cred_profile'] = cred_profile_default
-        config_dict['aws_appname'] = self.get_aws_appname(aws_appname_default)
-        config_dict['aws_rolename'] = self.get_aws_rolename(aws_rolename_default)
-        config_dict['cerberus_url'] = self.get_cerberus_url(cerberus_url_default)
+            config_dict['cred_profile'] = defaults['cred_profile']
 
         # Set default config
         config[self.conf_profile] = config_dict
@@ -183,17 +162,17 @@ class Config(object):
         print("Enter the IDP Entry URL. This is https://something.okta[preview].com")
         idp_entry_url_valid = False
         idp_entry_url = default_entry
-        
+
         while idp_entry_url_valid is False:
             idp_entry_url = self.get_user_input("IDP Entry URL", default_entry)
             # Validate that idp_entry_url is a well formed okta URL
             url_parse_results = urlparse(idp_entry_url)
-            
+
             if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" in idp_entry_url:
                 idp_entry_url_valid = True
             else:
                 print("IDP Entry URL must be HTTPS URL for okta.com or oktapreview.com domain")
-        
+
         return idp_entry_url
 
     def get_write_aws_creds(self, default_entry):
@@ -271,7 +250,7 @@ class Config(object):
         if default and default != '':
             prompt_message = message + " [{}]: ".format(default)
         else:
-            prompt_message = message + ':'
+            prompt_message = message + ': '
 
         user_input = input(prompt_message)
         print("")

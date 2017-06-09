@@ -1,6 +1,7 @@
 """Unit tests for gimme_aws_creds.okta.OktaClient"""
 import json
 import unittest
+
 import requests
 from mock import patch
 from nose.tools import (
@@ -11,6 +12,7 @@ from nose.tools import (
 )
 
 from gimme_aws_creds.okta import OktaClient
+
 
 class TestOktaClient(unittest.TestCase):
     """Class to test Okta Client Class.
@@ -31,16 +33,16 @@ class TestOktaClient(unittest.TestCase):
         }
         self.app_links = [
             {
-                "id":"1",
-                "label":"AWS Prod",
-                "linkUrl":"https://example.oktapreview.com/1",
-                "appName":"amazon_aws"
+                "id": "1",
+                "label": "AWS Prod",
+                "linkUrl": "https://example.oktapreview.com/1",
+                "appName": "amazon_aws"
             },
             {
-                "id":"2",
-                "label":"AWS Dev",
-                "linkUrl":"https://example.oktapreview.com/2",
-                "appName":"amazon_aws"
+                "id": "2",
+                "label": "AWS Dev",
+                "linkUrl": "https://example.oktapreview.com/2",
+                "appName": "amazon_aws"
             }
         ]
 
@@ -56,7 +58,7 @@ class TestOktaClient(unittest.TestCase):
 
     def test_get_headers(self):
         """Testing that get_headers returns the expected results"""
-        header = self.client.get_headers()
+        header = self.client._get_headers()
         assert_equals(header['Authorization'], 'SSWS XXXXXX')
 
     @patch('requests.post')
@@ -80,7 +82,7 @@ class TestOktaClient(unittest.TestCase):
             }
         }
         mock_post.return_value = self._mock_response(content=json.dumps(login))
-        response = self.client.get_login_response("username", "password")
+        response = self.client._get_login_response("username", "password")
         assert_dict_equal(response, login)
 
     @patch('requests.get')
