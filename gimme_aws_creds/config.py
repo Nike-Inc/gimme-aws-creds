@@ -113,7 +113,7 @@ class Config(object):
         """
         config = configparser.ConfigParser()
         if self.configure:
-            self.conf_profile = self.get_conf_profile_name(self.conf_profile)
+            self.conf_profile = self._get_conf_profile_name(self.conf_profile)
 
         defaults = {
             'idp_entry_url': '',
@@ -137,16 +137,16 @@ class Config(object):
 
         # Prompt user for config details and store in config_dict
         config_dict = {
-            'idp_entry_url': self.get_idp_entry(defaults['idp_entry_url']),
-            'write_aws_creds': self.get_write_aws_creds(defaults['write_aws_creds']),
-            'aws_appname': self.get_aws_appname(defaults['aws_appname']),
-            'aws_rolename': self.get_aws_rolename(defaults['aws_rolename']),
-            'cerberus_url': self.get_cerberus_url(defaults['cerberus_url'])
+            'idp_entry_url': self._get_idp_entry(defaults['idp_entry_url']),
+            'write_aws_creds': self._get_write_aws_creds(defaults['write_aws_creds']),
+            'aws_appname': self._get_aws_appname(defaults['aws_appname']),
+            'aws_rolename': self._get_aws_rolename(defaults['aws_rolename']),
+            'cerberus_url': self._get_cerberus_url(defaults['cerberus_url'])
         }
 
         # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
-            config_dict['cred_profile'] = self.get_cred_profile(defaults['cred_profile'])
+            config_dict['cred_profile'] = self._get_cred_profile(defaults['cred_profile'])
         else:
             config_dict['cred_profile'] = defaults['cred_profile']
 
@@ -157,14 +157,14 @@ class Config(object):
         with open(self.OKTA_CONFIG, 'w') as configfile:
             config.write(configfile)
 
-    def get_idp_entry(self, default_entry):
+    def _get_idp_entry(self, default_entry):
         """ Get and validate idp_entry_url """
         print("Enter the IDP Entry URL. This is https://something.okta[preview].com")
         idp_entry_url_valid = False
         idp_entry_url = default_entry
 
         while idp_entry_url_valid is False:
-            idp_entry_url = self.get_user_input("IDP Entry URL", default_entry)
+            idp_entry_url = self._get_user_input("IDP Entry URL", default_entry)
             # Validate that idp_entry_url is a well formed okta URL
             url_parse_results = urlparse(idp_entry_url)
 
@@ -175,7 +175,7 @@ class Config(object):
 
         return idp_entry_url
 
-    def get_write_aws_creds(self, default_entry):
+    def _get_write_aws_creds(self, default_entry):
         """ Option to write to the ~/.aws/credentials or to stdour"""
         print("Do you want to write the temporary AWS to ~/.aws/credentials?"
               "\nIf no, the credentials will be written to stdout."
@@ -183,7 +183,7 @@ class Config(object):
         write_aws_creds = None
         while write_aws_creds is not True and write_aws_creds is not False:
             default_entry = 'y' if default_entry is True else 'n'
-            answer = self.get_user_input("Write AWS Credentials", default_entry)
+            answer = self._get_user_input("Write AWS Credentials", default_entry)
             answer = answer.lower()
 
             if answer == 'y':
@@ -195,55 +195,50 @@ class Config(object):
 
         return write_aws_creds
 
-    def get_cred_profile(self, default_entry):
+    def _get_cred_profile(self, default_entry):
         """sets the aws credential profile name"""
-        print("The AWS credential profile defines which profile is used to store the temp AWS "
-              "creds.\nIf set to 'role' then a new profile will be created "
-              "matching the role name assumed by the user.\nIf set to 'default' "
-              "then the temp creds will be stored in the default profile")
-        cred_profile_valid = False
-        cred_profile = None
+        print("The AWS credential profile defines which profile is used to store the temp AWS creds.\n"
+              "If set to 'role' then a new profile will be created matching the role name assumed by the user.\n"
+              "If set to 'default' then the temp creds will be stored in the default profile\n"
+              "If set to any other value, the name of the profile will match that value.")
 
-        while cred_profile_valid is False:
-            cred_profile = self.get_user_input("AWS Credential Profile", default_entry)
+        cred_profile = self._get_user_input("AWS Credential Profile", default_entry)
+
+        if cred_profile.lower() in ['default', 'role']:
             cred_profile = cred_profile.lower()
-            # validate if either role or default was entered
-            if cred_profile in ["default", "role"]:
-                cred_profile_valid = True
-            else:
-                print("AWS credential profile name must be either default or role.")
+
         return cred_profile
 
-    def get_aws_appname(self, default_entry):
+    def _get_aws_appname(self, default_entry):
         """ Get Okta AWS App name """
         print("Enter the AWS Okta App Name."
               "\nThis is optional, you can select the App when you run the CLI.")
-        aws_appname = self.get_user_input("AWS App Name", default_entry)
+        aws_appname = self._get_user_input("AWS App Name", default_entry)
         return aws_appname
 
-    def get_aws_rolename(self, default_entry):
+    def _get_aws_rolename(self, default_entry):
         """ Get the AWS Role name"""
         print("Enter the AWS role name you want credentials for."
               "\nThis is optional, you can select the role when you run the CLI.")
-        aws_rolename = self.get_user_input("AWS Role Name", default_entry)
+        aws_rolename = self._get_user_input("AWS Role Name", default_entry)
         return aws_rolename
 
-    def get_cerberus_url(self, default_entry):
+    def _get_cerberus_url(self, default_entry):
         """ Get and validate cerberus url - this is optional"""
-        print("If you are using Cerberus to store your Okta API Key, this is optional."
+        print("If you are using Cerberus to store your Okta API Key, this is optional.\n"
               "Enter your Cerberus URL.")
-        cerberus_url = self.get_user_input("Cerberus URL", default_entry)
+        cerberus_url = self._get_user_input("Cerberus URL", default_entry)
         return cerberus_url
 
-    def get_conf_profile_name(self, default_entry):
+    def _get_conf_profile_name(self, default_entry):
         """Get and validate configuration profile name. [Optional]"""
         print("If you'd like to assign this configuration to a specific profile instead of to the default profile, "
               "specify the name of the profile.  This is optional.")
-        conf_profile = self.get_user_input("Configuration Profile Name", default_entry)
+        conf_profile = self._get_user_input("Configuration Profile Name", default_entry)
         return conf_profile
 
     @staticmethod
-    def get_user_input(message, default=None):
+    def _get_user_input(message, default=None):
         """formats message to include default and then prompts user for input
         via keyboard with message. Returns user's input or if user doesn't
         enter input will return the default."""

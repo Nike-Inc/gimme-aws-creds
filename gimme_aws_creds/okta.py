@@ -11,14 +11,11 @@ See the License for the specific language governing permissions and* limitations
 """
 import base64
 import json
-import os
 import sys
-import xml.etree.ElementTree as ET
-from urllib.parse import urlparse
+import xml.etree.ElementTree as et
 
 import requests
 from bs4 import BeautifulSoup
-from cerberus.client import CerberusClient
 
 
 class OktaClient(object):
@@ -28,14 +25,14 @@ class OktaClient(object):
        Okta API key and URL must be provided.
     """
 
-    def __init__(self, idp_entry_url, username, password, cerberus_url=None):
+    def __init__(self, idp_entry_url, api_key, username, password):
         """
         :param idp_entry_url: Base URL for Okta IDP.
         :param username: User's username.
         :param password: User's password.
         :param cerberus_url: Optional-- URL of Cerberus instance.
         """
-        self._okta_api_key = self._get_okta_api_key(cerberus_url=cerberus_url)
+        self._okta_api_key = api_key
         self._idp_entry_url = idp_entry_url
 
         self._user_id = None
@@ -47,24 +44,6 @@ class OktaClient(object):
         self._password = password
 
         self._get_login_response()
-
-    def _get_okta_api_key(self, cerberus_url=None):
-        """returns the Okta API key from
-        env var OKTA_API_KEY or from cerberus.
-        This assumes your SDB is named Okta and
-        your Vault path ends is api_key"""
-        if os.environ.get("OKTA_API_KEY") is not None:
-            secret = os.environ.get("OKTA_API_KEY")
-        else:
-            if cerberus_url == ('' or None):
-                print('No Cerberus URL in configuration or OKTA_API_KEY environmental variable; unable to continue.')
-                sys.exit(1)
-
-            cerberus = CerberusClient(cerberus_url, self._username, self._password)
-            path = cerberus.get_sdb_path('Okta')
-            key = urlparse(self._idp_entry_url).netloc
-            secret = cerberus.get_secret(path + '/api_key', key)
-        return secret
 
     def _get_headers(self):
         """sets the default header"""
@@ -196,7 +175,7 @@ class OktaClient(object):
         # decode the saml so we can find our arns
         # https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/
         aws_roles = []
-        root = ET.fromstring(base64.b64decode(saml_value))
+        root = et.fromstring(base64.b64decode(saml_value))
         for saml2attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
             if saml2attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role':
                 for saml2attributevalue in saml2attribute.iter(
