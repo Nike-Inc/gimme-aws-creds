@@ -27,10 +27,10 @@ class OktaClient(object):
 
     def __init__(self, idp_entry_url, api_key, username, password):
         """
-        :param idp_entry_url: Base URL for Okta IDP.
-        :param username: User's username.
-        :param password: User's password.
-        :param cerberus_url: Optional-- URL of Cerberus instance.
+        :param idp_entry_url: Base URL string for Okta IDP.
+        :param api_key: Okta API key string.
+        :param username: User's username string.
+        :param password: User's password string.
         """
         self._okta_api_key = api_key
         self._idp_entry_url = idp_entry_url
@@ -53,12 +53,12 @@ class OktaClient(object):
             'Authorization': 'SSWS ' + self._okta_api_key}
         return headers
 
-    def _get_session_token(self):
-        if self._session_token is not None:
-            return self._session_token
-        else:
-            self._get_login_response()
-            return self._session_token
+    # def _get_session_token(self):
+    #     if self._session_token is not None:
+    #         return self._session_token
+    #     else:
+    #         self._get_login_response()
+    #         return self._session_token
 
     def _get_login_response(self):
         """ gets the login response from Okta and returns the json response"""
@@ -75,7 +75,7 @@ class OktaClient(object):
             print("LOGIN ERROR: " + login_data['errorSummary'], "Error Code ", login_data['errorCode'])
             sys.exit(2)
         elif login_data['status'] == 'MFA_REQUIRED':
-            raise RuntimeError('Okta MFA not yet implemented.')
+            raise NotImplementedError('Okta MFA not yet implemented.')
 
         self._user_id = login_data['_embedded']['user']['id']
         self._session_token = login_data['sessionToken']
@@ -83,6 +83,7 @@ class OktaClient(object):
     def get_app_links(self):
         """ return appLinks obejct for the user """
         headers = self._get_headers()
+
         response = requests.get(
             self._idp_entry_url + '/users/' + self._user_id + '/appLinks',
             headers=headers,
@@ -95,9 +96,11 @@ class OktaClient(object):
         for app in app_resp:
             if app['appName'] == 'amazon_aws':
                 apps.append(app)
+
         if 'errorCode' in app_resp:
             print("APP LINK ERROR: " + app_resp['errorSummary'], "Error Code ", app_resp['errorCode'])
             sys.exit(2)
+
         return apps
 
     def get_app(self):
@@ -110,11 +113,14 @@ class OktaClient(object):
         # print out the apps and let the user select
         for i, app in enumerate(app_resp):
             print('[', i, ']', app["label"])
+
         selection = input("Selection: ")
+
         # make sure the choice is valid
         if int(selection) > len(app_resp):
             print("You selected an invalid selection")
             sys.exit(1)
+
         # delete
         return app_resp[int(selection)]["label"]
 
@@ -128,35 +134,43 @@ class OktaClient(object):
         response = requests.get(
             self._idp_entry_url + '/apps/?filter=user.id+eq+\"' +
             self._user_id + '\"&expand=user/' + self._user_id + '&limit=200',
-            headers=headers, verify=True
+            headers=headers,
+            verify=True
         )
         role_resp = json.loads(response.text)
+
         # Check if this is a valid response
         if 'errorCode' in role_resp:
             print("ERROR: " + role_resp['errorSummary'], "Error Code ", role_resp['errorCode'])
             sys.exit(2)
+
         # print out roles for the app and let the uesr select
         for app in role_resp:
             if app['label'] == aws_appname:
                 print("Pick a role:")
                 roles = app['_embedded']['user']['profile']['samlRoles']
+
                 for i, role in enumerate(roles):
                     print('[', i, ']:', role)
                 selection = input("Selection: ")
+
                 # make sure the choice is valid
                 if int(selection) > len(roles):
                     print("You selected an invalid selection")
                     sys.exit(1)
+
                 return roles[int(selection)]
 
     def get_app_url(self, aws_appname):
         """ return the app link json for select aws app """
         app_resp = self.get_app_links()
+
         for app in app_resp:
             if app['label'] == 'AWS_API':
                 print(app['linkUrl'])
             if app['label'] == aws_appname:
                 return app
+
         print("ERROR app not found:", aws_appname)
         sys.exit(2)
 
@@ -164,28 +178,32 @@ class OktaClient(object):
         """ return the PrincipalArn based on the app instance id """
         headers = self._get_headers()
         response = requests.get(
-            self._idp_entry_url + '/apps/' +
-            app_id, headers=headers, verify=True)
+            self._idp_entry_url + '/apps/' + app_id,
+            headers=headers,
+            verify=True
+        )
         app_resp = json.loads(response.text)
         return app_resp['settings']['app']['identityProviderArn']
 
     def get_role_arn(self, link_url, aws_rolename):
         """ return the role arn for the selected role """
-        saml_value = self.get_saml_assertion(link_url)
         # decode the saml so we can find our arns
         # https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/
         aws_roles = []
-        root = et.fromstring(base64.b64decode(saml_value))
+        root = et.fromstring(base64.b64decode(self.get_saml_assertion(link_url)))
+
         for saml2attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
             if saml2attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role':
                 for saml2attributevalue in saml2attribute.iter(
                         '{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
                     aws_roles.append(saml2attributevalue.text)
+
         # grab the role ARNs that matches the role to assume
         for aws_role in aws_roles:
             chunks = aws_role.split(',')
             if aws_rolename in chunks[1]:
                 return chunks[1]
+
         # if you got this far something went wrong
         print("ERROR no ARN found for", aws_rolename)
         sys.exit(2)
@@ -194,7 +212,7 @@ class OktaClient(object):
         """return the base64 SAML value object from the SAML Response"""
         if self._saml_assertion is None:
             response = requests.get(
-                app_url + '/?sessionToken=' + self._get_session_token(),
+                app_url + '/?sessionToken=' + self._session_token,
                 verify=True
             )
 

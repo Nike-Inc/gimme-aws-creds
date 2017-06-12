@@ -120,11 +120,14 @@ class GimmeAWSCreds(object):
     def _get_sts_creds(self, assertion, duration=3600):
         """ using the assertion and arns return aws sts creds """
         client = boto3.client('sts')
+
         response = client.assume_role_with_saml(
             RoleArn=self.role_arn,
             PrincipalArn=self.idp_arn,
             SAMLAssertion=assertion,
-            DurationSeconds=duration)
+            DurationSeconds=duration
+        )
+
         return response['Credentials']
 
     def run(self):
@@ -152,6 +155,7 @@ class GimmeAWSCreds(object):
             idp_entry_url,
             cerberus_url=conf_dict['cerberus_url']
         )
+
         okta = OktaClient(idp_entry_url, api_key, config.username, config.password)
 
         # check to see if appname and rolename are set

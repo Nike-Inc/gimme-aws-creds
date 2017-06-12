@@ -4,12 +4,6 @@ import unittest
 
 import requests
 from mock import patch
-from nose.tools import (
-    assert_equals,
-    assert_dict_equal,
-    assert_list_equal,
-    assert_true
-)
 
 from gimme_aws_creds.okta import OktaClient
 
@@ -22,15 +16,15 @@ class TestOktaClient(unittest.TestCase):
         """Set up for the unit tests"""
         self.okta_api_key = 'XXXXXX'
         self.idp_entry_url = 'https://example.okta.com'
-        self.client = OktaClient(self.okta_api_key, self.idp_entry_url)
-        self.login_resp = {
-            "_embedded": {
-                "user": {
-                    "id": "00000",
-                }
-            },
-            "status": "SUCCESS"
-        }
+        self.client = self.setUp_client(self.idp_entry_url, self.okta_api_key)
+        # self.login_resp = {
+        #     "_embedded": {
+        #         "user": {
+        #             "id": "00000",
+        #         }
+        #     },
+        #     "status": "SUCCESS"
+        # }
         self.app_links = [
             {
                 "id": "1",
@@ -46,6 +40,14 @@ class TestOktaClient(unittest.TestCase):
             }
         ]
 
+    @patch('gimme_aws_creds.okta.OktaClient._get_login_response')
+    def setUp_client(self, idp_entry_url, okta_api_key, mock_login):
+        mock_login.return_value = None
+        client = OktaClient(idp_entry_url, okta_api_key, 'username', 'password')
+        client._user_id = '00000'
+        client._session_token = '20111ZTiraxruMoaA3cQh7RgG9lMqPiVk'
+        return client
+
     @staticmethod
     def _mock_response(status=200, reason='OK', content=''):
         mock_resp = requests.Response()
@@ -59,58 +61,59 @@ class TestOktaClient(unittest.TestCase):
     def test_get_headers(self):
         """Testing that get_headers returns the expected results"""
         header = self.client._get_headers()
-        assert_equals(header['Authorization'], 'SSWS XXXXXX')
+        self.assertEqual(header['Authorization'], 'SSWS XXXXXX')
 
     @patch('requests.post')
     def test_get_login_response(self, mock_post):
         """Testing login respose is returned as expected"""
         login = {
-            "expiresAt":"2017-02-04T00:26:24.000Z",
-            "status":"SUCCESS",
-            "sessionToken":"20111ZTiraxruMoaA3cQh7RgG9lMqPiVk",
-            "_embedded":{
-                "user":{
-                    "id":"00000",
-                    "profile":{
-                        "login":"Jane.Doe@example.com",
-                        "firstName":"Jane",
-                        "lastName":"Doe",
-                        "locale":"en",
-                        "timeZone":"America/Los_Angeles"
+            "expiresAt": "2017-02-04T00:26:24.000Z",
+            "status": "SUCCESS",
+            "sessionToken": "20111ZTiraxruMoaA3cQh7RgG9lMqPiVk",
+            "_embedded": {
+                "user": {
+                    "id": "00000",
+                    "profile": {
+                        "login": "Jane.Doe@example.com",
+                        "firstName": "Jane",
+                        "lastName": "Doe",
+                        "locale": "en",
+                        "timeZone": "America/Los_Angeles"
                     }
                 }
             }
         }
         mock_post.return_value = self._mock_response(content=json.dumps(login))
-        response = self.client._get_login_response("username", "password")
-        assert_dict_equal(response, login)
+        self.client._get_login_response()
+        self.assertEqual(self.client._user_id, login['_embedded']['user']['id'])
+        self.assertEqual(self.client._session_token, login['sessionToken'])
 
     @patch('requests.get')
     def test_get_app_links(self, mock_get):
         """Testing correct response is returned from get_app_links"""
         app_links = [
             {
-                "id":"1",
-                "label":"AWS Prod",
-                "linkUrl":"https://example.oktapreview.com/1",
-                "appName":"amazon_aws"
+                "id": "1",
+                "label": "AWS Prod",
+                "linkUrl": "https://example.oktapreview.com/1",
+                "appName": "amazon_aws"
             },
             {
-                "id":"2",
-                "label":"AWS Dev",
-                "linkUrl":"https://example.oktapreview.com/2",
-                "appName":"amazon_aws"
+                "id": "2",
+                "label": "AWS Dev",
+                "linkUrl": "https://example.oktapreview.com/2",
+                "appName": "amazon_aws"
             },
             {
-                "id":"3",
-                "label":"Splunk",
-                "appName":"splunk_app"
+                "id": "3",
+                "label": "Splunk",
+                "appName": "splunk_app"
             }
         ]
         mock_resp = self._mock_response(content=json.dumps(app_links))
         mock_get.return_value = mock_resp
-        response = self.client.get_app_links(self.login_resp)
-        assert_list_equal(response, self.app_links)
+        response = self.client.get_app_links()
+        self.assertListEqual(response, self.app_links)
 
     @patch('gimme_aws_creds.okta.OktaClient.get_app_links')
     @patch('builtins.input', return_value='0')
@@ -118,13 +121,13 @@ class TestOktaClient(unittest.TestCase):
         """Testing correct app was returned from get_app"""
         # mock get_app_links response
         mock_app_links.return_value = self.app_links
-        response = self.client.get_app(self.login_resp)
+        response = self.client.get_app()
 
         # confirm the mock was called
-        assert_true(mock_app_links.called)
+        self.assertTrue(mock_app_links.called)
 
         # confirm the correct apps were returned
-        assert_equals(response, "AWS Prod")
+        self.assertEquals(response, "AWS Prod")
 
     @patch('requests.get')
     @patch('builtins.input', return_value='1')
@@ -139,11 +142,11 @@ class TestOktaClient(unittest.TestCase):
                     "user":
                         {
                             "id": "000000",
-                            "credentials":{
+                            "credentials": {
                                 "userName": "joe.blow@example.com"
                             },
-                            "profile":{
-                                "samlRoles":["OktaAWSAdminRole", "OktaAWSReadOnlyRole"]
+                            "profile": {
+                                "samlRoles": ["OktaAWSAdminRole", "OktaAWSReadOnlyRole"]
                             }
                         }
                     }
@@ -153,10 +156,10 @@ class TestOktaClient(unittest.TestCase):
         # mock response and status code
         mock_resp = self._mock_response(content=json.dumps(roles))
         mock_get.return_value = mock_resp
-        response = self.client.get_role(self.login_resp, "My AWS App")
+        response = self.client.get_role("My AWS App")
 
         # confirm that the correct role was returned
-        assert_equals(response, "OktaAWSReadOnlyRole")
+        self.assertEquals(response, "OktaAWSReadOnlyRole")
 
     @patch('requests.get')
     def test_get_idp_arn(self, mock_get):
@@ -182,7 +185,7 @@ class TestOktaClient(unittest.TestCase):
         idp_arn = self.client.get_idp_arn(app_id)
 
         # confirm that self.idp_arn got set correctly
-        assert_equals(idp_arn, 'arn:aws:iam::0987654321:saml-provider/OktaIdP')
+        self.assertEquals(idp_arn, 'arn:aws:iam::0987654321:saml-provider/OktaIdP')
 
     @patch('requests.get')
     @patch('gimme_aws_creds.okta.OktaClient.get_saml_assertion')
@@ -202,9 +205,8 @@ class TestOktaClient(unittest.TestCase):
 
         role_arn = self.client.get_role_arn(
             "https://example.okta.com/blah",
-            "TOKEN",
             "OktaAWSAdminRole"
         )
 
         # confirm that the correct ARN got set
-        assert_equals(role_arn, 'arn:aws:iam::0987654321:role/OktaAWSAdminRole')
+        self.assertEquals(role_arn, 'arn:aws:iam::0987654321:role/OktaAWSAdminRole')
