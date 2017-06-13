@@ -232,9 +232,10 @@ class Config(object):
 
     def _get_conf_profile_name(self, default_entry):
         """Get and validate configuration profile name. [Optional]"""
-        print("If you'd like to assign this configuration to a specific profile instead of to the default profile, "
-              "specify the name of the profile.  This is optional.")
-        conf_profile = self._get_user_input("Configuration Profile Name", default_entry)
+        print("If you'd like to assign the Okta configuration to a specific profile\n"
+              "instead of to the default profile, specify the name of the profile.\n"
+              "This is optional.")
+        conf_profile = self._get_user_input("Okta Configuration Profile Name", default_entry)
         return conf_profile
 
     @staticmethod

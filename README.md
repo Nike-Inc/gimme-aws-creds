@@ -35,16 +35,17 @@ To set-up the configuration run:
 gimme-aws-creds --configure
 ```
 
-You can also set up configuration profiles, useful if you have multiple accounts you need credentials for:
+You can also set up different Okta configuration profiles, this useful if you have multiple Okta accounts or environments you need credentials for. You can use the configuration wizard or run:
 ```bash
 gimme-aws-creds --configure --profile profileName
 ```
 
 A configuration wizard will prompt you to enter the necessary configuration parameters for the tool to run, the only one that is required is the `idp_entry_url`. The configuration file is written to `~/.okta_aws_login_config`.
 
+- conf_profile - This sets the Okta configuration profile name, the default is DEFAULT. 
 - idp_entry_url - This is your Okta entry url, which is typically something like `https://companyname.okta.com`.
-- write_aws_creds - y or no - If yes, the AWS credentials will be written to `~/.aws/credentials`.
-- cred_profile - If writing to the AWS cred file, this sets the name of the profile.
+- write_aws_creds - y or n - If yes, the AWS credentials will be written to `~/.aws/credentials` otherwise it will be written to stdout.
+- cred_profile - If writing to the AWS cred file, this sets the name of the AWS credential profile.
 - aws_appname - This is optional. The Okta AWS App name, which has the role you want to assume.
 - aws_rolename - This is optional. The name of the role you want temporary AWS credentials for.
 - cerberus_url - This is optional. This is the URL of your Cerberus instance, which can be use to store your Okta API Key.
