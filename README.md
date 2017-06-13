@@ -17,7 +17,7 @@ With gimme-aws-creds all you need to know is your username, password, Okta url a
 Python 3
 
 ### Optional
-[Cerberus](http://engineering.nike.com/cerberus/) can be used for storing the Okta API key. gimme-aws-creds uses the [Cerberus Python Client](https://github.com/Nike-Inc/cerberus-python-client) for interacting with Cerberus. It would be very easy to drop something else besides Cerberus to retrieve your API key. Otherwise, you can set the OKTA_API_KEY environment variable.
+[Cerberus](http://engineering.nike.com/cerberus/) can be used for storing the Okta API key. gimme-aws-creds uses the [Cerberus Python Client](https://github.com/Nike-Inc/cerberus-python-client) for interacting with Cerberus. It would be very easy to drop something else besides Cerberus to retrieve your API key. Otherwise, you can set the `OKTA_API_KEY` environment variable.
 
 
 ## Installation
@@ -35,13 +35,18 @@ To set-up the configuration run:
 gimme-aws-creds --configure
 ```
 
-A configuration wizard will prompt you to enter the necessary configuration parameters for the tool to run, the only one that is required is the idp_entry_url. The configuration file is written to ~/.okta_aws_login_config.
+You can also set up configuration profiles, useful if you have multiple accounts you need credentials for:
+```bash
+gimme-aws-creds --configure --profile profileName
+```
 
-- idp_entry_url - This is your Okta entry url, which is typically something like https://companyname.okta.com.
-- write_aws_creds - y or no - If yes, the AWS credentials will be written to ~/.aws/credentials
-- cred_profile - If writting to the AWS cred file, this sets the name of the profile
-- aws_appname - This is optional. The Okta AWS App name, which has the role you want to assume
-- aws_rolename - This is optional. The name of the role you want temporary AWS credentials for
+A configuration wizard will prompt you to enter the necessary configuration parameters for the tool to run, the only one that is required is the `idp_entry_url`. The configuration file is written to `~/.okta_aws_login_config`.
+
+- idp_entry_url - This is your Okta entry url, which is typically something like `https://companyname.okta.com`.
+- write_aws_creds - y or no - If yes, the AWS credentials will be written to `~/.aws/credentials`.
+- cred_profile - If writing to the AWS cred file, this sets the name of the profile.
+- aws_appname - This is optional. The Okta AWS App name, which has the role you want to assume.
+- aws_rolename - This is optional. The name of the role you want temporary AWS credentials for.
 - cerberus_url - This is optional. This is the URL of your Cerberus instance, which can be use to store your Okta API Key.
 
 
@@ -69,15 +74,21 @@ export AWS_ACCESS_KEY_ID=AQWERTYUIOP
 export AWS_SECRET_ACCESS_KEY=T!#$JFLOJlsoddop1029405-P
 ```
 
-The username and password you are prompted for are the ones you login to Okta with. You can predefine your username by setting the OKTA_USERNAME environment variable.
+You can run a specific configuration profile with the `--profile` flag:
+
+```bash
+$ ./gimme-aws-creds --profile profileName
+```
+
+The username and password you are prompted for are the ones you login to Okta with. You can predefine your username by setting the `OKTA_USERNAME` environment variable.
 
 If you are using Cerberus, it is assumed you use the same username and password for it. If MFA is enabled you will be prompted for it.
 
 If you have not configure an Okta App or Role, you will prompted to select one.
 
-If all goes well you will get your temporary AWS access, secret key and token, these will either be written to stdout or ~/.aws/credentials.
+If all goes well you will get your temporary AWS access, secret key and token, these will either be written to stdout or `~/.aws/credentials`.
 
-You can always run ```gimme-aws-creds --help``` for all the available options.
+You can always run `gimme-aws-creds --help` for all the available options.
 
 ## Running Tests
 

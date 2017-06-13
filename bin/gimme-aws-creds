@@ -13,16 +13,19 @@ See the License for the specific language governing permissions and* limitations
 # standard imports
 import configparser
 import os
-from os.path import expanduser
 import sys
-
+from os.path import expanduser
 # extras
-import boto3
-import requests
+from urllib.parse import urlparse
 
+import boto3
 # local imports
+from cerberus.client import CerberusClient
+from requests.exceptions import MissingSchema
+
 from gimme_aws_creds.config import Config
 from gimme_aws_creds.okta import OktaClient
+
 
 class GimmeAWSCreds(object):
     """
@@ -42,8 +45,12 @@ class GimmeAWSCreds(object):
                         username can also be set via the OKTA_USERNAME env
                         variable. If not provided you will be prompted to
                         enter a username.
-         --configure, -c  If set, will prompt user for configuration
-                          parameters and then exit.
+         --configure, -c
+                        If set, will prompt user for configuration
+                        parameters and then exit.
+         --profile PROFILE, -p PROFILE
+                        If set, the specified configuration profile will
+                        be used instead of the default profile.
 
         Config Options:
            idp_entry_url = Okta URL
@@ -60,43 +67,74 @@ class GimmeAWSCreds(object):
         self.idp_arn = None
         self.role_arn = None
 
+    @staticmethod
+    def _get_okta_api_key(username, password, idp_entry_url, cerberus_url=None):
+        """returns the Okta API key from
+        env var OKTA_API_KEY or from cerberus.
+        This assumes your SDB is named Okta and
+        your Vault path ends is api_key"""
+        if os.environ.get("OKTA_API_KEY") is not None:
+            secret = os.environ.get("OKTA_API_KEY")
+        else:
+            if cerberus_url == ('' or None):
+                print('No Cerberus URL in configuration or OKTA_API_KEY environmental variable; unable to continue.')
+                sys.exit(1)
+
+            try:
+                cerberus = CerberusClient(cerberus_url, username, password)
+                path = cerberus.get_sdb_path('Okta')
+                key = urlparse(idp_entry_url).netloc
+                secret = cerberus.get_secret(path + '/api_key', key)
+            except MissingSchema:
+                print('No Cerberus URL in configuration or OKTA_API_KEY environmental variable; unable to continue.')
+                sys.exit(1)
+
+        return secret
+
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
-    def write_aws_creds(self, profile, access_key, secret_key, token):
+    def _write_aws_creds(self, profile, access_key, secret_key, token):
         """ Writes the AWS STS token into the AWS credential file"""
         # Check to see if the aws creds path exists, if not create it
         creds_dir = os.path.dirname(self.AWS_CONFIG)
         if os.path.exists(creds_dir) is False:
             os.makedirs(creds_dir)
         config = configparser.RawConfigParser()
+
         # Read in the existing config file if it exists
         if os.path.isfile(self.AWS_CONFIG):
             config.read(self.AWS_CONFIG)
+
         # Put the credentials into a saml specific section instead of clobbering
         # the default credentials
         if not config.has_section(profile):
             config.add_section(profile)
+
         config.set(profile, 'aws_access_key_id', access_key)
         config.set(profile, 'aws_secret_access_key', secret_key)
         config.set(profile, 'aws_session_token', token)
+
         # Write the updated config file
         with open(self.AWS_CONFIG, 'w+') as configfile:
             config.write(configfile)
 
-    def get_sts_creds(self, assertion, duration=3600):
+    def _get_sts_creds(self, assertion, duration=3600):
         """ using the assertion and arns return aws sts creds """
         client = boto3.client('sts')
+
         response = client.assume_role_with_saml(
             RoleArn=self.role_arn,
             PrincipalArn=self.idp_arn,
             SAMLAssertion=assertion,
-            DurationSeconds=duration)
+            DurationSeconds=duration
+        )
+
         return response['Credentials']
 
     def run(self):
         """ Pulling it all together to make the CLI """
         config = Config()
         config.get_args()
-        #Create/Update config when configure arg set
+        # Create/Update config when configure arg set
         if config.configure is True:
             config.update_config_file()
             sys.exit()
@@ -104,67 +142,67 @@ class GimmeAWSCreds(object):
         # get the config dict
         conf_dict = config.get_config_dict()
         config.get_user_creds()
+
+        if conf_dict['idp_entry_url'] in [None, '']:
+            print('No IDP entry URL in configuration.  Try running --config again.')
+
         idp_entry_url = conf_dict['idp_entry_url'] + '/api/v1'
 
-        # this assumes you are using a cerberus backend
-        # to store your okta api key, and the key name
-        # is the hostname for your okta env
-        # otherwise set OKTA_API_KEY env variable
-        api_key = config.get_okta_api_key()
-
         # create otka client
-        okta = OktaClient(api_key, idp_entry_url)
+        api_key = self._get_okta_api_key(
+            config.username,
+            config.password,
+            idp_entry_url,
+            cerberus_url=conf_dict['cerberus_url']
+        )
 
-        # get okta login json response
-        resp = okta.get_login_response(config.username, config.password)
+        okta = OktaClient(idp_entry_url, api_key, config.username, config.password)
 
         # check to see if appname and rolename are set
         # in the config, if not give user a selection to pick from
         if not conf_dict['aws_appname']:
-            aws_appname = okta.get_app(resp)
+            aws_appname = okta.get_app()
         else:
             aws_appname = conf_dict['aws_appname']
+
         if not conf_dict['aws_rolename']:
-            aws_rolename = okta.get_role(resp, aws_appname)
+            aws_rolename = okta.get_role(aws_appname)
         else:
             aws_rolename = conf_dict['aws_rolename']
 
         # get the applinks available to the user
-        app_url = okta.get_app_url(resp, aws_appname)
+        app_url = okta.get_app_url(aws_appname)
 
         # Get the the identityProviderArn from the aws app
         self.idp_arn = okta.get_idp_arn(app_url['appInstanceId'])
 
         # Get the role ARNs
-        self.role_arn = okta.get_role_arn(
-            app_url['linkUrl'], resp['sessionToken'], aws_rolename)
+        self.role_arn = okta.get_role_arn(app_url['linkUrl'], aws_rolename)
 
-        # get a new token for aws_creds
-        login_resp = okta.get_login_response(config.username, config.password)
-        resp2 = requests.get(
-            app_url['linkUrl'] + '/?sessionToken='
-            + login_resp['sessionToken'], verify=True)
-        assertion = okta.get_saml_assertion(resp2)
-        aws_creds = self.get_sts_creds(assertion)
+        assertion = okta.get_saml_assertion(app_url['linkUrl'])
+        aws_creds = self._get_sts_creds(assertion)
 
         # check if write_aws_creds is true if so
         # get the profile name and write out the file
         if str(conf_dict['write_aws_creds']) == 'True':
             print('writing to ', self.AWS_CONFIG)
             # set the profile name
-            if conf_dict['cred_profile'] == 'default':
+            if conf_dict['cred_profile'].lower() == 'default':
                 profile_name = 'default'
-            elif conf_dict['cred_profile'] == 'role':
+            elif conf_dict['cred_profile'].lower() == 'role':
                 profile_name = aws_rolename
-            # write out the AWS Config file
-            self.write_aws_creds(
+            else:
+                profile_name = conf_dict['cred_profile']
+
+            # Write out the AWS Config file
+            self._write_aws_creds(
                 profile_name,
                 aws_creds['AccessKeyId'],
                 aws_creds['SecretAccessKey'],
                 aws_creds['SessionToken']
             )
         else:
-            # print out creds
+            # Print out temporary AWS credentials.
             print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'])
             print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'])
             print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'])
