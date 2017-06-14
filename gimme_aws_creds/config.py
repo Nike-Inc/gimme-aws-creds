@@ -32,9 +32,11 @@ class Config(object):
 
     def __init__(self):
         self.configure = False
-        self.password = None
         self.username = None
         self.conf_profile = 'DEFAULT'
+
+        if os.environ.get("OKTA_USERNAME") is not None:
+            self.username = os.environ.get("OKTA_USERNAME")
 
     def get_args(self):
         """Get the CLI args"""
@@ -59,8 +61,11 @@ class Config(object):
         args = parser.parse_args()
 
         self.configure = args.configure
-        self.username = args.username
+        if args.username is not None:
+            self.username = args.username
         self.conf_profile = args.profile or 'DEFAULT'
+
+
 
     def get_config_dict(self):
         """returns the conf dict from the okta config file"""
@@ -291,4 +296,3 @@ class Config(object):
     def clean_up(self):
         """ clean up secret stuff"""
         del self.username
-        del self.password
