@@ -125,13 +125,16 @@ class GimmeAWSCreds(object):
         if conf_dict['embed_link'] in [None, '']:
             print('No IdP-initiated login URL (embed link) in configuration.  Try running --config again.')
 
-        embed_link = conf_dict['embed_link']
+        if conf_dict['gimme_creds_server'] in [None, '']:
+            print('No gimme-creds-server URL in configuration.  Try running --config again.')
 
         okta = OktaClient(okta_org_url, False)
         if config.username is not None:
             okta.set_username(config.username)
 
-        okta.login(embed_link)
+        okta.login(conf_dict['embed_link'], conf_dict['gimme_creds_server'])
+
+        print(okta.aws_access)
 
         exit()
 
