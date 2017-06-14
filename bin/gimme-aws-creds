@@ -44,7 +44,8 @@ class GimmeAWSCreds(object):
                         username can also be set via the OKTA_USERNAME env
                         variable. If not provided you will be prompted to
                         enter a username.
-         --configure, -c
+         -k, --insecure Allow connections to SSL sites without cert verification
+         -c, --configure
                         If set, will prompt user for configuration
                         parameters and then exit.
          --profile PROFILE, -p PROFILE
@@ -128,7 +129,7 @@ class GimmeAWSCreds(object):
         if conf_dict['gimme_creds_server'] in [None, '']:
             print('No gimme-creds-server URL in configuration.  Try running --config again.')
 
-        okta = OktaClient(okta_org_url, False)
+        okta = OktaClient(okta_org_url, config.verify_ssl_certs)
         if config.username is not None:
             okta.set_username(config.username)
 
