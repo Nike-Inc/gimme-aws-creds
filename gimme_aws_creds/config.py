@@ -109,7 +109,6 @@ class Config(object):
                 cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
                 aws_appname = (optional) Okta AWS App Name
                 aws_rolename =  (optional) Okta Role Name
-                cerberus_url = (optional) Cerberus URL, for retrieving Okta API key
         """
         config = configparser.ConfigParser()
         if self.configure:
@@ -119,7 +118,6 @@ class Config(object):
             'idp_entry_url': '',
             'aws_appname': '',
             'aws_rolename': '',
-            'cerberus_url': '',
             'write_aws_creds': '',
             'cred_profile': 'role'
         }
@@ -141,7 +139,6 @@ class Config(object):
             'write_aws_creds': self._get_write_aws_creds(defaults['write_aws_creds']),
             'aws_appname': self._get_aws_appname(defaults['aws_appname']),
             'aws_rolename': self._get_aws_rolename(defaults['aws_rolename']),
-            'cerberus_url': self._get_cerberus_url(defaults['cerberus_url'])
         }
 
         # If write_aws_creds is True get the profile name
@@ -222,13 +219,6 @@ class Config(object):
               "\nThis is optional, you can select the role when you run the CLI.")
         aws_rolename = self._get_user_input("AWS Role Name", default_entry)
         return aws_rolename
-
-    def _get_cerberus_url(self, default_entry):
-        """ Get and validate cerberus url - this is optional"""
-        print("If you are using Cerberus to store your Okta API Key, this is optional.\n"
-              "Enter your Cerberus URL.")
-        cerberus_url = self._get_user_input("Cerberus URL", default_entry)
-        return cerberus_url
 
     def _get_conf_profile_name(self, default_entry):
         """Get and validate configuration profile name. [Optional]"""
