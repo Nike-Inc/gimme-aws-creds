@@ -53,7 +53,7 @@ class GimmeAWSCreds(object):
                         be used instead of the default profile.
 
         Config Options:
-           idp_entry_url = Okta URL
+           okta_org_url = Okta URL
            write_aws_creds = Option to write creds to ~/.aws/credentials
            cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
            aws_appname = (optional) Okta AWS App Name
@@ -68,7 +68,7 @@ class GimmeAWSCreds(object):
         self.role_arn = None
 
     @staticmethod
-    def _get_okta_api_key(username, password, idp_entry_url, cerberus_url=None):
+    def _get_okta_api_key(username, password, okta_org_url, cerberus_url=None):
         """returns the Okta API key from
         env var OKTA_API_KEY or from cerberus.
         This assumes your SDB is named Okta and
@@ -83,7 +83,7 @@ class GimmeAWSCreds(object):
             try:
                 cerberus = CerberusClient(cerberus_url, username, password)
                 path = cerberus.get_sdb_path('Okta')
-                key = urlparse(idp_entry_url).netloc
+                key = urlparse(okta_org_url).netloc
                 secret = cerberus.get_secret(path + '/api_key', key)
             except MissingSchema:
                 print('No Cerberus URL in configuration or OKTA_API_KEY environmental variable; unable to continue.')
@@ -143,20 +143,20 @@ class GimmeAWSCreds(object):
         conf_dict = config.get_config_dict()
         config.get_user_creds()
 
-        if conf_dict['idp_entry_url'] in [None, '']:
-            print('No IDP entry URL in configuration.  Try running --config again.')
+        if conf_dict['okta_org_url'] in [None, '']:
+            print('No Okta organization URL in configuration.  Try running --config again.')
 
-        idp_entry_url = conf_dict['idp_entry_url'] + '/api/v1'
+        okta_org_url = conf_dict['okta_org_url'] + '/api/v1'
 
         # create otka client
         api_key = self._get_okta_api_key(
             config.username,
             config.password,
-            idp_entry_url,
+            okta_org_url,
             cerberus_url=conf_dict['cerberus_url']
         )
 
-        okta = OktaClient(idp_entry_url, api_key, config.username, config.password)
+        okta = OktaClient(okta_org_url, api_key, config.username, config.password)
 
         # check to see if appname and rolename are set
         # in the config, if not give user a selection to pick from

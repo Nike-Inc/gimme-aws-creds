@@ -123,7 +123,7 @@ class Config(object):
            Prompts user for config details for the okta_aws_login tool.
            Either updates existing config file or creates new one.
            Config Options:
-                idp_entry_url = Okta URL
+                okta_org_url = Okta URL
                 write_aws_creds = Option to write creds to ~/.aws/credentials
                 cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
                 aws_appname = (optional) Okta AWS App Name
@@ -134,7 +134,7 @@ class Config(object):
             self.conf_profile = self._get_conf_profile_name(self.conf_profile)
 
         defaults = {
-            'idp_entry_url': '',
+            'okta_org_url': '',
             'aws_appname': '',
             'aws_rolename': '',
             'write_aws_creds': '',
@@ -154,7 +154,7 @@ class Config(object):
 
         # Prompt user for config details and store in config_dict
         config_dict = {
-            'idp_entry_url': self._get_idp_entry(defaults['idp_entry_url']),
+            'okta_org_url': self._get_idp_entry(defaults['okta_org_url']),
             'write_aws_creds': self._get_write_aws_creds(defaults['write_aws_creds']),
             'aws_appname': self._get_aws_appname(defaults['aws_appname']),
             'aws_rolename': self._get_aws_rolename(defaults['aws_rolename']),
@@ -174,22 +174,22 @@ class Config(object):
             config.write(configfile)
 
     def _get_idp_entry(self, default_entry):
-        """ Get and validate idp_entry_url """
+        """ Get and validate okta_org_url """
         print("Enter the IDP Entry URL. This is https://something.okta[preview].com")
-        idp_entry_url_valid = False
-        idp_entry_url = default_entry
+        okta_org_url_valid = False
+        okta_org_url = default_entry
 
-        while idp_entry_url_valid is False:
-            idp_entry_url = self._get_user_input("IDP Entry URL", default_entry)
-            # Validate that idp_entry_url is a well formed okta URL
-            url_parse_results = urlparse(idp_entry_url)
+        while okta_org_url_valid is False:
+            okta_org_url = self._get_user_input("Okta URL for your organization: ", default_entry)
+            # Validate that okta_org_url is a well formed okta URL
+            url_parse_results = urlparse(okta_org_url)
 
-            if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" in idp_entry_url:
-                idp_entry_url_valid = True
+            if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" in okta_org_url:
+                okta_org_url_valid = True
             else:
-                print("IDP Entry URL must be HTTPS URL for okta.com or oktapreview.com domain")
+                print("Okta organization URL must be HTTPS URL for okta.com or oktapreview.com domain")
 
-        return idp_entry_url
+        return okta_org_url
 
     def _get_write_aws_creds(self, default_entry):
         """ Option to write to the ~/.aws/credentials or to stdour"""

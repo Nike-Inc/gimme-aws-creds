@@ -15,8 +15,8 @@ class TestOktaClient(unittest.TestCase):
     def setUp(self):
         """Set up for the unit tests"""
         self.okta_api_key = 'XXXXXX'
-        self.idp_entry_url = 'https://example.okta.com'
-        self.client = self.setUp_client(self.idp_entry_url, self.okta_api_key)
+        self.okta_org_url = 'https://example.okta.com'
+        self.client = self.setUp_client(self.okta_org_url, self.okta_api_key)
         # self.login_resp = {
         #     "_embedded": {
         #         "user": {
@@ -41,9 +41,9 @@ class TestOktaClient(unittest.TestCase):
         ]
 
     @patch('gimme_aws_creds.okta.OktaClient._get_login_response')
-    def setUp_client(self, idp_entry_url, okta_api_key, mock_login):
+    def setUp_client(self, okta_org_url, okta_api_key, mock_login):
         mock_login.return_value = None
-        client = OktaClient(idp_entry_url, okta_api_key, 'username', 'password')
+        client = OktaClient(okta_org_url, okta_api_key, 'username', 'password')
         client._user_id = '00000'
         client._session_token = '20111ZTiraxruMoaA3cQh7RgG9lMqPiVk'
         return client
