@@ -58,9 +58,18 @@ class Config(object):
             '--profile', '-p',
             help='If set, the specified configuration profile will be used instead of the default.'
         )
+        parser.add_argument(
+            '--insecure', '-k',
+            action='store_true',
+            help='Allow connections to SSL sites without cert verification.'
+        )
         args = parser.parse_args()
 
         self.configure = args.configure
+        if args.insecure is True:
+            self.verify_ssl_certs = False
+        else:
+            self.verify_ssl_certs = True
         if args.username is not None:
             self.username = args.username
         self.conf_profile = args.profile or 'DEFAULT'
