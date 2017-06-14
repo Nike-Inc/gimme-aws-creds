@@ -40,10 +40,10 @@ You can also set up different Okta configuration profiles, this useful if you ha
 gimme-aws-creds --configure --profile profileName
 ```
 
-A configuration wizard will prompt you to enter the necessary configuration parameters for the tool to run, the only one that is required is the `idp_entry_url`. The configuration file is written to `~/.okta_aws_login_config`.
+A configuration wizard will prompt you to enter the necessary configuration parameters for the tool to run, the only one that is required is the `okta_org_url`. The configuration file is written to `~/.okta_aws_login_config`.
 
-- conf_profile - This sets the Okta configuration profile name, the default is DEFAULT. 
-- idp_entry_url - This is your Okta entry url, which is typically something like `https://companyname.okta.com`.
+- conf_profile - This sets the Okta configuration profile name, the default is DEFAULT.
+- okta_org_url - This is your Okta organization url, which is typically something like `https://companyname.okta.com`.
 - write_aws_creds - y or n - If yes, the AWS credentials will be written to `~/.aws/credentials` otherwise it will be written to stdout.
 - cred_profile - If writing to the AWS cred file, this sets the name of the AWS credential profile.
 - aws_appname - This is optional. The Okta AWS App name, which has the role you want to assume.

@@ -25,15 +25,15 @@ class OktaClient(object):
        Okta API key and URL must be provided.
     """
 
-    def __init__(self, idp_entry_url, api_key, username, password):
+    def __init__(self, okta_org_url, api_key, username, password):
         """
-        :param idp_entry_url: Base URL string for Okta IDP.
+        :param okta_org_url: Base URL string for Okta IDP.
         :param api_key: Okta API key string.
         :param username: User's username string.
         :param password: User's password string.
         """
         self._okta_api_key = api_key
-        self._idp_entry_url = idp_entry_url
+        self._okta_org_url = okta_org_url
 
         self._user_id = None
         self._session_token = None
@@ -64,7 +64,7 @@ class OktaClient(object):
         """ gets the login response from Okta and returns the json response"""
         headers = self._get_headers()
         response = requests.post(
-            self._idp_entry_url + '/authn',
+            self._okta_org_url + '/authn',
             json={'username': self._username, 'password': self._password},
             headers=headers
         )
@@ -85,7 +85,7 @@ class OktaClient(object):
         headers = self._get_headers()
 
         response = requests.get(
-            self._idp_entry_url + '/users/' + self._user_id + '/appLinks',
+            self._okta_org_url + '/users/' + self._user_id + '/appLinks',
             headers=headers,
             verify=True
         )
@@ -132,7 +132,7 @@ class OktaClient(object):
         # get available roles for the AWS app
         headers = self._get_headers()
         response = requests.get(
-            self._idp_entry_url + '/apps/?filter=user.id+eq+\"' +
+            self._okta_org_url + '/apps/?filter=user.id+eq+\"' +
             self._user_id + '\"&expand=user/' + self._user_id + '&limit=200',
             headers=headers,
             verify=True
@@ -178,7 +178,7 @@ class OktaClient(object):
         """ return the PrincipalArn based on the app instance id """
         headers = self._get_headers()
         response = requests.get(
-            self._idp_entry_url + '/apps/' + app_id,
+            self._okta_org_url + '/apps/' + app_id,
             headers=headers,
             verify=True
         )
