@@ -148,6 +148,11 @@ class GimmeAWSCreds(object):
 
         okta_org_url = conf_dict['okta_org_url'] + '/api/v1'
 
+        if conf_dict['embed_link'] in [None, '']:
+            print('No IdP-initiated login URL (embed link) in configuration.  Try running --config again.')
+
+        embed_link = conf_dict['embed_link']
+
         # create otka client
         api_key = self._get_okta_api_key(
             config.username,
