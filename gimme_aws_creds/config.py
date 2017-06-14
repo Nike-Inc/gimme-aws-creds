@@ -65,8 +65,6 @@ class Config(object):
             self.username = args.username
         self.conf_profile = args.profile or 'DEFAULT'
 
-
-
     def get_config_dict(self):
         """returns the conf dict from the okta config file"""
         # Check to see if config file exists, if not complain and exit
@@ -130,6 +128,7 @@ class Config(object):
            Config Options:
                 okta_org_url = Okta URL
                 embed_link = IdP-initiated login URL for the gimme-creds-server
+                gimme_creds_server = URL of the gimme_creds_server
                 write_aws_creds = Option to write creds to ~/.aws/credentials
                 cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
                 aws_appname = (optional) Okta AWS App Name
@@ -142,6 +141,7 @@ class Config(object):
         defaults = {
             'okta_org_url': '',
             'embed_link': '',
+            'gimme_creds_server': '',
             'aws_appname': '',
             'aws_rolename': '',
             'write_aws_creds': '',
@@ -162,6 +162,7 @@ class Config(object):
         # Prompt user for config details and store in config_dict
         config_dict = {
             'okta_org_url': self._get_org_url_entry(defaults['okta_org_url']),
+            'gimme_creds_server': self._get_gimme_creds_server_entry(defaults['gimme_creds_server']),
             'embed_link': self._get_embed_link_entry(defaults['embed_link']),
             'write_aws_creds': self._get_write_aws_creds(defaults['write_aws_creds']),
             'aws_appname': self._get_aws_appname(defaults['aws_appname']),
@@ -218,6 +219,24 @@ class Config(object):
                 print("Embed link URL must be a URL in your organization's Okta domain (%s)" % (self._okta_org_url))
 
         return embed_link
+
+    def _get_gimme_creds_server_entry(self, default_entry):
+        """ Get gimme_creds_server """
+        print("Enter the URL for the gimme-creds-server.")
+        gimme_creds_server_valid = False
+        gimme_creds_server = default_entry
+
+        while gimme_creds_server_valid is False:
+            gimme_creds_server = self._get_user_input("URL for gimme-creds-server", default_entry)
+            # Validate that embed_link is a well formed URL
+            url_parse_results = urlparse(gimme_creds_server)
+
+            if url_parse_results.scheme == "https":
+                gimme_creds_server_valid = True
+            else:
+                print("The gimme-creds-server must be a HTTPS URL")
+
+        return gimme_creds_server
 
     def _get_write_aws_creds(self, default_entry):
         """ Option to write to the ~/.aws/credentials or to stdour"""
