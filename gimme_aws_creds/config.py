@@ -105,6 +105,7 @@ class Config(object):
            Either updates existing config file or creates new one.
            Config Options:
                 okta_org_url = Okta URL
+                embed_link = IdP-initiated login URL for the gimme-creds-server
                 write_aws_creds = Option to write creds to ~/.aws/credentials
                 cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
                 aws_appname = (optional) Okta AWS App Name
@@ -116,6 +117,7 @@ class Config(object):
 
         defaults = {
             'okta_org_url': '',
+            'embed_link': '',
             'aws_appname': '',
             'aws_rolename': '',
             'write_aws_creds': '',
@@ -135,7 +137,8 @@ class Config(object):
 
         # Prompt user for config details and store in config_dict
         config_dict = {
-            'okta_org_url': self._get_idp_entry(defaults['okta_org_url']),
+            'okta_org_url': self._get_org_url_entry(defaults['okta_org_url']),
+            'embed_link': self._get_embed_link_entry(defaults['embed_link']),
             'write_aws_creds': self._get_write_aws_creds(defaults['write_aws_creds']),
             'aws_appname': self._get_aws_appname(defaults['aws_appname']),
             'aws_rolename': self._get_aws_rolename(defaults['aws_rolename']),
@@ -154,14 +157,14 @@ class Config(object):
         with open(self.OKTA_CONFIG, 'w') as configfile:
             config.write(configfile)
 
-    def _get_idp_entry(self, default_entry):
+    def _get_org_url_entry(self, default_entry):
         """ Get and validate okta_org_url """
-        print("Enter the IDP Entry URL. This is https://something.okta[preview].com")
+        print("Enter the Okta URL for your organization. This is https://something.okta[preview].com")
         okta_org_url_valid = False
         okta_org_url = default_entry
 
         while okta_org_url_valid is False:
-            okta_org_url = self._get_user_input("Okta URL for your organization: ", default_entry)
+            okta_org_url = self._get_user_input("Okta URL for your organization", default_entry)
             # Validate that okta_org_url is a well formed okta URL
             url_parse_results = urlparse(okta_org_url)
 
@@ -170,7 +173,27 @@ class Config(object):
             else:
                 print("Okta organization URL must be HTTPS URL for okta.com or oktapreview.com domain")
 
+        self._okta_org_url = okta_org_url
+
         return okta_org_url
+
+    def _get_embed_link_entry(self, default_entry):
+        """ Get and validate embed_link """
+        print("Enter the IdP-initiated login URL (embed link) for gimme-creds-server. If you do not know this URL, contact your Okta admin")
+        embed_link_valid = False
+        embed_link = default_entry
+
+        while embed_link_valid is False:
+            embed_link = self._get_user_input("Login URL for gimme-creds-server", default_entry)
+            # Validate that embed_link is a well formed okta URL
+            url_parse_results = urlparse(embed_link)
+
+            if self._okta_org_url in embed_link and "/home/" in url_parse_results.path:
+                embed_link_valid = True
+            else:
+                print("Embed link URL must be a URL in your organization's Okta domain (%s)" % (self._okta_org_url))
+
+        return embed_link
 
     def _get_write_aws_creds(self, default_entry):
         """ Option to write to the ~/.aws/credentials or to stdour"""
