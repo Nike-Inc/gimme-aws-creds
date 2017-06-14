@@ -134,32 +134,25 @@ class GimmeAWSCreds(object):
 
         okta.login(conf_dict['embed_link'], conf_dict['gimme_creds_server'])
 
-        print(okta.aws_access)
-
-        exit()
-
         # check to see if appname and rolename are set
         # in the config, if not give user a selection to pick from
         if not conf_dict['aws_appname']:
-            aws_appname = okta.get_app()
+            aws_app = okta.choose_app()
         else:
-            aws_appname = conf_dict['aws_appname']
+            aws_app = okta.get_app_by_name(conf_dict['aws_appname'])
 
         if not conf_dict['aws_rolename']:
-            aws_rolename = okta.get_role(aws_appname)
+            aws_role = okta.choose_role(aws_app)
         else:
-            aws_rolename = conf_dict['aws_rolename']
-
-        # get the applinks available to the user
-        app_url = okta.get_app_url(aws_appname)
+            aws_role = okta.get_role_by_name(aws_app, conf_dict['aws_rolename'])
 
         # Get the the identityProviderArn from the aws app
-        self.idp_arn = okta.get_idp_arn(app_url['appInstanceId'])
+        self.idp_arn = aws_app['identityProviderArn']
 
         # Get the role ARNs
-        self.role_arn = okta.get_role_arn(app_url['linkUrl'], aws_rolename)
+        self.role_arn = aws_role['arn']
 
-        assertion = okta.get_saml_assertion(app_url['linkUrl'])
+        assertion = okta.get_saml_assertion(aws_app['links']['appLink'])
         aws_creds = self._get_sts_creds(assertion)
 
         # check if write_aws_creds is true if so
