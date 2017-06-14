@@ -11,7 +11,6 @@ See the License for the specific language governing permissions and* limitations
 """
 import argparse
 import configparser
-import getpass
 import os
 import sys
 from os.path import expanduser
@@ -31,9 +30,11 @@ class Config(object):
 
     def __init__(self):
         self.configure = False
-        self.password = None
         self.username = None
         self.conf_profile = 'DEFAULT'
+
+        if os.environ.get("OKTA_USERNAME") is not None:
+            self.username = os.environ.get("OKTA_USERNAME")
 
     def get_args(self):
         """Get the CLI args"""
@@ -58,8 +59,11 @@ class Config(object):
         args = parser.parse_args()
 
         self.configure = args.configure
-        self.username = args.username
+        if args.username is not None:
+            self.username = args.username
         self.conf_profile = args.profile or 'DEFAULT'
+
+
 
     def get_config_dict(self):
         """returns the conf dict from the okta config file"""
@@ -77,27 +81,6 @@ class Config(object):
         else:
             print('Configuration file not found! Use the --configure flag to generate file.')
             sys.exit(1)
-
-    def get_user_creds(self):
-        """Get's creds for Okta login from the user."""
-        # Check to see if the username arg has been set, if so use that
-        if self.username is not None:
-            username = self.username
-        # Next check to see if the OKTA_USERNAME env var is set
-        elif os.environ.get("OKTA_USERNAME") is not None:
-            username = os.environ.get("OKTA_USERNAME")
-        # Otherwise just ask the user
-        else:
-            username = input("Email address: ")
-        # Set prompt to include the user name, since username could be set
-        # via OKTA_USERNAME env and user might not remember.
-        passwd_prompt = "Password for {}: ".format(username)
-        password = getpass.getpass(prompt=passwd_prompt)
-        if len(password) == 0:
-            print("Password must be provided.")
-            sys.exit(1)
-        self.username = username
-        self.password = password
 
     def update_config_file(self):
         """
@@ -271,4 +254,3 @@ class Config(object):
     def clean_up(self):
         """ clean up secret stuff"""
         del self.username
-        del self.password
