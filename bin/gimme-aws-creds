@@ -20,7 +20,6 @@ from urllib.parse import urlparse
 
 import boto3
 # local imports
-from cerberus.client import CerberusClient
 from requests.exceptions import MissingSchema
 
 from gimme_aws_creds.config import Config
@@ -54,11 +53,11 @@ class GimmeAWSCreds(object):
 
         Config Options:
            okta_org_url = Okta URL
+           embed_link = IdP-initiated login URL for the gimme-creds-server
            write_aws_creds = Option to write creds to ~/.aws/credentials
            cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
            aws_appname = (optional) Okta AWS App Name
            aws_rolename =  (optional) Okta Role Name
-           cerberus_url = (optional) Cerberus URL, for retrieving Okta API key
     """
     FILE_ROOT = expanduser("~")
     AWS_CONFIG = FILE_ROOT + '/.aws/credentials'
@@ -66,30 +65,6 @@ class GimmeAWSCreds(object):
     def __init__(self):
         self.idp_arn = None
         self.role_arn = None
-
-    @staticmethod
-    def _get_okta_api_key(username, password, okta_org_url, cerberus_url=None):
-        """returns the Okta API key from
-        env var OKTA_API_KEY or from cerberus.
-        This assumes your SDB is named Okta and
-        your Vault path ends is api_key"""
-        if os.environ.get("OKTA_API_KEY") is not None:
-            secret = os.environ.get("OKTA_API_KEY")
-        else:
-            if cerberus_url == ('' or None):
-                print('No Cerberus URL in configuration or OKTA_API_KEY environmental variable; unable to continue.')
-                sys.exit(1)
-
-            try:
-                cerberus = CerberusClient(cerberus_url, username, password)
-                path = cerberus.get_sdb_path('Okta')
-                key = urlparse(okta_org_url).netloc
-                secret = cerberus.get_secret(path + '/api_key', key)
-            except MissingSchema:
-                print('No Cerberus URL in configuration or OKTA_API_KEY environmental variable; unable to continue.')
-                sys.exit(1)
-
-        return secret
 
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
     def _write_aws_creds(self, profile, access_key, secret_key, token):
@@ -141,7 +116,6 @@ class GimmeAWSCreds(object):
 
         # get the config dict
         conf_dict = config.get_config_dict()
-        config.get_user_creds()
 
         if conf_dict['okta_org_url'] in [None, '']:
             print('No Okta organization URL in configuration.  Try running --config again.')
@@ -153,15 +127,13 @@ class GimmeAWSCreds(object):
 
         embed_link = conf_dict['embed_link']
 
-        # create otka client
-        api_key = self._get_okta_api_key(
-            config.username,
-            config.password,
-            okta_org_url,
-            cerberus_url=conf_dict['cerberus_url']
-        )
+        okta = OktaClient(okta_org_url, False)
+        if config.username is not None:
+            okta.set_username(config.username)
 
-        okta = OktaClient(okta_org_url, api_key, config.username, config.password)
+        okta.login(embed_link)
+
+        exit()
 
         # check to see if appname and rolename are set
         # in the config, if not give user a selection to pick from
