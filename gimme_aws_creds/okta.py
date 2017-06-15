@@ -9,6 +9,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
+import time
 import base64
 import json
 import sys
@@ -71,7 +72,8 @@ class OktaClient(object):
         response = self.req_session.post(
             self._okta_org_url + '/authn',
             json={'stateToken': stateToken},
-            headers=self._get_headers()
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
         )
         self._next_login_step(stateToken, response.json())
 
@@ -81,7 +83,8 @@ class OktaClient(object):
         response = self.req_session.post(
             url,
             json={'stateToken': stateToken, 'username': creds['username'], 'password': creds['password']},
-            headers=self._get_headers()
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
         )
         self._next_login_step(stateToken, response.json())
 
@@ -90,12 +93,70 @@ class OktaClient(object):
         response = self.req_session.get(url, verify=self._verify_ssl_certs)
 
         saml_soup = BeautifulSoup(response.text, "html.parser")
-        self._login_saml_form_action = saml_soup.find('form', id='appForm').get('action')
+        self._login_saml_form_action = saml_soup.find('form').get('action')
+
         for inputtag in saml_soup.find_all('input'):
             if inputtag.get('name') == 'SAMLResponse':
                 self._login_saml_response = inputtag.get('value')
             elif inputtag.get('name') == 'RelayState':
                 self._login_saml_relay_state = inputtag.get('value')
+
+    def _login_send_sms(self, stateToken, factor):
+        """ Send SMS message for second factor authentication"""
+        response = self.req_session.post(
+            factor['_links']['verify']['href'],
+            json={'stateToken': stateToken},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+
+        print("A verification code has been sent to " + factor['profile']['phoneNumber'])
+        self._next_login_step(stateToken, response.json())
+
+    def _login_send_push(self, stateToken, factor):
+        """ Send 'push' for the Okta Verify mobile app """
+        response = self.req_session.post(
+            factor['_links']['verify']['href'],
+            json={'stateToken': stateToken},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+
+        print("Push sent...")
+        self._next_login_step(stateToken, response.json())
+
+
+    def _login_multi_factor(self, stateToken, login_data):
+        """ handle multi-factor authentication with Okta"""
+        factor = self._choose_factor(login_data['_embedded']['factors'])
+        if factor['factorType'] == 'sms':
+            self._login_send_sms(stateToken, factor)
+        elif factor['factorType'] == 'token:software:totp':
+            self._login_input_mfa_challenge(stateToken, factor['_links']['verify']['href'])
+        elif factor['factorType'] == 'push':
+            self._login_send_push(stateToken, factor)
+
+    def _login_input_mfa_challenge(self, stateToken, next_url):
+        """ Submit verification code for SMS or TOTP authentication methods"""
+        passCode = input("Enter verification code: ")
+        response = self.req_session.post(
+            next_url,
+            json={'stateToken': stateToken, 'passCode': passCode},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+        self._next_login_step(stateToken, response.json())
+
+    def _check_push_result(self, stateToken, login_data):
+        """ Check Okta API to see if the push request has been responded to"""
+        time.sleep(1)
+        response = self.req_session.post(
+            login_data['_links']['next']['href'],
+            json={'stateToken': stateToken},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+        self._next_login_step(stateToken, response.json())
 
     def _next_login_step(self, stateToken, login_data):
         """ decide what the next step in the login process is"""
@@ -113,7 +174,12 @@ class OktaClient(object):
             print("You must enroll in MFA before using this tool.")
             sys.exit(2)
         elif status == 'MFA_REQUIRED':
-            raise NotImplementedError('Okta MFA not yet implemented.')
+            self._login_multi_factor(stateToken, login_data)
+        elif status == 'MFA_CHALLENGE':
+            if login_data['factorResult']:
+                self._check_push_result(stateToken, login_data)
+            else:
+                self._login_input_mfa_challenge(stateToken, login_data['_links']['next']['href'])
         else:
             raise RuntimeError('Unknown login status: ' + status)
 
@@ -121,12 +187,13 @@ class OktaClient(object):
         """ Submit the SAMLResponse and retreive the user's AWS accounts from the gimme_creds_server"""
         self.req_session.post(
             self._login_saml_form_action,
-            data = {'SAMLResponse':self._login_saml_response, 'RelayState':self._login_saml_relay_state},
+            data = {'SAMLResponse': self._login_saml_response, 'RelayState': self._login_saml_relay_state},
             verify = self._verify_ssl_certs
         )
 
         api_url = gimme_creds_server_url + '/api/v1/accounts'
         response = self.req_session.get(api_url, verify = self._verify_ssl_certs)
+
         self.aws_access = response.json()
 
         # Throw an error if we didn't get any accounts back
@@ -134,12 +201,44 @@ class OktaClient(object):
             print("No AWS accounts found")
             exit()
 
+    def _choose_factor(self, factors):
+        """ gets a list of available authentication factors and
+        asks the user to select the factor they want to use """
+
+        print("Pick a factor:")
+        # print out the factors and let the user select
+        for i, factor in enumerate(factors):
+            factorName = self._build_factor_name(factor)
+            print('[', i, ']', factorName)
+
+        selection = input("Selection: ")
+
+        # make sure the choice is valid
+        if int(selection) > len(factors):
+            print("You made an invalid selection")
+            sys.exit(1)
+
+        return factors[int(selection)]
+
+    def _build_factor_name(self, factor):
+        """ Builds the display name for a MFA factor based on the factor type"""
+        if factor['factorType'] == 'push':
+            return factor['factorType'] + ": " + factor['profile']['deviceType'] + ": " + factor['profile']['name']
+        elif factor['factorType'] == 'sms':
+            return factor['factorType'] + ": " + factor['profile']['phoneNumber']
+        elif factor['factorType'] == 'token:software:totp':
+            return factor['factorType'] + ": " + factor['profile']['credentialId']
+        else:
+            print("Unknown multi-factor type: " + factor['factorType'])
+            exit(1)
+
+
     def choose_app(self):
         """ gets a list of available apps and
         ask the user to select the app they want
         to assume a roles for and returns the selection
         """
-        #app_resp = self.get_app_links()
+
         print("Pick an app:")
         # print out the apps and let the user select
         for i, app in enumerate(self.aws_access):
@@ -189,16 +288,14 @@ class OktaClient(object):
         """return the base64 SAML value object from the SAML Response"""
         response = self.req_session.get(
             app_url,
-            verify=self._verify_ssl_certs
+            verify = self._verify_ssl_certs
         )
 
         # parse the SAML response from the HTML
         saml_soup = BeautifulSoup(response.text, "html.parser")
         for inputtag in saml_soup.find_all('input'):
             if inputtag.get('name') == 'SAMLResponse':
-                self._saml_assertion = inputtag.get('value')
-
-        return self._saml_assertion
+                return inputtag.get('value')
 
     def _get_username_password_creds(self):
         """Get's creds for Okta login from the user."""
