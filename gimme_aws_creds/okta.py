@@ -53,7 +53,15 @@ class OktaClient(object):
     def login(self, embed_link, gimme_creds_server_url):
         """ Login to Okta and request data from the gimme-creds-server"""
         self._server_embed_link = embed_link
-        self._start_login_flow()
+
+        flowState = self._get_state_token()
+
+        while flowState['apiResponse']['status'] != 'SUCCESS':
+            flowState = self._next_login_step(flowState['stateToken'], flowState['apiResponse'])
+
+        print("Authentication Success! Getting AWS Accounts...")
+        self._login_get_saml_response(flowState['apiResponse']['_links']['next']['href'])
+
         self._get_aws_account_info(gimme_creds_server_url)
 
     def _get_headers(self):
@@ -63,7 +71,7 @@ class OktaClient(object):
             'Content-Type': 'application/json' }
         return headers
 
-    def _start_login_flow(self):
+    def _get_state_token(self):
         """ gets the starts the authentication flow with Okta"""
         response = self.req_session.get(self._server_embed_link , allow_redirects=False)
         url_parse_results = urlparse(response.headers['Location'])
@@ -75,7 +83,30 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
-        self._next_login_step(stateToken, response.json())
+        return {'stateToken': stateToken, 'apiResponse': response.json()}
+
+    def _next_login_step(self, stateToken, login_data):
+        """ decide what the next step in the login process is"""
+        if 'errorCode' in login_data:
+            print("LOGIN ERROR: " + login_data['errorSummary'], "Error Code ", login_data['errorCode'])
+            sys.exit(2)
+
+        status = login_data['status']
+
+        if status == 'UNAUTHENTICATED':
+            return self._login_username_password(stateToken, login_data['_links']['next']['href'])
+        elif status == 'MFA_ENROLL':
+            print("You must enroll in MFA before using this tool.")
+            sys.exit(2)
+        elif status == 'MFA_REQUIRED':
+            return self._login_multi_factor(stateToken, login_data)
+        elif status == 'MFA_CHALLENGE':
+            if 'factorResult' in login_data and login_data['factorResult'] == 'WAITING':
+                return self._check_push_result(stateToken, login_data)
+            else:
+                return self._login_input_mfa_challenge(stateToken, login_data['_links']['next']['href'])
+        else:
+            raise RuntimeError('Unknown login status: ' + status)
 
     def _login_username_password(self, stateToken, url):
         """ login to Okta with a username and password"""
@@ -86,7 +117,64 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
-        self._next_login_step(stateToken, response.json())
+        return {'stateToken': stateToken, 'apiResponse': response.json()}
+
+    def _login_send_sms(self, stateToken, factor):
+        """ Send SMS message for second factor authentication"""
+        response = self.req_session.post(
+            factor['_links']['verify']['href'],
+            json={'stateToken': stateToken},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+
+        print("A verification code has been sent to " + factor['profile']['phoneNumber'])
+        return {'stateToken': stateToken, 'apiResponse': response.json() }
+
+    def _login_send_push(self, stateToken, factor):
+        """ Send 'push' for the Okta Verify mobile app """
+        response = self.req_session.post(
+            factor['_links']['verify']['href'],
+            json={'stateToken': stateToken},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+
+        print("Okta Verify push sent...")
+        return {'stateToken': stateToken, 'apiResponse': response.json()}
+
+
+    def _login_multi_factor(self, stateToken, login_data):
+        """ handle multi-factor authentication with Okta"""
+        factor = self._choose_factor(login_data['_embedded']['factors'])
+        if factor['factorType'] == 'sms':
+            return self._login_send_sms(stateToken, factor)
+        elif factor['factorType'] == 'token:software:totp':
+            return self._login_input_mfa_challenge(stateToken, factor['_links']['verify']['href'])
+        elif factor['factorType'] == 'push':
+            return self._login_send_push(stateToken, factor)
+
+    def _login_input_mfa_challenge(self, stateToken, next_url):
+        """ Submit verification code for SMS or TOTP authentication methods"""
+        passCode = input("Enter verification code: ")
+        response = self.req_session.post(
+            next_url,
+            json={'stateToken': stateToken, 'passCode': passCode},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+        return {'stateToken': stateToken, 'apiResponse': response.json()}
+
+    def _check_push_result(self, stateToken, login_data):
+        """ Check Okta API to see if the push request has been responded to"""
+        time.sleep(1)
+        response = self.req_session.post(
+            login_data['_links']['next']['href'],
+            json={'stateToken': stateToken},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+        return {'stateToken': stateToken, 'apiResponse': response.json()}
 
     def _login_get_saml_response(self, url):
         """ return the base64 SAML value object from the SAML Response"""
@@ -103,90 +191,6 @@ class OktaClient(object):
 
         if self._login_saml_response is None:
             raise RuntimeError('Did not receive SAML Response after successful authentication [' + url + ']')
-
-    def _login_send_sms(self, stateToken, factor):
-        """ Send SMS message for second factor authentication"""
-        response = self.req_session.post(
-            factor['_links']['verify']['href'],
-            json={'stateToken': stateToken},
-            headers=self._get_headers(),
-            verify=self._verify_ssl_certs
-        )
-
-        print("A verification code has been sent to " + factor['profile']['phoneNumber'])
-        self._next_login_step(stateToken, response.json())
-
-    def _login_send_push(self, stateToken, factor):
-        """ Send 'push' for the Okta Verify mobile app """
-        response = self.req_session.post(
-            factor['_links']['verify']['href'],
-            json={'stateToken': stateToken},
-            headers=self._get_headers(),
-            verify=self._verify_ssl_certs
-        )
-
-        print("Okta Verify push sent...")
-        self._next_login_step(stateToken, response.json())
-
-
-    def _login_multi_factor(self, stateToken, login_data):
-        """ handle multi-factor authentication with Okta"""
-        factor = self._choose_factor(login_data['_embedded']['factors'])
-        if factor['factorType'] == 'sms':
-            self._login_send_sms(stateToken, factor)
-        elif factor['factorType'] == 'token:software:totp':
-            self._login_input_mfa_challenge(stateToken, factor['_links']['verify']['href'])
-        elif factor['factorType'] == 'push':
-            self._login_send_push(stateToken, factor)
-
-    def _login_input_mfa_challenge(self, stateToken, next_url):
-        """ Submit verification code for SMS or TOTP authentication methods"""
-        passCode = input("Enter verification code: ")
-        response = self.req_session.post(
-            next_url,
-            json={'stateToken': stateToken, 'passCode': passCode},
-            headers=self._get_headers(),
-            verify=self._verify_ssl_certs
-        )
-        self._next_login_step(stateToken, response.json())
-
-    def _check_push_result(self, stateToken, login_data):
-        """ Check Okta API to see if the push request has been responded to"""
-        time.sleep(1)
-        response = self.req_session.post(
-            login_data['_links']['next']['href'],
-            json={'stateToken': stateToken},
-            headers=self._get_headers(),
-            verify=self._verify_ssl_certs
-        )
-        self._next_login_step(stateToken, response.json())
-
-
-    def _next_login_step(self, stateToken, login_data):
-        """ decide what the next step in the login process is"""
-        if 'errorCode' in login_data:
-            print("LOGIN ERROR: " + login_data['errorSummary'], "Error Code ", login_data['errorCode'])
-            sys.exit(2)
-
-        status = login_data['status']
-
-        if status == 'UNAUTHENTICATED':
-            self._login_username_password(stateToken, login_data['_links']['next']['href'])
-        elif status == 'SUCCESS':
-            print("Authentication Success! Getting AWS Accounts...")
-            self._login_get_saml_response(login_data['_links']['next']['href'])
-        elif status == 'MFA_ENROLL':
-            print("You must enroll in MFA before using this tool.")
-            sys.exit(2)
-        elif status == 'MFA_REQUIRED':
-            self._login_multi_factor(stateToken, login_data)
-        elif status == 'MFA_CHALLENGE':
-            if 'factorResult' in login_data and login_data['factorResult'] == 'WAITING':
-                self._check_push_result(stateToken, login_data)
-            else:
-                self._login_input_mfa_challenge(stateToken, login_data['_links']['next']['href'])
-        else:
-            raise RuntimeError('Unknown login status: ' + status)
 
     def _get_aws_account_info(self, gimme_creds_server_url):
         """ Submit the SAMLResponse and retreive the user's AWS accounts from the gimme_creds_server"""
