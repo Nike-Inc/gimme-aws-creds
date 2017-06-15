@@ -101,6 +101,9 @@ class OktaClient(object):
             elif inputtag.get('name') == 'RelayState':
                 self._login_saml_relay_state = inputtag.get('value')
 
+        if self._login_saml_response is None:
+            raise RuntimeError('Did not receive SAML Response after successful authentication [' + url + ']')
+
     def _login_send_sms(self, stateToken, factor):
         """ Send SMS message for second factor authentication"""
         response = self.req_session.post(
@@ -122,7 +125,7 @@ class OktaClient(object):
             verify=self._verify_ssl_certs
         )
 
-        print("Push sent...")
+        print("Okta Verify push sent...")
         self._next_login_step(stateToken, response.json())
 
 
@@ -158,6 +161,7 @@ class OktaClient(object):
         )
         self._next_login_step(stateToken, response.json())
 
+
     def _next_login_step(self, stateToken, login_data):
         """ decide what the next step in the login process is"""
         if 'errorCode' in login_data:
@@ -169,6 +173,7 @@ class OktaClient(object):
         if status == 'UNAUTHENTICATED':
             self._login_username_password(stateToken, login_data['_links']['next']['href'])
         elif status == 'SUCCESS':
+            print("Authentication Success! Getting AWS Accounts...")
             self._login_get_saml_response(login_data['_links']['next']['href'])
         elif status == 'MFA_ENROLL':
             print("You must enroll in MFA before using this tool.")
@@ -176,7 +181,7 @@ class OktaClient(object):
         elif status == 'MFA_REQUIRED':
             self._login_multi_factor(stateToken, login_data)
         elif status == 'MFA_CHALLENGE':
-            if login_data['factorResult']:
+            if 'factorResult' in login_data and login_data['factorResult'] == 'WAITING':
                 self._check_push_result(stateToken, login_data)
             else:
                 self._login_input_mfa_challenge(stateToken, login_data['_links']['next']['href'])
@@ -205,11 +210,13 @@ class OktaClient(object):
         """ gets a list of available authentication factors and
         asks the user to select the factor they want to use """
 
+        print("Multi-factor Authentication required.")
         print("Pick a factor:")
         # print out the factors and let the user select
         for i, factor in enumerate(factors):
             factorName = self._build_factor_name(factor)
-            print('[', i, ']', factorName)
+            if factorName != '' :
+                print('[', i, ']', factorName)
 
         selection = input("Selection: ")
 
@@ -221,7 +228,7 @@ class OktaClient(object):
         return factors[int(selection)]
 
     def _build_factor_name(self, factor):
-        """ Builds the display name for a MFA factor based on the factor type"""
+        """ Build the display name for a MFA factor based on the factor type"""
         if factor['factorType'] == 'push':
             return factor['factorType'] + ": " + factor['profile']['deviceType'] + ": " + factor['profile']['name']
         elif factor['factorType'] == 'sms':
@@ -229,9 +236,8 @@ class OktaClient(object):
         elif factor['factorType'] == 'token:software:totp':
             return factor['factorType'] + ": " + factor['profile']['credentialId']
         else:
-            print("Unknown multi-factor type: " + factor['factorType'])
-            exit(1)
-
+            print("Unknown MFA type: " + factor['factorType'])
+            return ""
 
     def choose_app(self):
         """ gets a list of available apps and
@@ -248,7 +254,7 @@ class OktaClient(object):
 
         # make sure the choice is valid
         if int(selection) > len(self.aws_access):
-            print("You selected an invalid selection")
+            print("You made an invalid selection")
             sys.exit(1)
 
         return self.aws_access[int(selection)]
@@ -279,7 +285,7 @@ class OktaClient(object):
 
         # make sure the choice is valid
         if int(selection) > len(app_info['roles']):
-            print("You selected an invalid selection")
+            print("You made an invalid selection")
             sys.exit(1)
 
         return app_info['roles'][int(selection)]
