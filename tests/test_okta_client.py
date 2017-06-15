@@ -3,7 +3,9 @@ import json
 import unittest
 
 import requests
+import responses
 from mock import patch
+from nose.tools import assert_equals
 
 from gimme_aws_creds.okta import OktaClient
 
