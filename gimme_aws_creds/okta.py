@@ -39,10 +39,6 @@ class OktaClient(object):
         self._server_embed_link = None
         self._username = None
 
-        self._login_saml_response = None
-        self._login_saml_form_action = None
-        self._login_saml_relay_state = None
-
         self.aws_access = None
 
         self.req_session = requests.Session()
@@ -60,9 +56,9 @@ class OktaClient(object):
             flowState = self._next_login_step(flowState['stateToken'], flowState['apiResponse'])
 
         print("Authentication Success! Getting AWS Accounts...")
-        self._login_get_saml_response(flowState['apiResponse']['_links']['next']['href'])
+        samlResponse = self.get_saml_response(flowState['apiResponse']['_links']['next']['href'])
 
-        self._get_aws_account_info(gimme_creds_server_url)
+        self._get_aws_account_info(gimme_creds_server_url, samlResponse)
 
     def _get_headers(self):
         """sets the default headers"""
@@ -176,27 +172,29 @@ class OktaClient(object):
         )
         return {'stateToken': stateToken, 'apiResponse': response.json()}
 
-    def _login_get_saml_response(self, url):
+    def get_saml_response(self, url):
         """ return the base64 SAML value object from the SAML Response"""
         response = self.req_session.get(url, verify=self._verify_ssl_certs)
 
         saml_soup = BeautifulSoup(response.text, "html.parser")
-        self._login_saml_form_action = saml_soup.find('form').get('action')
+        form_action = saml_soup.find('form').get('action')
 
         for inputtag in saml_soup.find_all('input'):
             if inputtag.get('name') == 'SAMLResponse':
-                self._login_saml_response = inputtag.get('value')
+                saml_response = inputtag.get('value')
             elif inputtag.get('name') == 'RelayState':
-                self._login_saml_relay_state = inputtag.get('value')
+                relay_state = inputtag.get('value')
 
-        if self._login_saml_response is None:
+        if saml_response is None:
             raise RuntimeError('Did not receive SAML Response after successful authentication [' + url + ']')
 
-    def _get_aws_account_info(self, gimme_creds_server_url):
+        return {'SAMLResponse': saml_response, 'RelayState': relay_state, 'TargetUrl': form_action}
+
+    def _get_aws_account_info(self, gimme_creds_server_url, saml_data):
         """ Submit the SAMLResponse and retreive the user's AWS accounts from the gimme_creds_server"""
         self.req_session.post(
-            self._login_saml_form_action,
-            data = {'SAMLResponse': self._login_saml_response, 'RelayState': self._login_saml_relay_state},
+            saml_data['TargetUrl'],
+            data = saml_data,
             verify = self._verify_ssl_certs
         )
 
@@ -293,19 +291,6 @@ class OktaClient(object):
             sys.exit(1)
 
         return app_info['roles'][int(selection)]
-
-    def get_saml_assertion(self, app_url):
-        """return the base64 SAML value object from the SAML Response"""
-        response = self.req_session.get(
-            app_url,
-            verify = self._verify_ssl_certs
-        )
-
-        # parse the SAML response from the HTML
-        saml_soup = BeautifulSoup(response.text, "html.parser")
-        for inputtag in saml_soup.find_all('input'):
-            if inputtag.get('name') == 'SAMLResponse':
-                return inputtag.get('value')
 
     def _get_username_password_creds(self):
         """Get's creds for Okta login from the user."""

@@ -155,8 +155,8 @@ class GimmeAWSCreds(object):
         # Get the role ARNs
         self.role_arn = aws_role['arn']
 
-        assertion = okta.get_saml_assertion(aws_app['links']['appLink'])
-        aws_creds = self._get_sts_creds(assertion)
+        saml_data = okta.get_saml_response(aws_app['links']['appLink'])
+        aws_creds = self._get_sts_creds(saml_data['SAMLResponse'])
 
         # check if write_aws_creds is true if so
         # get the profile name and write out the file

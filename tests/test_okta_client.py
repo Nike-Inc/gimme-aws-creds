@@ -16,65 +16,142 @@ class TestOktaClient(unittest.TestCase):
 
     def setUp(self):
         """Set up for the unit tests"""
-        self.okta_api_key = 'XXXXXX'
-        self.okta_org_url = 'https://example.okta.com'
-        self.client = self.setUp_client(self.okta_org_url, self.okta_api_key)
-        # self.login_resp = {
-        #     "_embedded": {
-        #         "user": {
-        #             "id": "00000",
-        #         }
-        #     },
-        #     "status": "SUCCESS"
-        # }
-        self.app_links = [
-            {
-                "id": "1",
-                "label": "AWS Prod",
-                "linkUrl": "https://example.oktapreview.com/1",
-                "appName": "amazon_aws"
+        self.okta_org_url = 'https://example.okta.com/api/v1'
+        self.server_embed_link = 'https://example.okta.com/home/foo/bar/baz'
+        self.gimme_creds_server = 'https://localhost:8443'
+        self.login_url = 'https://localhost:8443/login?stateToken=00Wf8xZJ79mSoTYnJqXbvRegT8QB1EX1IBVk1TU7KI'
+        self.state_token = '00Wf8xZJ79mSoTYnJqXbvRegT8QB1EX1IBVk1TU7KI'
+        self.client = self.setUp_client(self.okta_org_url, False)
+
+        self.sms_factor = {
+            "id": "sms9hmdk2qvhjOQQ30h7",
+            "factorType": "sms",
+            "provider": "OKTA",
+            "vendorName": "OKTA",
+            "profile": {
+                "phoneNumber": "+1 XXX-XXX-1234"
+            },
+            "_links": {
+                "verify": {
+                    "href": "https://example.okta.com/api/v1/authn/factors/sms9hmdk2qvhjOQQ30h7/verify",
+                    "hints": {
+                        "allow": [
+                            "POST"
+                        ]
+                    }
+                }
+            }
+        }
+
+        self.push_factor = {
+                "id": "opf9ei43pbAgb2qgc0h7",
+                "factorType": "push",
+                "provider": "OKTA",
+                "vendorName": "OKTA",
+                "profile": {
+                    "credentialId": "jane.does@example.com",
+                    "deviceType": "SmartPhone_IPhone",
+                    "keys": [
+                        {
+                            "kty": "PKIX",
+                            "use": "sig",
+                            "kid": "default",
+                            "x5c": [
+                                "fdsfsdfdsfs"
+                            ]
+                        }
+                    ],
+                    "name": "Jane.Doe iPhone",
+                    "platform": "IOS",
+                    "version": "10.2.1"
+                },
+                "_links": {
+                    "verify": {
+                        "href": "https://example.okta.com/api/v1/authn/factors/opf9ei43pbAgb2qgc0h7/verify",
+                        "hints": {
+                            "allow": [
+                                "POST"
+                            ]
+                        }
+                    }
+                }
+            }
+
+        self.totp_factor = {
+                "id": "ost9ei4toqQBAzXmw0h7",
+                "factorType": "token:software:totp",
+                "provider": "OKTA",
+                "vendorName": "OKTA",
+                "profile": {
+                    "credentialId": "jane.doe@example.com"
+                },
+                "_links": {
+                    "verify": {
+                        "href": "https://example.okta.com/api/v1/authn/factors/ost9ei4toqQBAzXmw0h7/verify",
+                        "hints": {
+                            "allow": [
+                                "POST"
+                            ]
+                        }
+                    }
+                }
+            }
+
+        self.api_results = [{
+          "id": "0oaabbfwyixfM6Gwu0h7",
+          "name": "Sample AWS Account",
+          "identityProviderArn": "arn:aws:iam::012345678901:saml-provider/okta-sso",
+          "roles": [{
+              "name": "ReadOnly",
+              "arn": "arn:aws:iam::012345678901:role/ReadOnly"
             },
             {
-                "id": "2",
-                "label": "AWS Dev",
-                "linkUrl": "https://example.oktapreview.com/2",
-                "appName": "amazon_aws"
+              "name": "Admin",
+              "arn": "arn:aws:iam::012345678901:role/Admin"
             }
-        ]
+          ],
+          "links": {
+            "appLink": "https://example.okta.com/home/amazon_aws/0oaabbfwyixfM6Gwu0h7/137",
+            "appLogo": "https://op1static.oktacdn.com/assets/img/logos/amazon-aws.0ade36569a58c5a43c01603e2d259aa9.png"
+          }
+        }]
 
-    @patch('gimme_aws_creds.okta.OktaClient._get_login_response')
-    def setUp_client(self, okta_org_url, okta_api_key, mock_login):
-        mock_login.return_value = None
-        client = OktaClient(okta_org_url, okta_api_key, 'username', 'password')
-        client._user_id = '00000'
-        client._session_token = '20111ZTiraxruMoaA3cQh7RgG9lMqPiVk'
+        self.login_saml = """
+        <html lang="en">
+
+        <body>
+          <form id="appForm" action="https&#x3a;&#x2f;&#x2f;localhost&#x3a;8443&#x2f;saml&#x2f;SSO" method="POST">
+            <input name="SAMLResponse" type="hidden" value="PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4NCjxzYW1sMnA6UmVzcG9uc2UgRGVzdGluYXRpb249Imh0dHBzOi8vbG9jYWxob3N0Ojg0NDMvc2FtbC9TU08iIElEPSJpZDMyMTIwMzUzOTczODgyMDAxMTI2Mjk1MDA2Ig0KICAgIEluUmVzcG9uc2VUbz0iYTMxNjFmY2RnY2Q5Zzg4aDQxZ2phZ2IyZjg3MTdjZSIgSXNzdWVJbnN0YW50PSIyMDE3LTA2LTE2VDAwOjU4OjAyLjA1N1oiIFZlcnNpb249IjIuMCINCiAgICB4bWxuczpzYW1sMnA9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDpwcm90b2NvbCI%2BDQogICAgPHNhbWwyOklzc3VlciBGb3JtYXQ9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDpuYW1laWQtZm9ybWF0OmVudGl0eSINCiAgICAgICAgeG1sbnM6c2FtbDI9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDphc3NlcnRpb24iPmh0dHA6Ly93d3cub2t0YS5jb20vZXhrYXRnN3U5ZzZMSmZGclowaDc8L3NhbWwyOklzc3Vlcj4NCiAgICA8ZHM6U2lnbmF0dXJlIHhtbG5zOmRzPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwLzA5L3htbGRzaWcjIj4NCiAgICAgICAgPGRzOlNpZ25lZEluZm8%2BPGRzOkNhbm9uaWNhbGl6YXRpb25NZXRob2QgQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxLzEwL3htbC1leGMtYzE0biMiLz48ZHM6U2lnbmF0dXJlTWV0aG9kIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS8wNC94bWxkc2lnLW1vcmUjcnNhLXNoYTI1NiIvPg0KICAgICAgICAgICAgPGRzOlJlZmVyZW5jZSBVUkk9IiNpZDMyMTIwMzUzOTczODgyMDAxMTI2Mjk1MDA2Ij4NCiAgICAgICAgICAgICAgICA8ZHM6VHJhbnNmb3Jtcz48ZHM6VHJhbnNmb3JtIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMC8wOS94bWxkc2lnI2VudmVsb3BlZC1zaWduYXR1cmUiLz48ZHM6VHJhbnNmb3JtIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS8xMC94bWwtZXhjLWMxNG4jIi8%2BPC9kczpUcmFuc2Zvcm1zPjxkczpEaWdlc3RNZXRob2QgQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxLzA0L3htbGVuYyNzaGEyNTYiLz4NCiAgICAgICAgICAgICAgICA8ZHM6RGlnZXN0VmFsdWU%2BZ0hJNGMrMzJFbklScU5aRzBEQ0lZWjJzQzQ3Z29lQzBzYTVWYisyOGV2MD08L2RzOkRpZ2VzdFZhbHVlPg0KICAgICAgICAgICAgPC9kczpSZWZlcmVuY2U%2BDQogICAgICAgIDwvZHM6U2lnbmVkSW5mbz4NCiAgICAgICAgPGRzOlNpZ25hdHVyZVZhbHVlPkl1ZGZGakZRNklJa0psYXpKdDl0R1V3OWs2L3lwOVNueFI4VzRWV2pPaVc4UXVLV1VGblh0VVdIS1NwQW9EanZSODcrVVRiUEd2VUZORXh2UEMzSE5wcVE1OW5IY3VzeDRWblRoTG8xMld5aG10RVBBSTlUellUNWZEWjZHQTFHWTQwNVhRaElBZzdPVGdzOUR0dldaTitVQUVWZDVySVNvUGJZZU5nbUk1VUZoOWpDSE55aTNPVzdpbk9mTjBKUXdrd3o5OHFsTGpRbEJnTWVDWGFHWFBSSVRpLzJTSHVmWW9pVUltZEZQU2hTaUlaQytZSmlDOHYxa3pRd3RDWW8vNHpmWm5WN24raXpkSWswQU52eFBHQmVIUzZ5S29ETEtwV3A0Wm13bHdFb21KdVlIVnZWVnhoaWhDeEMzTmVVbVBtRVJIYUdrMEIyZzR0T1pZVUk4QT09PC9kczpTaWduYXR1cmVWYWx1ZT4NCiAgICAgICAgPGRzOktleUluZm8%2BDQogICAgICAgICAgICA8ZHM6WDUwOURhdGE%2BDQogICAgICAgICAgICAgICAgPGRzOlg1MDlDZXJ0aWZpY2F0ZT5NSUlEbmpDQ0FvYWdBd0lCQWdJR0FWaWNuWjNQTUEwR0NTcUdTSWIzRFFFQkN3VUFNSUdQTVFzd0NRWURWUVFHRXdKVlV6RVRNQkVHDQogICAgICAgICAgICAgICAgICAgIEExVUVDQXdLUTJGc2FXWnZjbTVwWVRFV01CUUdBMVVFQnd3TlUyRnVJRVp5WVc1amFYTmpiekVOTUFzR0ExVUVDZ3dFVDJ0MFlURVUNCiAgICAgICAgICAgICAgICAgICAgTUJJR0ExVUVDd3dMVTFOUFVISnZkbWxrWlhJeEVEQU9CZ05WQkFNTUIyNXBhMlV0Y1dFeEhEQWFCZ2txaGtpRzl3MEJDUUVXRFdsdQ0KICAgICAgICAgICAgICAgICAgICBabTlBYjJ0MFlTNWpiMjB3SGhjTk1UWXhNVEkxTVRjMU1UQTFXaGNOTWpZeE1USTFNVGMxTWpBMFdqQ0JqekVMTUFrR0ExVUVCaE1DDQogICAgICAgICAgICAgICAgICAgIFZWTXhFekFSQmdOVkJBZ01Da05oYkdsbWIzSnVhV0V4RmpBVUJnTlZCQWNNRFZOaGJpQkdjbUZ1WTJselkyOHhEVEFMQmdOVkJBb00NCiAgICAgICAgICAgICAgICAgICAgQkU5cmRHRXhGREFTQmdOVkJBc01DMU5UVDFCeWIzWnBaR1Z5TVJBd0RnWURWUVFEREFkdWFXdGxMWEZoTVJ3d0dnWUpLb1pJaHZjTg0KICAgICAgICAgICAgICAgICAgICBBUWtCRmcxcGJtWnZRRzlyZEdFdVkyOXRNSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9DQVE4QU1JSUJDZ0tDQVFFQWpjSUdsZnlUDQogICAgICAgICAgICAgICAgICAgIEk0VXV4ZGVpc1JUY3NwcVZRN1JJcE4vQmdkc2lTQStSZDdUQ1pjN1pFZEtoSDBwMU1PYVRqaVBXeTNNVW1VanRsWG9pdnI3YVd6OUQNCiAgICAgICAgICAgICAgICAgICAgTGhKREZrNkt0L3ZPWTdqamFRUUIzMzZBZWcvMXRZWFM1MDdFU3liRzBiSnRjcUNwNXNIcnBqUWVSdDUrK3lObUs2bUxaSEVYc0NGYg0KICAgICAgICAgICAgICAgICAgICA3Wkd0QnpOeEhYVC9wSG1aN2tXUlRTTkVhVy9lN2VwNnY4L1VtRm1zYkRyd0FOckVEVklnMGZDUnNvdGRsWkpGUjFIdWlpMkREOG4zDQogICAgICAgICAgICAgICAgICAgIGlJWHUrb3I5KzJsRDY1RWladExaWXpEcDRpNnRFeTY2MjdBM0c1K29uMHoyNmR4VXhjQ0hOenl6bmFqOHA0Y1VjWGI0SkQxa2poZ2YNCiAgICAgICAgICAgICAgICAgICAgK3R3eUJLQlBuTHp1d2UvVEI2QXJMYjYvUFpaenJRSURBUUFCTUEwR0NTcUdTSWIzRFFFQkN3VUFBNElCQVFBSGtRQUFpV04rbC81dw0KICAgICAgICAgICAgICAgICAgICBCeEMreTZjV0FoeVB2QlBHR2dES0J5R01iTXFvcytvUHBXR25RSVF6RGpSOW15UFY2U0JoTHZNUmxYVXM0dGVoT3pTR3Z5eTRLWnYrDQogICAgICAgICAgICAgICAgICAgIE1MSnBoRk9GOEQ5TTR4bVY3VU5xZEwvMXF2TWxuWDh4eDlqUGRpb3VMUlIxdmpMdDI4bitWRXhjeG9rUnZGdEd5bGp3N2NNZDlzT2kNCiAgICAgICAgICAgICAgICAgICAgN2dQWi9wV3lNTk5jRXozeEV2UGp5ZWFQZXZRZVJZeG9RQjh2WXZDVSszZTF1bFlTbUlzOUR0bWtmVXlVOGxDUVFFbzFocmkxOVpLWA0KICAgICAgICAgICAgICAgICAgICBTY2NPNVl0V3R2cTliUVYvVUJXOHF5YXFGWHd1WW81QTNTR0VaUloxUzdZZXZwOUJBUU9QNzUwNzlVNEhaZG95ektBaWhabmxHdURCDQogICAgICAgICAgICAgICAgICAgIFRJUE9YUTZPZjYrbnBFZmY2NDJ3VU1CZTwvZHM6WDUwOUNlcnRpZmljYXRlPg0KICAgICAgICAgICAgPC9kczpYNTA5RGF0YT4NCiAgICAgICAgPC9kczpLZXlJbmZvPg0KICAgIDwvZHM6U2lnbmF0dXJlPg0KICAgIDxzYW1sMnA6U3RhdHVzIHhtbG5zOnNhbWwycD0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOnByb3RvY29sIj48c2FtbDJwOlN0YXR1c0NvZGUgVmFsdWU9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDpzdGF0dXM6U3VjY2VzcyIvPjwvc2FtbDJwOlN0YXR1cz4NCiAgICA8c2FtbDI6QXNzZXJ0aW9uIElEPSJpZDMyMTIwMzUzOTc0MzE0NTUyMTIzMjU4OTA3IiBJc3N1ZUluc3RhbnQ9IjIwMTctMDYtMTZUMDA6NTg6MDIuMDU3WiINCiAgICAgICAgVmVyc2lvbj0iMi4wIiB4bWxuczpzYW1sMj0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOmFzc2VydGlvbiI%2BDQogICAgICAgIDxzYW1sMjpJc3N1ZXIgRm9ybWF0PSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6bmFtZWlkLWZvcm1hdDplbnRpdHkiDQogICAgICAgICAgICB4bWxuczpzYW1sMj0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOmFzc2VydGlvbiI%2BaHR0cDovL3d3dy5va3RhLmNvbS9leGthdGc3dTlnNkxKZkZyWjBoNzwvc2FtbDI6SXNzdWVyPg0KICAgICAgICA8ZHM6U2lnbmF0dXJlIHhtbG5zOmRzPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwLzA5L3htbGRzaWcjIj4NCiAgICAgICAgICAgIDxkczpTaWduZWRJbmZvPjxkczpDYW5vbmljYWxpemF0aW9uTWV0aG9kIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS8xMC94bWwtZXhjLWMxNG4jIi8%2BPGRzOlNpZ25hdHVyZU1ldGhvZCBBbGdvcml0aG09Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvMDQveG1sZHNpZy1tb3JlI3JzYS1zaGEyNTYiLz4NCiAgICAgICAgICAgICAgICA8ZHM6UmVmZXJlbmNlIFVSST0iI2lkMzIxMjAzNTM5NzQzMTQ1NTIxMjMyNTg5MDciPg0KICAgICAgICAgICAgICAgICAgICA8ZHM6VHJhbnNmb3Jtcz48ZHM6VHJhbnNmb3JtIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMC8wOS94bWxkc2lnI2VudmVsb3BlZC1zaWduYXR1cmUiLz48ZHM6VHJhbnNmb3JtIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS8xMC94bWwtZXhjLWMxNG4jIi8%2BPC9kczpUcmFuc2Zvcm1zPjxkczpEaWdlc3RNZXRob2QgQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxLzA0L3htbGVuYyNzaGEyNTYiLz4NCiAgICAgICAgICAgICAgICAgICAgPGRzOkRpZ2VzdFZhbHVlPnMrK2FqSDhNRlB3U2FzNTFLZ2grU2gzUnFobTM2TklQMEpWd2JMVjhqdlE9PC9kczpEaWdlc3RWYWx1ZT4NCiAgICAgICAgICAgICAgICA8L2RzOlJlZmVyZW5jZT4NCiAgICAgICAgICAgIDwvZHM6U2lnbmVkSW5mbz4NCiAgICAgICAgICAgIDxkczpTaWduYXR1cmVWYWx1ZT5VWVlXQXJSRHdEcmRtMnFwVldRSkk5UERnYVVVRXV6Zk1OQjEwditXR0JGNzFRTm1PSVR6QjlFREhqNlpyWXJobTFMdGxuL0J2cEo2d2pjbGJLb1JxRHpINHY0UGlMWE1ILytTWStVaDc2di9la0lyT1YzaURaZ2VBTWxQWjNWNHZYd1A5ZUZnM3o1ZVFhbUFGY2l2cW15UnFETUp1anBPaFo1dXdycU5qbS9nd3BQV0owSmw1RTJ2dEVNcGdtTDZYNmR3NGF6a3dySWRFN2NWeGUzZ2NsR3J1cTE3dHBJK3FQK1ByV29zRkcxV0tTbmpqUnptckVCZmJWcHFYZk43eEpFaTRWVDc1bklQQ2FSaFlCRkVBM0NRYlA2ZVEyM2JuUGZWVlB0NVZjWXhpU042Q2s3WmpjVzJwbkNjREQrVVBDMGJnWEZYZVoySFlPa1JmazF6S3c9PTwvZHM6U2lnbmF0dXJlVmFsdWU%2BDQogICAgICAgICAgICA8ZHM6S2V5SW5mbz4NCiAgICAgICAgICAgICAgICA8ZHM6WDUwOURhdGE%2BDQogICAgICAgICAgICAgICAgICAgIDxkczpYNTA5Q2VydGlmaWNhdGU%2BTUlJRG5qQ0NBb2FnQXdJQkFnSUdBVmljblozUE1BMEdDU3FHU0liM0RRRUJDd1VBTUlHUE1Rc3dDUVlEVlFRR0V3SlZVekVUTUJFRw0KICAgICAgICAgICAgICAgICAgICAgICAgQTFVRUNBd0tRMkZzYVdadmNtNXBZVEVXTUJRR0ExVUVCd3dOVTJGdUlFWnlZVzVqYVhOamJ6RU5NQXNHQTFVRUNnd0VUMnQwWVRFVQ0KICAgICAgICAgICAgICAgICAgICAgICAgTUJJR0ExVUVDd3dMVTFOUFVISnZkbWxrWlhJeEVEQU9CZ05WQkFNTUIyNXBhMlV0Y1dFeEhEQWFCZ2txaGtpRzl3MEJDUUVXRFdsdQ0KICAgICAgICAgICAgICAgICAgICAgICAgWm05QWIydDBZUzVqYjIwd0hoY05NVFl4TVRJMU1UYzFNVEExV2hjTk1qWXhNVEkxTVRjMU1qQTBXakNCanpFTE1Ba0dBMVVFQmhNQw0KICAgICAgICAgICAgICAgICAgICAgICAgVlZNeEV6QVJCZ05WQkFnTUNrTmhiR2xtYjNKdWFXRXhGakFVQmdOVkJBY01EVk5oYmlCR2NtRnVZMmx6WTI4eERUQUxCZ05WQkFvTQ0KICAgICAgICAgICAgICAgICAgICAgICAgQkU5cmRHRXhGREFTQmdOVkJBc01DMU5UVDFCeWIzWnBaR1Z5TVJBd0RnWURWUVFEREFkdWFXdGxMWEZoTVJ3d0dnWUpLb1pJaHZjTg0KICAgICAgICAgICAgICAgICAgICAgICAgQVFrQkZnMXBibVp2UUc5cmRHRXVZMjl0TUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUFqY0lHbGZ5VA0KICAgICAgICAgICAgICAgICAgICAgICAgSTRVdXhkZWlzUlRjc3BxVlE3UklwTi9CZ2RzaVNBK1JkN1RDWmM3WkVkS2hIMHAxTU9hVGppUFd5M01VbVVqdGxYb2l2cjdhV3o5RA0KICAgICAgICAgICAgICAgICAgICAgICAgTGhKREZrNkt0L3ZPWTdqamFRUUIzMzZBZWcvMXRZWFM1MDdFU3liRzBiSnRjcUNwNXNIcnBqUWVSdDUrK3lObUs2bUxaSEVYc0NGYg0KICAgICAgICAgICAgICAgICAgICAgICAgN1pHdEJ6TnhIWFQvcEhtWjdrV1JUU05FYVcvZTdlcDZ2OC9VbUZtc2JEcndBTnJFRFZJZzBmQ1Jzb3RkbFpKRlIxSHVpaTJERDhuMw0KICAgICAgICAgICAgICAgICAgICAgICAgaUlYdStvcjkrMmxENjVFaVp0TFpZekRwNGk2dEV5NjYyN0EzRzUrb24wejI2ZHhVeGNDSE56eXpuYWo4cDRjVWNYYjRKRDFramhnZg0KICAgICAgICAgICAgICAgICAgICAgICAgK3R3eUJLQlBuTHp1d2UvVEI2QXJMYjYvUFpaenJRSURBUUFCTUEwR0NTcUdTSWIzRFFFQkN3VUFBNElCQVFBSGtRQUFpV04rbC81dw0KICAgICAgICAgICAgICAgICAgICAgICAgQnhDK3k2Y1dBaHlQdkJQR0dnREtCeUdNYk1xb3Mrb1BwV0duUUlRekRqUjlteVBWNlNCaEx2TVJsWFVzNHRlaE96U0d2eXk0S1p2Kw0KICAgICAgICAgICAgICAgICAgICAgICAgTUxKcGhGT0Y4RDlNNHhtVjdVTnFkTC8xcXZNbG5YOHh4OWpQZGlvdUxSUjF2akx0MjhuK1ZFeGN4b2tSdkZ0R3lsanc3Y01kOXNPaQ0KICAgICAgICAgICAgICAgICAgICAgICAgN2dQWi9wV3lNTk5jRXozeEV2UGp5ZWFQZXZRZVJZeG9RQjh2WXZDVSszZTF1bFlTbUlzOUR0bWtmVXlVOGxDUVFFbzFocmkxOVpLWA0KICAgICAgICAgICAgICAgICAgICAgICAgU2NjTzVZdFd0dnE5YlFWL1VCVzhxeWFxRlh3dVlvNUEzU0dFWlJaMVM3WWV2cDlCQVFPUDc1MDc5VTRIWmRveXpLQWloWm5sR3VEQg0KICAgICAgICAgICAgICAgICAgICAgICAgVElQT1hRNk9mNitucEVmZjY0MndVTUJlPC9kczpYNTA5Q2VydGlmaWNhdGU%2BDQogICAgICAgICAgICAgICAgPC9kczpYNTA5RGF0YT4NCiAgICAgICAgICAgIDwvZHM6S2V5SW5mbz4NCiAgICAgICAgPC9kczpTaWduYXR1cmU%2BDQogICAgICAgIDxzYW1sMjpTdWJqZWN0IHhtbG5zOnNhbWwyPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXNzZXJ0aW9uIj4NCiAgICAgICAgICAgIDxzYW1sMjpOYW1lSUQgRm9ybWF0PSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoxLjE6bmFtZWlkLWZvcm1hdDp1bnNwZWNpZmllZCI%2BamFuZS5kb2VAbmlrZS5jb208L3NhbWwyOk5hbWVJRD4NCiAgICAgICAgICAgIDxzYW1sMjpTdWJqZWN0Q29uZmlybWF0aW9uIE1ldGhvZD0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOmNtOmJlYXJlciI%2BPHNhbWwyOlN1YmplY3RDb25maXJtYXRpb25EYXRhIEluUmVzcG9uc2VUbz0iYTMxNjFmY2RnY2Q5Zzg4aDQxZ2phZ2IyZjg3MTdjZSINCiAgICAgICAgICAgICAgICBOb3RPbk9yQWZ0ZXI9IjIwMTctMDYtMTZUMDE6MDM6MDIuMDU3WiIgUmVjaXBpZW50PSJodHRwczovL2xvY2FsaG9zdDo4NDQzL3NhbWwvU1NPIi8%2BPC9zYW1sMjpTdWJqZWN0Q29uZmlybWF0aW9uPg0KICAgICAgICA8L3NhbWwyOlN1YmplY3Q%2BDQogICAgICAgIDxzYW1sMjpDb25kaXRpb25zIE5vdEJlZm9yZT0iMjAxNy0wNi0xNlQwMDo1MzowMi4wNThaIiBOb3RPbk9yQWZ0ZXI9IjIwMTctMDYtMTZUMDE6MDM6MDIuMDU3WiINCiAgICAgICAgICAgIHhtbG5zOnNhbWwyPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXNzZXJ0aW9uIj4NCiAgICAgICAgICAgIDxzYW1sMjpBdWRpZW5jZVJlc3RyaWN0aW9uPg0KICAgICAgICAgICAgICAgIDxzYW1sMjpBdWRpZW5jZT5jb206bmlrZTpnaW1tZV9jcmVkczpkZXY8L3NhbWwyOkF1ZGllbmNlPg0KICAgICAgICAgICAgPC9zYW1sMjpBdWRpZW5jZVJlc3RyaWN0aW9uPg0KICAgICAgICA8L3NhbWwyOkNvbmRpdGlvbnM%2BDQogICAgICAgIDxzYW1sMjpBdXRoblN0YXRlbWVudCBBdXRobkluc3RhbnQ9IjIwMTctMDYtMTZUMDA6NTg6MDIuMDU3WiINCiAgICAgICAgICAgIFNlc3Npb25JbmRleD0iYTMxNjFmY2RnY2Q5Zzg4aDQxZ2phZ2IyZjg3MTdjZSIgeG1sbnM6c2FtbDI9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDphc3NlcnRpb24iPg0KICAgICAgICAgICAgPHNhbWwyOkF1dGhuQ29udGV4dD4NCiAgICAgICAgICAgICAgICA8c2FtbDI6QXV0aG5Db250ZXh0Q2xhc3NSZWY%2BdXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOmFjOmNsYXNzZXM6UGFzc3dvcmRQcm90ZWN0ZWRUcmFuc3BvcnQ8L3NhbWwyOkF1dGhuQ29udGV4dENsYXNzUmVmPg0KICAgICAgICAgICAgPC9zYW1sMjpBdXRobkNvbnRleHQ%2BDQogICAgICAgIDwvc2FtbDI6QXV0aG5TdGF0ZW1lbnQ%2BDQogICAgPC9zYW1sMjpBc3NlcnRpb24%2BDQo8L3NhbWwycDpSZXNwb25zZT4%3D"
+            />
+            <input name="RelayState" type="hidden" value="" />
+          </form>
+        </body>
+
+        </html>"""
+
+    def setUp_client(self, okta_org_url, verify_ssl_certs):
+        client = OktaClient(okta_org_url, verify_ssl_certs)
+        client.set_username('ann')
+        client.req_session = requests
         return client
-
-    @staticmethod
-    def _mock_response(status=200, reason='OK', content=''):
-        mock_resp = requests.Response()
-        mock_resp.status_code = status
-        # Reason the status code occurred.
-        mock_resp.reason = reason
-        # Raw content in byte
-        mock_resp._content = bytes(content.encode('utf-8'))
-        return mock_resp
 
     def test_get_headers(self):
         """Testing that get_headers returns the expected results"""
         header = self.client._get_headers()
-        self.assertEqual(header['Authorization'], 'SSWS XXXXXX')
+        self.assertEqual(header['Accept'], 'application/json')
 
-    @patch('requests.post')
-    def test_get_login_response(self, mock_post):
-        """Testing login respose is returned as expected"""
-        login = {
-            "expiresAt": "2017-02-04T00:26:24.000Z",
+    @responses.activate
+    def test_get_state_token(self):
+        """Testing state token is returned as expected"""
+
+        auth_response = {
+            "stateToken": "00Wf8xZJ79mSoTYnJqXbvRegT8QB1EX1IBVk1TU7KI",
+            "type": "SESSION_STEP_UP",
+            "expiresAt": "2017-06-15T15:42:31.000Z",
             "status": "SUCCESS",
-            "sessionToken": "20111ZTiraxruMoaA3cQh7RgG9lMqPiVk",
             "_embedded": {
                 "user": {
-                    "id": "00000",
+                    "id": "00u8cakq7vQwtK7sR0h7",
                     "profile": {
                         "login": "Jane.Doe@example.com",
                         "firstName": "Jane",
@@ -82,133 +159,526 @@ class TestOktaClient(unittest.TestCase):
                         "locale": "en",
                         "timeZone": "America/Los_Angeles"
                     }
-                }
-            }
-        }
-        mock_post.return_value = self._mock_response(content=json.dumps(login))
-        self.client._get_login_response()
-        self.assertEqual(self.client._user_id, login['_embedded']['user']['id'])
-        self.assertEqual(self.client._session_token, login['sessionToken'])
-
-    @patch('requests.get')
-    def test_get_app_links(self, mock_get):
-        """Testing correct response is returned from get_app_links"""
-        app_links = [
-            {
-                "id": "1",
-                "label": "AWS Prod",
-                "linkUrl": "https://example.oktapreview.com/1",
-                "appName": "amazon_aws"
-            },
-            {
-                "id": "2",
-                "label": "AWS Dev",
-                "linkUrl": "https://example.oktapreview.com/2",
-                "appName": "amazon_aws"
-            },
-            {
-                "id": "3",
-                "label": "Splunk",
-                "appName": "splunk_app"
-            }
-        ]
-        mock_resp = self._mock_response(content=json.dumps(app_links))
-        mock_get.return_value = mock_resp
-        response = self.client.get_app_links()
-        self.assertListEqual(response, self.app_links)
-
-    @patch('gimme_aws_creds.okta.OktaClient.get_app_links')
-    @patch('builtins.input', return_value='0')
-    def test_get_app(self, mock_input, mock_app_links):
-        """Testing correct app was returned from get_app"""
-        # mock get_app_links response
-        mock_app_links.return_value = self.app_links
-        response = self.client.get_app()
-
-        # confirm the mock was called
-        self.assertTrue(mock_app_links.called)
-
-        # confirm the correct apps were returned
-        self.assertEquals(response, "AWS Prod")
-
-    @patch('requests.get')
-    @patch('builtins.input', return_value='1')
-    def test_get_role(self, mock_input, mock_get):
-        """Testing that get_role returns the correct role"""
-        roles = [
-            {
-                "name": "amazon_aws",
-                "label": "My AWS App",
-                "status": "ACTIVE",
-                "_embedded": {
-                    "user":
-                        {
-                            "id": "000000",
-                            "credentials": {
-                                "userName": "joe.blow@example.com"
-                            },
-                            "profile": {
-                                "samlRoles": ["OktaAWSAdminRole", "OktaAWSReadOnlyRole"]
-                            }
+                },
+                "target": {
+                    "type": "APP",
+                    "name": "gimmecredsserver",
+                    "label": "Gimme-Creds-Server (Dev)",
+                    "_links": {
+                        "logo": {
+                            "name": "medium",
+                            "href": "https://op1static.oktacdn.com/bc/globalFileStoreRecord?id=gfsatgifysE8NG37F0h7",
+                            "type": "image/png"
                         }
                     }
                 }
-            ]
-
-        # mock response and status code
-        mock_resp = self._mock_response(content=json.dumps(roles))
-        mock_get.return_value = mock_resp
-        response = self.client.get_role("My AWS App")
-
-        # confirm that the correct role was returned
-        self.assertEquals(response, "OktaAWSReadOnlyRole")
-
-    @patch('requests.get')
-    def test_get_idp_arn(self, mock_get):
-        """Testing that get_idp_arn returns the correct ARN"""
-        app_id = '1q2w3e4r5t'
-        idp_arn_json = {
-            "id": "1q2w3e4r5t",
-            "settings": {
-                "app": {
-                    "accessKey": "QW08arTG",
-                    "secretKey": "OPOJSDU1234",
-                    "sessionDuration": 3600,
-                    "identityProviderArn": "arn:aws:iam::0987654321:saml-provider/OktaIdP",
-                    "awsEnvironmentType": "aws.amazon",
-                    "loginURL": "https://cdt-test.signin.aws.amazon.com/console"
+            },
+            "_links": {
+                "next": {
+                    "name": "original",
+                    "href": "https://example.okta.com/login/step-up/redirect?stateToken=00Wf8xZJ79mSoTYnJqXbvRegT8QB1EX1IBVk1TU7KI",
+                    "hints": {
+                        "allow": [
+                            "GET"
+                        ]
+                    }
                 }
             }
         }
 
-        # mock the response
-        mock_resp = self._mock_response(content=json.dumps(idp_arn_json))
-        mock_get.return_value = mock_resp
-        idp_arn = self.client.get_idp_arn(app_id)
+        responses.add(responses.GET, self.server_embed_link, status=302, adding_headers={'Location': self.login_url})
+        responses.add(responses.POST, self.okta_org_url + '/authn', status=200, body=json.dumps(auth_response))
 
-        # confirm that self.idp_arn got set correctly
-        self.assertEquals(idp_arn, 'arn:aws:iam::0987654321:saml-provider/OktaIdP')
+        self.client._server_embed_link = self.server_embed_link
+        result = self.client._get_state_token()
+        self.assertEqual(result, {'stateToken': self.state_token, 'apiResponse': auth_response})
 
-    @patch('requests.get')
-    @patch('gimme_aws_creds.okta.OktaClient.get_saml_assertion')
-    def test_get_role_arn(self, mock_saml_assertion, mock_get):
-        """Testing that get_role_arn returns the correct ARN"""
-        # huge long ugly SAML
-        saml = "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz48c2FtbDJwOlJlc3BvbnNlIHhtbG5zOnNhbWwycD0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOnByb3RvY29sIiBEZXN0aW5hdGlvbj0iaHR0cHM6Ly9zaWduaW4uYXdzLmFtYXpvbi5jb20vc2FtbCIgSUQ9ImlkMSIgSXNzdWVJbnN0YW50PSIyMDE3LTAyLTA2VDIzOjM2OjM1Ljk0M1oiIFZlcnNpb249IjIuMCIgeG1sbnM6eHM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvWE1MU2NoZW1hIj48c2FtbDI6SXNzdWVyIHhtbG5zOnNhbWwyPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXNzZXJ0aW9uIiBGb3JtYXQ9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDpuYW1laWQtZm9ybWF0OmVudGl0eSI+aHR0cDovL3d3dy5va3RhLmNvbS9leDwvc2FtbDI6SXNzdWVyPjxkczpTaWduYXR1cmUgeG1sbnM6ZHM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvMDkveG1sZHNpZyMiPjxkczpTaWduZWRJbmZvPjxkczpDYW5vbmljYWxpemF0aW9uTWV0aG9kIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS8xMC94bWwtZXhjLWMxNG4jIi8+PGRzOlNpZ25hdHVyZU1ldGhvZCBBbGdvcml0aG09Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvMDQveG1sZHNpZy1tb3JlI3JzYS1zaGEyNTYiLz48ZHM6UmVmZXJlbmNlIFVSST0iI2lkMSI+PGRzOlRyYW5zZm9ybXM+PGRzOlRyYW5zZm9ybSBBbGdvcml0aG09Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvMDkveG1sZHNpZyNlbnZlbG9wZWQtc2lnbmF0dXJlIi8+PGRzOlRyYW5zZm9ybSBBbGdvcml0aG09Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvMTAveG1sLWV4Yy1jMTRuIyI+PGVjOkluY2x1c2l2ZU5hbWVzcGFjZXMgeG1sbnM6ZWM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvMTAveG1sLWV4Yy1jMTRuIyIgUHJlZml4TGlzdD0ieHMiLz48L2RzOlRyYW5zZm9ybT48L2RzOlRyYW5zZm9ybXM+PGRzOkRpZ2VzdE1ldGhvZCBBbGdvcml0aG09Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvMDQveG1sZW5jI3NoYTI1NiIvPjxkczpEaWdlc3RWYWx1ZT4xPC9kczpEaWdlc3RWYWx1ZT48L2RzOlJlZmVyZW5jZT48L2RzOlNpZ25lZEluZm8+PGRzOlNpZ25hdHVyZVZhbHVlPjE8L2RzOlNpZ25hdHVyZVZhbHVlPjxkczpLZXlJbmZvPjxkczpYNTA5RGF0YT48ZHM6WDUwOUNlcnRpZmljYXRlPjENCjwvZHM6WDUwOUNlcnRpZmljYXRlPjwvZHM6WDUwOURhdGE+PC9kczpLZXlJbmZvPjwvZHM6U2lnbmF0dXJlPjxzYW1sMnA6U3RhdHVzIHhtbG5zOnNhbWwycD0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOnByb3RvY29sIj48c2FtbDJwOlN0YXR1c0NvZGUgVmFsdWU9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDpzdGF0dXM6U3VjY2VzcyIvPjwvc2FtbDJwOlN0YXR1cz48c2FtbDI6QXNzZXJ0aW9uIHhtbG5zOnNhbWwyPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXNzZXJ0aW9uIiBJRD0iaWQxIiBJc3N1ZUluc3RhbnQ9IjIwMTctMDItMDZUMjM6MzY6MzUuOTQzWiIgVmVyc2lvbj0iMi4wIiB4bWxuczp4cz0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiPjxzYW1sMjpJc3N1ZXIgRm9ybWF0PSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6bmFtZWlkLWZvcm1hdDplbnRpdHkiIHhtbG5zOnNhbWwyPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXNzZXJ0aW9uIj5odHRwOi8vd3d3Lm9rdGEuY29tLzE8L3NhbWwyOklzc3Vlcj48ZHM6U2lnbmF0dXJlIHhtbG5zOmRzPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwLzA5L3htbGRzaWcjIj48ZHM6U2lnbmVkSW5mbz48ZHM6Q2Fub25pY2FsaXphdGlvbk1ldGhvZCBBbGdvcml0aG09Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvMTAveG1sLWV4Yy1jMTRuIyIvPjxkczpTaWduYXR1cmVNZXRob2QgQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxLzA0L3htbGRzaWctbW9yZSNyc2Etc2hhMjU2Ii8+PGRzOlJlZmVyZW5jZSBVUkk9IiNpZDEiPjxkczpUcmFuc2Zvcm1zPjxkczpUcmFuc2Zvcm0gQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwLzA5L3htbGRzaWcjZW52ZWxvcGVkLXNpZ25hdHVyZSIvPjxkczpUcmFuc2Zvcm0gQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxLzEwL3htbC1leGMtYzE0biMiPjxlYzpJbmNsdXNpdmVOYW1lc3BhY2VzIHhtbG5zOmVjPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxLzEwL3htbC1leGMtYzE0biMiIFByZWZpeExpc3Q9InhzIi8+PC9kczpUcmFuc2Zvcm0+PC9kczpUcmFuc2Zvcm1zPjxkczpEaWdlc3RNZXRob2QgQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxLzA0L3htbGVuYyNzaGEyNTYiLz48ZHM6RGlnZXN0VmFsdWU+MTwvZHM6RGlnZXN0VmFsdWU+PC9kczpSZWZlcmVuY2U+PC9kczpTaWduZWRJbmZvPjxkczpTaWduYXR1cmVWYWx1ZT4xPC9kczpTaWduYXR1cmVWYWx1ZT48ZHM6S2V5SW5mbz48ZHM6WDUwOURhdGE+PGRzOlg1MDlDZXJ0aWZpY2F0ZT4NCjE8L2RzOlg1MDlDZXJ0aWZpY2F0ZT48L2RzOlg1MDlEYXRhPjwvZHM6S2V5SW5mbz48L2RzOlNpZ25hdHVyZT48c2FtbDI6U3ViamVjdCB4bWxuczpzYW1sMj0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOmFzc2VydGlvbiI+PHNhbWwyOk5hbWVJRCBGb3JtYXQ9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDpuYW1laWQtZm9ybWF0OnVuc3BlY2lmaWVkIj5yYWluYm93QHVuaWNvcm4uY29tPC9zYW1sMjpOYW1lSUQ+PHNhbWwyOlN1YmplY3RDb25maXJtYXRpb24gTWV0aG9kPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6Y206YmVhcmVyIj48c2FtbDI6U3ViamVjdENvbmZpcm1hdGlvbkRhdGEgTm90T25PckFmdGVyPSIyMDE3LTAyLTA2VDIzOjQxOjM1Ljk0M1oiIFJlY2lwaWVudD0iaHR0cHM6Ly9zaWduaW4uYXdzLmFtYXpvbi5jb20vc2FtbCIvPjwvc2FtbDI6U3ViamVjdENvbmZpcm1hdGlvbj48L3NhbWwyOlN1YmplY3Q+PHNhbWwyOkNvbmRpdGlvbnMgTm90QmVmb3JlPSIyMDE3LTAyLTA2VDIzOjMxOjM1Ljk0M1oiIE5vdE9uT3JBZnRlcj0iMjAxNy0wMi0wNlQyMzo0MTozNS45NDNaIiB4bWxuczpzYW1sMj0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOmFzc2VydGlvbiI+PHNhbWwyOkF1ZGllbmNlUmVzdHJpY3Rpb24+PHNhbWwyOkF1ZGllbmNlPnVybjphbWF6b246d2Vic2VydmljZXM8L3NhbWwyOkF1ZGllbmNlPjwvc2FtbDI6QXVkaWVuY2VSZXN0cmljdGlvbj48L3NhbWwyOkNvbmRpdGlvbnM+PHNhbWwyOkF1dGhuU3RhdGVtZW50IEF1dGhuSW5zdGFudD0iMjAxNy0wMi0wNlQyMzozNjozNS45NDNaIiBTZXNzaW9uSW5kZXg9ImlkMTQ4NjQyNDE5NTk0My4xNjMwOTUwNDUxIiB4bWxuczpzYW1sMj0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOmFzc2VydGlvbiI+PHNhbWwyOkF1dGhuQ29udGV4dD48c2FtbDI6QXV0aG5Db250ZXh0Q2xhc3NSZWY+dXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOmFjOmNsYXNzZXM6UGFzc3dvcmRQcm90ZWN0ZWRUcmFuc3BvcnQ8L3NhbWwyOkF1dGhuQ29udGV4dENsYXNzUmVmPjwvc2FtbDI6QXV0aG5Db250ZXh0Pjwvc2FtbDI6QXV0aG5TdGF0ZW1lbnQ+PHNhbWwyOkF0dHJpYnV0ZVN0YXRlbWVudCB4bWxuczpzYW1sMj0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOmFzc2VydGlvbiI+PHNhbWwyOkF0dHJpYnV0ZSBOYW1lPSJodHRwczovL2F3cy5hbWF6b24uY29tL1NBTUwvQXR0cmlidXRlcy9Sb2xlIiBOYW1lRm9ybWF0PSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXR0cm5hbWUtZm9ybWF0OnVyaSI+PHNhbWwyOkF0dHJpYnV0ZVZhbHVlIHhtbG5zOnhzPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxL1hNTFNjaGVtYSIgeG1sbnM6eHNpPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxL1hNTFNjaGVtYS1pbnN0YW5jZSIgeHNpOnR5cGU9InhzOnN0cmluZyI+YXJuOmF3czppYW06OjA5ODc2NTQzMjE6c2FtbC1wcm92aWRlci9Pa3RhSWRQLGFybjphd3M6aWFtOjowOTg3NjU0MzIxOnJvbGUvT2t0YUFXU0FkbWluUm9sZTwvc2FtbDI6QXR0cmlidXRlVmFsdWU+PHNhbWwyOkF0dHJpYnV0ZVZhbHVlIHhtbG5zOnhzPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxL1hNTFNjaGVtYSIgeG1sbnM6eHNpPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxL1hNTFNjaGVtYS1pbnN0YW5jZSIgeHNpOnR5cGU9InhzOnN0cmluZyI+YXJuOmF3czppYW06OjA5ODc2NTQzMjE6c2FtbC1wcm92aWRlci9Pa3RhSWRQLGFybjphd3M6aWFtOjowOTg3NjU0MzIxOnJvbGUvT2t0YUFXU1JlYWRPbmx5Um9sZTwvc2FtbDI6QXR0cmlidXRlVmFsdWU+PC9zYW1sMjpBdHRyaWJ1dGU+PHNhbWwyOkF0dHJpYnV0ZSBOYW1lPSJodHRwczovL2F3cy5hbWF6b24uY29tL1NBTUwvQXR0cmlidXRlcy9Sb2xlU2Vzc2lvbk5hbWUiIE5hbWVGb3JtYXQ9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDphdHRybmFtZS1mb3JtYXQ6YmFzaWMiPjxzYW1sMjpBdHRyaWJ1dGVWYWx1ZSB4bWxuczp4cz0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiIHhtbG5zOnhzaT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEtaW5zdGFuY2UiIHhzaTp0eXBlPSJ4czpzdHJpbmciPnJhaW5ib3dAdW5pY29ybi5jb208L3NhbWwyOkF0dHJpYnV0ZVZhbHVlPjwvc2FtbDI6QXR0cmlidXRlPjxzYW1sMjpBdHRyaWJ1dGUgTmFtZT0iaHR0cHM6Ly9hd3MuYW1hem9uLmNvbS9TQU1ML0F0dHJpYnV0ZXMvU2Vzc2lvbkR1cmF0aW9uIiBOYW1lRm9ybWF0PSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXR0cm5hbWUtZm9ybWF0OmJhc2ljIj48c2FtbDI6QXR0cmlidXRlVmFsdWUgeG1sbnM6eHM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvWE1MU2NoZW1hIiB4bWxuczp4c2k9Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvWE1MU2NoZW1hLWluc3RhbmNlIiB4c2k6dHlwZT0ieHM6c3RyaW5nIj4zNjAwPC9zYW1sMjpBdHRyaWJ1dGVWYWx1ZT48L3NhbWwyOkF0dHJpYnV0ZT48L3NhbWwyOkF0dHJpYnV0ZVN0YXRlbWVudD48L3NhbWwyOkFzc2VydGlvbj48L3NhbWwycDpSZXNwb25zZT4="
-        fake_response = "FAKE"
+    @patch('getpass.getpass', return_value='1234qwert')
+    @patch('builtins.input', return_value='ann')
+    def test_get_username_password_creds(self, mock_pass, mock_input):
+        """Test that initial authentication works with Okta"""
+        result = self.client._get_username_password_creds()
+        assert_equals(result, {'username': 'ann', 'password': '1234qwert' })
 
-        # set the response from the get. it doens't matter what it is
-        # since the saml response is mocked
-        mock_resp = self._mock_response(content=fake_response)
-        mock_get.return_value = mock_resp
+    @responses.activate
+    @patch('getpass.getpass', return_value='1234qwert')
+    @patch('builtins.input', return_value='ann')
+    def test_login_username_password(self, mock_pass, mock_input):
+        """Test that initial authentication works with Okta"""
+        auth_response = {
+            "stateToken": "00Wf8xZJ79mSoTYnJqXbvRegT8QB1EX1IBVk1TU7KI",
+            "type": "SESSION_STEP_UP",
+            "expiresAt": "2017-06-15T15:42:31.000Z",
+            "status": "SUCCESS",
+            "_embedded": {
+                "user": {
+                    "id": "00u8cakq7vQwtK7sR0h7",
+                    "profile": {
+                        "login": "Jane.Doe@example.com",
+                        "firstName": "Eric",
+                        "lastName": "Pierce",
+                        "locale": "en",
+                        "timeZone": "America/Los_Angeles"
+                    }
+                },
+                "target": {
+                    "type": "APP",
+                    "name": "gimmecredsserver",
+                    "label": "Gimme-Creds-Server (Dev)",
+                    "_links": {
+                        "logo": {
+                            "name": "medium",
+                            "href": "https://op1static.oktacdn.com/bc/globalFileStoreRecord?id=gfsatgifysE8NG37F0h7",
+                            "type": "image/png"
+                        }
+                    }
+                }
+            },
+            "_links": {
+                "next": {
+                    "name": "original",
+                    "href": "https://example.okta.com/login/step-up/redirect?stateToken=00Wf8xZJ79mSoTYnJqXbvRegT8QB1EX1IBVk1TU7KI",
+                    "hints": {
+                        "allow": [
+                            "GET"
+                        ]
+                    }
+                }
+            }
+        }
 
-        # set the saml response
-        mock_saml_assertion.return_value = saml
+        responses.add(responses.POST, self.okta_org_url + '/authn', status=200, body=json.dumps(auth_response))
+        result = self.client._login_username_password(self.state_token, self.okta_org_url + '/authn')
+        assert_equals(result, {'stateToken': self.state_token, 'apiResponse': auth_response})
 
-        role_arn = self.client.get_role_arn(
-            "https://example.okta.com/blah",
-            "OktaAWSAdminRole"
-        )
+    @responses.activate
+    def test_login_send_sms(self):
+        """Test that SMS messages can be requested for MFA"""
 
-        # confirm that the correct ARN got set
-        self.assertEquals(role_arn, 'arn:aws:iam::0987654321:role/OktaAWSAdminRole')
+        verify_response = {
+            "stateToken": "00Wf8xZJ79mSoTYnJqXbvRegT8QB1EX1IBVk1TU7KI",
+            "type": "SESSION_STEP_UP",
+            "expiresAt": "2017-06-15T15:06:10.000Z",
+            "status": "MFA_CHALLENGE",
+            "_embedded": {
+                "user": {
+                    "id": "00u8cakq7vQwtK7sR0h7",
+                    "profile": {
+                        "login": "Jane.Doe@example.com",
+                        "firstName": "Jane",
+                        "lastName": "Doe",
+                        "locale": "en",
+                        "timeZone": "America/Los_Angeles"
+                    }
+                },
+                "factor": {
+                    "id": "sms9hmdk2qvhjOQQ30h7",
+                    "factorType": "sms",
+                    "provider": "OKTA",
+                    "vendorName": "OKTA",
+                    "profile": {
+                        "phoneNumber": "+1 XXX-XXX-1234"
+                    }
+                },
+                "policy": {
+                    "allowRememberDevice": False,
+                    "rememberDeviceLifetimeInMinutes": 0,
+                    "rememberDeviceByDefault": False
+                },
+                "target": {
+                    "type": "APP",
+                    "name": "gimmecredsserver",
+                    "label": "Gimme-Creds-Server (Dev)",
+                    "_links": {
+                        "logo": {
+                            "name": "medium",
+                            "href": "https://op1static.oktacdn.com/bc/globalFileStoreRecord?id=gfsatgifysE8NG37F0h7",
+                            "type": "image/png"
+                        }
+                    }
+                }
+            },
+            "_links": {
+                "next": {
+                    "name": "verify",
+                    "href": "https://example.okta.com/api/v1/authn/factors/sms9hmdk2qvhjOQQ30h7/verify",
+                    "hints": {
+                        "allow": [
+                            "POST"
+                        ]
+                    }
+                },
+                "cancel": {
+                    "href": "https://example.okta.com/api/v1/authn/cancel",
+                    "hints": {
+                        "allow": [
+                            "POST"
+                        ]
+                    }
+                },
+                "prev": {
+                    "href": "https://example.okta.com/api/v1/authn/previous",
+                    "hints": {
+                        "allow": [
+                            "POST"
+                        ]
+                    }
+                },
+                "resend": [
+                    {
+                        "name": "sms",
+                        "href": "https://example.okta.com/api/v1/authn/factors/sms9hmdk2qvhjOQQ30h7/verify/resend",
+                        "hints": {
+                            "allow": [
+                                "POST"
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+
+        responses.add(responses.POST, 'https://example.okta.com/api/v1/authn/factors/sms9hmdk2qvhjOQQ30h7/verify', status=200, body=json.dumps(verify_response))
+        result = self.client._login_send_sms(self.state_token, self.sms_factor)
+        assert_equals(result, {'stateToken': self.state_token, 'apiResponse': verify_response})
+
+    @responses.activate
+    def test_login_send_push(self):
+        """Test that Okta Verify can be used for MFA"""
+
+        verify_response = {
+    "stateToken": "00Wf8xZJ79mSoTYnJqXbvRegT8QB1EX1IBVk1TU7KI",
+    "type": "SESSION_STEP_UP",
+    "expiresAt": "2017-06-15T22:32:40.000Z",
+    "status": "MFA_CHALLENGE",
+    "factorResult": "WAITING",
+    "_embedded": {
+        "user": {
+            "id": "00u8p8560rXMQ95cP0h7",
+            "profile": {
+                "login": "jane.doe@example.com",
+                "firstName": "Jane",
+                "lastName": "Doe",
+                "locale": "en",
+                "timeZone": "America/Los_Angeles"
+            }
+        },
+        "factor": {
+            "id": "opf9ei43pbAgb2qgc0h7",
+            "factorType": "push",
+            "provider": "OKTA",
+            "vendorName": "OKTA",
+            "profile": {
+                "credentialId": "jane.doe@example.com",
+                "deviceType": "SmartPhone_IPhone",
+                "keys": [
+                    {
+                        "kty": "PKIX",
+                        "use": "sig",
+                        "kid": "default",
+                        "x5c": [
+                            "fdsfsdfsdfsd"
+                        ]
+                    }
+                ],
+                "name": "Jane.Doe iPhone",
+                "platform": "IOS",
+                "version": "10.2.1"
+            }
+        },
+        "policy": {
+            "allowRememberDevice": False,
+            "rememberDeviceLifetimeInMinutes": 0,
+            "rememberDeviceByDefault": False
+        },
+        "target": {
+            "type": "APP",
+            "name": "gimmecredstest",
+            "label": "Gimme-Creds-Test",
+            "_links": {
+                "logo": {
+                    "name": "medium",
+                    "href": "https://op1static.oktacdn.com/bc/globalFileStoreRecord?id=gfsatgifysE8NG37F0h7",
+                    "type": "image/png"
+                }
+            }
+        }
+    },
+    "_links": {
+        "next": {
+            "name": "poll",
+            "href": "https://example.okta.com/api/v1/authn/factors/opf9ei43pbAgb2qgc0h7/verify",
+            "hints": {
+                "allow": [
+                    "POST"
+                ]
+            }
+        },
+        "cancel": {
+            "href": "https://example.okta.com/api/v1/authn/cancel",
+            "hints": {
+                "allow": [
+                    "POST"
+                ]
+            }
+        },
+        "prev": {
+            "href": "https://example.okta.com/api/v1/authn/previous",
+            "hints": {
+                "allow": [
+                    "POST"
+                ]
+            }
+        },
+        "resend": [
+            {
+                "name": "push",
+                "href": "https://example.okta.com/api/v1/authn/factors/opf9ei43pbAgb2qgc0h7/verify/resend",
+                "hints": {
+                    "allow": [
+                        "POST"
+                    ]
+                }
+            }
+        ]
+    }
+}
+
+        responses.add(responses.POST, 'https://example.okta.com/api/v1/authn/factors/opf9ei43pbAgb2qgc0h7/verify', status=200, body=json.dumps(verify_response))
+        result = self.client._login_send_push(self.state_token, self.push_factor)
+        assert_equals(result, {'stateToken': self.state_token, 'apiResponse': verify_response})
+
+    @responses.activate
+    @patch('builtins.input', return_value='12345678')
+    def test_login_input_mfa_challenge(self, mock_input):
+        """Test that MFA works with Okta"""
+
+        verify_response = {
+            "stateToken": "00Wf8xZJ79mSoTYnJqXbvRegT8QB1EX1IBVk1TU7KI",
+            "type": "SESSION_STEP_UP",
+            "expiresAt": "2017-06-15T15:07:27.000Z",
+            "status": "SUCCESS",
+            "_embedded": {
+                "user": {
+                    "id": "00u8p8560rXMQ95cP0h7",
+                    "profile": {
+                        "login": "jane.doe@example.com",
+                        "firstName": "Jane",
+                        "lastName": "Doe",
+                        "locale": "en",
+                        "timeZone": "America/Los_Angeles"
+                    }
+                },
+                "target": {
+                    "type": "APP",
+                    "name": "gimmecredsserver",
+                    "label": "Gimme-Creds-Server (Dev)",
+                    "_links": {
+                        "logo": {
+                            "name": "medium",
+                            "href": "https://op1static.oktacdn.com/bc/globalFileStoreRecord?id=gfsatgifysE8NG37F0h7",
+                            "type": "image/png"
+                        }
+                    }
+                }
+            },
+            "_links": {
+                "next": {
+                    "name": "original",
+                    "href": "https://example.okta.com/login/step-up/redirect?stateToken=00Wf8xZJ79mSoTYnJqXbvRegT8QB1EX1IBVk1TU7KI",
+                    "hints": {
+                        "allow": [
+                            "GET"
+                        ]
+                    }
+                }
+            }
+        }
+        responses.add(responses.POST, 'https://example.okta.com/api/v1/authn/factors/sms9hmdk2qvhjOQQ30h7/verify', status=200, body=json.dumps(verify_response))
+        result = self.client._login_input_mfa_challenge(self.state_token, 'https://example.okta.com/api/v1/authn/factors/sms9hmdk2qvhjOQQ30h7/verify')
+        assert_equals(result, {'stateToken': self.state_token, 'apiResponse': verify_response})
+
+
+    @responses.activate
+    def test_check_push_result(self):
+        """Test that the Okta Verify response was successful"""
+
+        verify_response = {
+    "stateToken": "00Wf8xZJ79mSoTYnJqXbvRegT8QB1EX1IBVk1TU7KI",
+    "type": "SESSION_STEP_UP",
+    "expiresAt": "2017-06-15T22:32:40.000Z",
+    "status": "MFA_CHALLENGE",
+    "factorResult": "WAITING",
+    "_embedded": {
+        "user": {
+            "id": "00u8p8560rXMQ95cP0h7",
+            "profile": {
+                "login": "jane.doe@example.com",
+                "firstName": "Jane",
+                "lastName": "Doe",
+                "locale": "en",
+                "timeZone": "America/Los_Angeles"
+            }
+        },
+        "factor": {
+            "id": "opf9ei43pbAgb2qgc0h7",
+            "factorType": "push",
+            "provider": "OKTA",
+            "vendorName": "OKTA",
+            "profile": {
+                "credentialId": "jane.doe@example.com",
+                "deviceType": "SmartPhone_IPhone",
+                "keys": [
+                    {
+                        "kty": "PKIX",
+                        "use": "sig",
+                        "kid": "default",
+                        "x5c": [
+                            "fdsfsdfsdfsd"
+                        ]
+                    }
+                ],
+                "name": "Jane.Doe iPhone",
+                "platform": "IOS",
+                "version": "10.2.1"
+            }
+        },
+        "policy": {
+            "allowRememberDevice": False,
+            "rememberDeviceLifetimeInMinutes": 0,
+            "rememberDeviceByDefault": False
+        },
+        "target": {
+            "type": "APP",
+            "name": "gimmecredstest",
+            "label": "Gimme-Creds-Test",
+            "_links": {
+                "logo": {
+                    "name": "medium",
+                    "href": "https://op1static.oktacdn.com/bc/globalFileStoreRecord?id=gfsatgifysE8NG37F0h7",
+                    "type": "image/png"
+                }
+            }
+        }
+    },
+    "_links": {
+        "next": {
+            "name": "poll",
+            "href": "https://example.okta.com/api/v1/authn/factors/opf9ei43pbAgb2qgc0h7/verify",
+            "hints": {
+                "allow": [
+                    "POST"
+                ]
+            }
+        },
+        "cancel": {
+            "href": "https://example.okta.com/api/v1/authn/cancel",
+            "hints": {
+                "allow": [
+                    "POST"
+                ]
+            }
+        },
+        "prev": {
+            "href": "https://example.okta.com/api/v1/authn/previous",
+            "hints": {
+                "allow": [
+                    "POST"
+                ]
+            }
+        },
+        "resend": [
+            {
+                "name": "push",
+                "href": "https://example.okta.com/api/v1/authn/factors/opf9ei43pbAgb2qgc0h7/verify/resend",
+                "hints": {
+                    "allow": [
+                        "POST"
+                    ]
+                }
+            }
+        ]
+    }
+}
+
+        responses.add(responses.POST, 'https://example.okta.com/api/v1/authn/factors/opf9ei43pbAgb2qgc0h7/verify', status=200, body=json.dumps(verify_response))
+        result = self.client._login_send_push(self.state_token, self.push_factor)
+        assert_equals(result, {'stateToken': self.state_token, 'apiResponse': verify_response})
+
+    @responses.activate
+    def test_get_saml_response(self):
+        """Test that the SAML reponse was successful"""
+        responses.add(responses.GET, 'https://example.okta.com/app/gimmecreds/exkatg7u9g6LJfFrZ0h7/sso/saml', status=200, body=self.login_saml)
+        result = self.client.get_saml_response('https://example.okta.com/app/gimmecreds/exkatg7u9g6LJfFrZ0h7/sso/saml')
+        assert_equals(result['TargetUrl'], 'https://localhost:8443/saml/SSO')
+
+    @responses.activate
+    def test_get_aws_account_info(self):
+        """Test the gimme_creds_server response"""
+        responses.add(responses.POST, 'https://localhost:8443/saml/SSO', status=200)
+        responses.add(responses.GET, self.gimme_creds_server + '/api/v1/accounts', status=200, body=json.dumps(self.api_results))
+        # The SAMLResponse value doesn't matter because the API response is mocked
+        saml_data = {'SAMLResponse': 'BASE64_String', 'RelayState': '', 'TargetUrl': 'https://localhost:8443/saml/SSO'}
+        result = self.client._get_aws_account_info(self.gimme_creds_server, saml_data)
+        assert_equals(self.client.aws_access, self.api_results)
+
+    @patch('builtins.input', return_value='0')
+    def test_choose_factor_sms(self, mock_input):
+        """ Test selecting SMS as a MFA"""
+        factor_list = [self.sms_factor, self.push_factor, self.totp_factor]
+        result = self.client._choose_factor(factor_list)
+        assert_equals(result, self.sms_factor)
+
+    @patch('builtins.input', return_value='1')
+    def test_choose_factor_push(self, mock_input):
+        """ Test selecting Okta Verify as a MFA"""
+        factor_list = [self.sms_factor, self.push_factor, self.totp_factor]
+        result = self.client._choose_factor(factor_list)
+        assert_equals(result, self.push_factor)
+
+    @patch('builtins.input', return_value='2')
+    def test_choose_factor_totp(self, mock_input):
+        """ Test selecting TOTP code as a MFA"""
+        factor_list = [self.sms_factor, self.push_factor, self.totp_factor]
+        result = self.client._choose_factor(factor_list)
+        assert_equals(result, self.totp_factor)
+
+    def test_build_factor_name_sms(self):
+        """ Test building a display name for SMS"""
+        result = self.client._build_factor_name(self.sms_factor)
+        assert_equals(result, "sms: +1 XXX-XXX-1234")
+
+    def test_build_factor_name_push(self):
+        """ Test building a display name for push"""
+        result = self.client._build_factor_name(self.push_factor)
+        assert_equals(result, "push: SmartPhone_IPhone: Jane.Doe iPhone")
+
+    def test_build_factor_name_totp(self):
+        """ Test building a display name for TOTP"""
+        result = self.client._build_factor_name(self.totp_factor)
+        assert_equals(result, "token:software:totp: jane.doe@example.com")
+
+    def test_get_app_by_name(self):
+        """ Test selecting app by name"""
+        self.client.aws_access = self.api_results
+        result = self.client.get_app_by_name('Sample AWS Account')
+        assert_equals(result['name'], 'Sample AWS Account')
+
+    def test_get_role_by_name(self):
+        """ Test selecting app by name"""
+        self.client.aws_access = self.api_results
+        result = self.client.get_role_by_name(self.api_results[0], 'ReadOnly')
+        assert_equals(result['name'], 'ReadOnly')
+
+    @patch('builtins.input', return_value='0')
+    def test_choose_role(self, mock_input):
+        """ Test selecting role with user input"""
+        result = self.client.choose_role(self.api_results[0])
+        assert_equals(result['name'], 'ReadOnly')
+
+    @patch('builtins.input', return_value='0')
+    def test_choose_app(self, mock_input):
+        """ Test selecting app with user input"""
+        self.client.aws_access = self.api_results
+        result = self.client.choose_app()
+        assert_equals(result['name'], 'Sample AWS Account')
