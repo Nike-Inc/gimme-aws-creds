@@ -65,6 +65,7 @@ class Config(object):
 
         self.configure = args.configure
         if args.insecure is True:
+            print("Warning: SSL certificate validation is disabled!")
             self.verify_ssl_certs = False
         else:
             self.verify_ssl_certs = True
