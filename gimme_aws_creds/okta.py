@@ -179,6 +179,9 @@ class OktaClient(object):
         saml_soup = BeautifulSoup(response.text, "html.parser")
         form_action = saml_soup.find('form').get('action')
 
+        saml_response = None
+        relay_state = None
+
         for inputtag in saml_soup.find_all('input'):
             if inputtag.get('name') == 'SAMLResponse':
                 saml_response = inputtag.get('value')
