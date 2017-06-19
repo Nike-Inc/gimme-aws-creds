@@ -39,6 +39,9 @@ class OktaClient(object):
         self._okta_org_url = okta_org_url
         self._verify_ssl_certs = verify_ssl_certs
 
+        if (verify_ssl_certs is False):
+            requests.packages.urllib3.disable_warnings()
+
         self._server_embed_link = None
         self._username = None
 
