@@ -19,6 +19,9 @@ from urllib.parse import urlparse
 from urllib.parse import parse_qs
 
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+
 from bs4 import BeautifulSoup
 
 class OktaClient(object):
@@ -41,7 +44,10 @@ class OktaClient(object):
 
         self.aws_access = None
 
+        # Allow up to 5 retries on requests to Okta in case we have network issues
         self.req_session = requests.Session()
+        retries = Retry(total=5, backoff_factor=1, method_whitelist=['GET', 'POST'])
+        self.req_session.mount('https://', HTTPAdapter(max_retries=retries))
 
     def set_username(self, username):
         self._username = username
