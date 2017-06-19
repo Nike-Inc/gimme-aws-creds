@@ -119,7 +119,13 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
-        return {'stateToken': stateToken, 'apiResponse': response.json()}
+
+        login_data = response.json()
+        if 'errorCode' in login_data:
+            print("LOGIN ERROR: " + login_data['errorSummary'], "Error Code ", login_data['errorCode'])
+            sys.exit(2)
+
+        return {'stateToken': stateToken, 'apiResponse': login_data}
 
     def _login_send_sms(self, stateToken, factor):
         """ Send SMS message for second factor authentication"""
