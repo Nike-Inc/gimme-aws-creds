@@ -191,7 +191,6 @@ class OktaClient(object):
         """ return the base64 SAML value object from the SAML Response"""
         response = self.req_session.get(url, verify=self._verify_ssl_certs)
 
-        form_action = saml_soup.find('form').get('action')
         saml_response = None
         relay_state = None
         form_action = None
