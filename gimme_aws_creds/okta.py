@@ -251,7 +251,7 @@ class OktaClient(object):
     def _build_factor_name(self, factor):
         """ Build the display name for a MFA factor based on the factor type"""
         if factor['factorType'] == 'push':
-            return factor['factorType'] + ": " + factor['profile']['deviceType'] + ": " + factor['profile']['name']
+            return "Okta Verify App: " + factor['profile']['deviceType'] + ": " + factor['profile']['name']
         elif factor['factorType'] == 'sms':
             return factor['factorType'] + ": " + factor['profile']['phoneNumber']
         elif factor['factorType'] == 'token:software:totp':
