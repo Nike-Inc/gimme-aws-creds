@@ -46,8 +46,6 @@ class OktaClient(object):
         self._server_embed_link = None
         self._username = None
 
-        self.aws_access = None
-
         # Allow up to 5 retries on requests to Okta in case we have network issues
         self.req_session = requests.Session()
         retries = Retry(total=5, backoff_factor=1,
@@ -57,7 +55,7 @@ class OktaClient(object):
     def set_username(self, username):
         self._username = username
 
-    def login(self, embed_link, gimme_creds_server_url):
+    def login(self, embed_link):
         """ Login to Okta and request data from the gimme-creds-server"""
         self._server_embed_link = embed_link
 
@@ -71,7 +69,11 @@ class OktaClient(object):
         samlResponse = self.get_saml_response(
             flowState['apiResponse']['_links']['next']['href'])
 
-        self._get_aws_account_info(gimme_creds_server_url, samlResponse)
+        self.req_session.post(
+            samlResponse['TargetUrl'],
+            data=samlResponse,
+            verify=self._verify_ssl_certs
+        )
 
     def _get_headers(self):
         """sets the default headers"""
@@ -220,23 +222,17 @@ class OktaClient(object):
 
         return {'SAMLResponse': saml_response, 'RelayState': relay_state, 'TargetUrl': form_action}
 
-    def _get_aws_account_info(self, gimme_creds_server_url, saml_data):
-        """ Submit the SAMLResponse and retreive the user's AWS accounts from the gimme_creds_server"""
-        self.req_session.post(
-            saml_data['TargetUrl'],
-            data=saml_data,
-            verify=self._verify_ssl_certs
-        )
-
+    def get_aws_account_info(self, gimme_creds_server_url):
+        """ Retrieve the user's AWS accounts from the gimme_creds_server"""
         api_url = gimme_creds_server_url + '/api/v1/accounts'
         response = self.req_session.get(api_url, verify=self._verify_ssl_certs)
 
-        self.aws_access = response.json()
-
         # Throw an error if we didn't get any accounts back
-        if self.aws_access == []:
+        if response.json() == []:
             print("No AWS accounts found")
             exit()
+
+        return response.json()
 
     def _choose_factor(self, factors):
         """ gets a list of available authentication factors and
@@ -271,7 +267,7 @@ class OktaClient(object):
             print("Unknown MFA type: " + factor['factorType'])
             return ""
 
-    def choose_app(self):
+    def choose_app(self, aws_info):
         """ gets a list of available apps and
         ask the user to select the app they want
         to assume a roles for and returns the selection
@@ -279,21 +275,21 @@ class OktaClient(object):
 
         print("Pick an app:")
         # print out the apps and let the user select
-        for i, app in enumerate(self.aws_access):
+        for i, app in enumerate(aws_info):
             print('[', i, ']', app["name"])
 
         selection = input("Selection: ")
 
         # make sure the choice is valid
-        if int(selection) > len(self.aws_access):
+        if int(selection) > len(aws_info):
             print("You made an invalid selection")
             sys.exit(1)
 
-        return self.aws_access[int(selection)]
+        return aws_info[int(selection)]
 
-    def get_app_by_name(self, appname):
+    def get_app_by_name(self, aws_info, appname):
         """ returns the app with the matching name"""
-        for i, app in enumerate(self.aws_access):
+        for i, app in enumerate(aws_info):
             if app["name"] == appname:
                 return app
 
