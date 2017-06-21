@@ -181,7 +181,8 @@ class Config(object):
 
         # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
-            config_dict['cred_profile'] = self._get_cred_profile(defaults['cred_profile'])
+            config_dict['cred_profile'] = self._get_cred_profile(
+                defaults['cred_profile'])
         else:
             config_dict['cred_profile'] = defaults['cred_profile']
 
@@ -199,7 +200,8 @@ class Config(object):
         okta_org_url = default_entry
 
         while okta_org_url_valid is False:
-            okta_org_url = self._get_user_input("Okta URL for your organization", default_entry)
+            okta_org_url = self._get_user_input(
+                "Okta URL for your organization", default_entry)
             # Validate that okta_org_url is a well formed okta URL
             url_parse_results = urlparse(okta_org_url)
 
@@ -219,7 +221,8 @@ class Config(object):
         embed_link = default_entry
 
         while embed_link_valid is False:
-            embed_link = self._get_user_input("Login URL for gimme-creds-server", default_entry)
+            embed_link = self._get_user_input(
+                "Login URL for gimme-creds-server", default_entry)
             # Validate that embed_link is a well formed okta URL
             url_parse_results = urlparse(embed_link)
 
@@ -237,7 +240,8 @@ class Config(object):
         gimme_creds_server = default_entry
 
         while gimme_creds_server_valid is False:
-            gimme_creds_server = self._get_user_input("URL for gimme-creds-server", default_entry)
+            gimme_creds_server = self._get_user_input(
+                "URL for gimme-creds-server", default_entry)
             # Validate that embed_link is a well formed URL
             url_parse_results = urlparse(gimme_creds_server)
 
@@ -256,7 +260,8 @@ class Config(object):
         write_aws_creds = None
         while write_aws_creds is not True and write_aws_creds is not False:
             default_entry = 'y' if default_entry is True else 'n'
-            answer = self._get_user_input("Write AWS Credentials", default_entry)
+            answer = self._get_user_input(
+                "Write AWS Credentials", default_entry)
             answer = answer.lower()
 
             if answer == 'y':
@@ -275,7 +280,8 @@ class Config(object):
               "If set to 'default' then the temp creds will be stored in the default profile\n"
               "If set to any other value, the name of the profile will match that value.")
 
-        cred_profile = self._get_user_input("AWS Credential Profile", default_entry)
+        cred_profile = self._get_user_input(
+            "AWS Credential Profile", default_entry)
 
         if cred_profile.lower() in ['default', 'role']:
             cred_profile = cred_profile.lower()
@@ -301,7 +307,8 @@ class Config(object):
         print("If you'd like to assign the Okta configuration to a specific profile\n"
               "instead of to the default profile, specify the name of the profile.\n"
               "This is optional.")
-        conf_profile = self._get_user_input("Okta Configuration Profile Name", default_entry)
+        conf_profile = self._get_user_input(
+            "Okta Configuration Profile Name", default_entry)
         return conf_profile
 
     @staticmethod
