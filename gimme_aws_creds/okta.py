@@ -24,6 +24,7 @@ from requests.packages.urllib3.util.retry import Retry
 
 from bs4 import BeautifulSoup
 
+
 class OktaClient(object):
     """
        The Okta Client Class performes the necessary API
@@ -49,7 +50,8 @@ class OktaClient(object):
 
         # Allow up to 5 retries on requests to Okta in case we have network issues
         self.req_session = requests.Session()
-        retries = Retry(total=5, backoff_factor=1, method_whitelist=['GET', 'POST'])
+        retries = Retry(total=5, backoff_factor=1,
+                        method_whitelist=['GET', 'POST'])
         self.req_session.mount('https://', HTTPAdapter(max_retries=retries))
 
     def set_username(self, username):
@@ -62,10 +64,12 @@ class OktaClient(object):
         flowState = self._get_state_token()
 
         while flowState['apiResponse']['status'] != 'SUCCESS':
-            flowState = self._next_login_step(flowState['stateToken'], flowState['apiResponse'])
+            flowState = self._next_login_step(
+                flowState['stateToken'], flowState['apiResponse'])
 
         print("Authentication Success! Getting AWS Accounts...")
-        samlResponse = self.get_saml_response(flowState['apiResponse']['_links']['next']['href'])
+        samlResponse = self.get_saml_response(
+            flowState['apiResponse']['_links']['next']['href'])
 
         self._get_aws_account_info(gimme_creds_server_url, samlResponse)
 
@@ -73,14 +77,15 @@ class OktaClient(object):
         """sets the default headers"""
         headers = {
             'Accept': 'application/json',
-            'Content-Type': 'application/json' }
+            'Content-Type': 'application/json'}
         return headers
 
     def _get_state_token(self):
         """ gets the starts the authentication flow with Okta"""
-        response = self.req_session.get(self._server_embed_link , allow_redirects=False)
+        response = self.req_session.get(
+            self._server_embed_link, allow_redirects=False)
         url_parse_results = urlparse(response.headers['Location'])
-        stateToken =  parse_qs(url_parse_results.query)['stateToken'][0]
+        stateToken = parse_qs(url_parse_results.query)['stateToken'][0]
 
         response = self.req_session.post(
             self._okta_org_url + '/authn',
@@ -93,7 +98,8 @@ class OktaClient(object):
     def _next_login_step(self, stateToken, login_data):
         """ decide what the next step in the login process is"""
         if 'errorCode' in login_data:
-            print("LOGIN ERROR: " + login_data['errorSummary'], "Error Code ", login_data['errorCode'])
+            print("LOGIN ERROR: " +
+                  login_data['errorSummary'], "Error Code ", login_data['errorCode'])
             sys.exit(2)
 
         status = login_data['status']
@@ -118,14 +124,18 @@ class OktaClient(object):
         creds = self._get_username_password_creds()
         response = self.req_session.post(
             url,
-            json={'stateToken': stateToken, 'username': creds['username'], 'password': creds['password']},
+            json={'stateToken': stateToken,
+                  'username': creds['username'],
+                  'password': creds['password']
+                  },
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
 
         login_data = response.json()
         if 'errorCode' in login_data:
-            print("LOGIN ERROR: " + login_data['errorSummary'], "Error Code ", login_data['errorCode'])
+            print("LOGIN ERROR: " +
+                  login_data['errorSummary'], "Error Code ", login_data['errorCode'])
             sys.exit(2)
 
         return {'stateToken': stateToken, 'apiResponse': login_data}
@@ -139,8 +149,9 @@ class OktaClient(object):
             verify=self._verify_ssl_certs
         )
 
-        print("A verification code has been sent to " + factor['profile']['phoneNumber'])
-        return {'stateToken': stateToken, 'apiResponse': response.json() }
+        print("A verification code has been sent to " +
+              factor['profile']['phoneNumber'])
+        return {'stateToken': stateToken, 'apiResponse': response.json()}
 
     def _login_send_push(self, stateToken, factor):
         """ Send 'push' for the Okta Verify mobile app """
@@ -153,7 +164,6 @@ class OktaClient(object):
 
         print("Okta Verify push sent...")
         return {'stateToken': stateToken, 'apiResponse': response.json()}
-
 
     def _login_multi_factor(self, stateToken, login_data):
         """ handle multi-factor authentication with Okta"""
@@ -205,7 +215,8 @@ class OktaClient(object):
                 relay_state = inputtag.get('value')
 
         if saml_response is None:
-            raise RuntimeError('Did not receive SAML Response after successful authentication [' + url + ']')
+            raise RuntimeError(
+                'Did not receive SAML Response after successful authentication [' + url + ']')
 
         return {'SAMLResponse': saml_response, 'RelayState': relay_state, 'TargetUrl': form_action}
 
@@ -213,12 +224,12 @@ class OktaClient(object):
         """ Submit the SAMLResponse and retreive the user's AWS accounts from the gimme_creds_server"""
         self.req_session.post(
             saml_data['TargetUrl'],
-            data = saml_data,
-            verify = self._verify_ssl_certs
+            data=saml_data,
+            verify=self._verify_ssl_certs
         )
 
         api_url = gimme_creds_server_url + '/api/v1/accounts'
-        response = self.req_session.get(api_url, verify = self._verify_ssl_certs)
+        response = self.req_session.get(api_url, verify=self._verify_ssl_certs)
 
         self.aws_access = response.json()
 
@@ -236,7 +247,7 @@ class OktaClient(object):
         # print out the factors and let the user select
         for i, factor in enumerate(factors):
             factorName = self._build_factor_name(factor)
-            if factorName != '' :
+            if factorName is not "":
                 print('[', i, ']', factorName)
 
         selection = input("Selection: ")
@@ -326,6 +337,6 @@ class OktaClient(object):
         if len(password) == 0:
             print("Password must be provided.")
             sys.exit(1)
-        creds = {'username': username, 'password': password }
+        creds = {'username': username, 'password': password}
 
         return creds

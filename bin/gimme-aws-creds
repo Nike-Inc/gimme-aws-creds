@@ -145,7 +145,8 @@ class GimmeAWSCreds(object):
         if not conf_dict['aws_rolename']:
             aws_role = okta.choose_role(aws_app)
         else:
-            aws_role = okta.get_role_by_name(aws_app, conf_dict['aws_rolename'])
+            aws_role = okta.get_role_by_name(
+                aws_app, conf_dict['aws_rolename'])
 
         # Get the the identityProviderArn from the aws app
         self.idp_arn = aws_app['identityProviderArn']
@@ -178,10 +179,12 @@ class GimmeAWSCreds(object):
         else:
             # Print out temporary AWS credentials.
             print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'])
-            print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'])
+            print("export AWS_SECRET_ACCESS_KEY=" +
+                  aws_creds['SecretAccessKey'])
             print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'])
 
         config.clean_up()
+
 
 if __name__ == '__main__':
     GimmeAWSCreds().run()
