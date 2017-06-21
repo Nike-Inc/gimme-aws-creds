@@ -133,14 +133,16 @@ class GimmeAWSCreds(object):
         if config.username is not None:
             okta.set_username(config.username)
 
-        okta.login(conf_dict['embed_link'], conf_dict['gimme_creds_server'])
+        okta.login(conf_dict['embed_link'])
+        aws_results = okta.get_aws_account_info(conf_dict['gimme_creds_server'])
 
         # check to see if appname and rolename are set
         # in the config, if not give user a selection to pick from
         if not conf_dict['aws_appname']:
-            aws_app = okta.choose_app()
+            aws_app = okta.choose_app(aws_results)
         else:
-            aws_app = okta.get_app_by_name(conf_dict['aws_appname'])
+            aws_app = okta.get_app_by_name(
+                aws_results, conf_dict['aws_appname'])
 
         if not conf_dict['aws_rolename']:
             aws_role = okta.choose_role(aws_app)
