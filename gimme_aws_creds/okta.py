@@ -47,10 +47,10 @@ class OktaClient(object):
         self._username = None
 
         # Allow up to 5 retries on requests to Okta in case we have network issues
-        self.req_session = requests.Session()
+        self._http_client = requests.Session()
         retries = Retry(total=5, backoff_factor=1,
                         method_whitelist=['GET', 'POST'])
-        self.req_session.mount('https://', HTTPAdapter(max_retries=retries))
+        self._http_client.mount('https://', HTTPAdapter(max_retries=retries))
 
     def set_username(self, username):
         self._username = username
@@ -69,7 +69,7 @@ class OktaClient(object):
         samlResponse = self.get_saml_response(
             flowState['apiResponse']['_links']['next']['href'])
 
-        self.req_session.post(
+        self._http_client.post(
             samlResponse['TargetUrl'],
             data=samlResponse,
             verify=self._verify_ssl_certs
@@ -84,12 +84,12 @@ class OktaClient(object):
 
     def _get_state_token(self):
         """ gets the starts the authentication flow with Okta"""
-        response = self.req_session.get(
+        response = self._http_client.get(
             self._server_embed_link, allow_redirects=False)
         url_parse_results = urlparse(response.headers['Location'])
         stateToken = parse_qs(url_parse_results.query)['stateToken'][0]
 
-        response = self.req_session.post(
+        response = self._http_client.post(
             self._okta_org_url + '/authn',
             json={'stateToken': stateToken},
             headers=self._get_headers(),
@@ -124,7 +124,7 @@ class OktaClient(object):
     def _login_username_password(self, stateToken, url):
         """ login to Okta with a username and password"""
         creds = self._get_username_password_creds()
-        response = self.req_session.post(
+        response = self._http_client.post(
             url,
             json={'stateToken': stateToken,
                   'username': creds['username'],
@@ -144,7 +144,7 @@ class OktaClient(object):
 
     def _login_send_sms(self, stateToken, factor):
         """ Send SMS message for second factor authentication"""
-        response = self.req_session.post(
+        response = self._http_client.post(
             factor['_links']['verify']['href'],
             json={'stateToken': stateToken},
             headers=self._get_headers(),
@@ -157,7 +157,7 @@ class OktaClient(object):
 
     def _login_send_push(self, stateToken, factor):
         """ Send 'push' for the Okta Verify mobile app """
-        response = self.req_session.post(
+        response = self._http_client.post(
             factor['_links']['verify']['href'],
             json={'stateToken': stateToken},
             headers=self._get_headers(),
@@ -180,7 +180,7 @@ class OktaClient(object):
     def _login_input_mfa_challenge(self, stateToken, next_url):
         """ Submit verification code for SMS or TOTP authentication methods"""
         passCode = input("Enter verification code: ")
-        response = self.req_session.post(
+        response = self._http_client.post(
             next_url,
             json={'stateToken': stateToken, 'passCode': passCode},
             headers=self._get_headers(),
@@ -191,7 +191,7 @@ class OktaClient(object):
     def _check_push_result(self, stateToken, login_data):
         """ Check Okta API to see if the push request has been responded to"""
         time.sleep(1)
-        response = self.req_session.post(
+        response = self._http_client.post(
             login_data['_links']['next']['href'],
             json={'stateToken': stateToken},
             headers=self._get_headers(),
@@ -201,7 +201,7 @@ class OktaClient(object):
 
     def get_saml_response(self, url):
         """ return the base64 SAML value object from the SAML Response"""
-        response = self.req_session.get(url, verify=self._verify_ssl_certs)
+        response = self._http_client.get(url, verify=self._verify_ssl_certs)
 
         saml_response = None
         relay_state = None
@@ -225,7 +225,7 @@ class OktaClient(object):
     def get_aws_account_info(self, gimme_creds_server_url):
         """ Retrieve the user's AWS accounts from the gimme_creds_server"""
         api_url = gimme_creds_server_url + '/api/v1/accounts'
-        response = self.req_session.get(api_url, verify=self._verify_ssl_certs)
+        response = self._http_client.get(api_url, verify=self._verify_ssl_certs)
 
         # Throw an error if we didn't get any accounts back
         if response.json() == []:
