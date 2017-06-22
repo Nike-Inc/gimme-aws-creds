@@ -56,7 +56,7 @@ class OktaClient(object):
         self._username = username
 
     def login(self, embed_link):
-        """ Login to Okta and request data from the gimme-creds-server"""
+        """ Login to Okta and authenticate to the gimme-creds-server"""
         self._server_embed_link = embed_link
 
         flowState = self._get_state_token()
@@ -65,15 +65,19 @@ class OktaClient(object):
             flowState = self._next_login_step(
                 flowState['stateToken'], flowState['apiResponse'])
 
-        print("Authentication Success! Getting AWS Accounts...")
         samlResponse = self.get_saml_response(
             flowState['apiResponse']['_links']['next']['href'])
 
-        self._http_client.post(
+        login_result = self._http_client.post(
             samlResponse['TargetUrl'],
             data=samlResponse,
             verify=self._verify_ssl_certs
         )
+
+        if login_result.status_code is 200:
+            return True
+        else:
+            return False
 
     def _get_headers(self):
         """sets the default headers"""
@@ -326,6 +330,7 @@ class OktaClient(object):
         # Otherwise just ask the user
         else:
             username = input("Email address: ")
+            self._username = username
         # Set prompt to include the user name, since username could be set
         # via OKTA_USERNAME env and user might not remember.
         passwd_prompt = "Password for {}: ".format(username)
