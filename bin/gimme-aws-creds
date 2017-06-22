@@ -134,6 +134,7 @@ class GimmeAWSCreds(object):
             okta.set_username(config.username)
 
         okta.login(conf_dict['embed_link'])
+        print("Authentication Success! Getting AWS Accounts...")
         aws_results = okta.get_aws_account_info(conf_dict['gimme_creds_server'])
 
         # check to see if appname and rolename are set
