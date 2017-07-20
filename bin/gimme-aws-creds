@@ -133,7 +133,7 @@ class GimmeAWSCreds(object):
         if config.username is not None:
             okta.set_username(config.username)
 
-        okta.login(conf_dict['embed_link'])
+        okta.stepup_auth_saml(conf_dict['embed_link'])
         print("Authentication Success! Getting AWS Accounts...")
         aws_results = okta.get_aws_account_info(conf_dict['gimme_creds_server'])
 
