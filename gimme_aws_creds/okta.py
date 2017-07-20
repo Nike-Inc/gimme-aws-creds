@@ -59,7 +59,7 @@ class OktaClient(object):
         """ Login to Okta and authenticate to the gimme-creds-server"""
         self._server_embed_link = embed_link
 
-        flowState = self._get_state_token()
+        flowState = self._get_initial_flow_state()
 
         while flowState['apiResponse']['status'] != 'SUCCESS':
             flowState = self._next_login_step(
@@ -86,8 +86,8 @@ class OktaClient(object):
             'Content-Type': 'application/json'}
         return headers
 
-    def _get_state_token(self):
-        """ gets the starts the authentication flow with Okta"""
+    def _get_initial_flow_state(self):
+        """ Starts the authentication flow with Okta"""
         response = self._http_client.get(
             self._server_embed_link, allow_redirects=False)
         url_parse_results = urlparse(response.headers['Location'])
@@ -128,23 +128,26 @@ class OktaClient(object):
     def _login_username_password(self, stateToken, url):
         """ login to Okta with a username and password"""
         creds = self._get_username_password_creds()
+        login_json = {
+            'username': creds['username'],
+            'password': creds['password']
+        }
+        if stateToken is not None:
+            login_json['stateToken'] = stateToken
         response = self._http_client.post(
             url,
-            json={'stateToken': stateToken,
-                  'username': creds['username'],
-                  'password': creds['password']
-                  },
+            json=login_json,
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
 
-        login_data = response.json()
-        if 'errorCode' in login_data:
+        response_data = response.json()
+        if 'errorCode' in response_data:
             print("LOGIN ERROR: " +
-                  login_data['errorSummary'], "Error Code ", login_data['errorCode'])
+                  response_data['errorSummary'], "Error Code ", response_data['errorCode'])
             sys.exit(2)
 
-        return {'stateToken': stateToken, 'apiResponse': login_data}
+        return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
 
     def _login_send_sms(self, stateToken, factor):
         """ Send SMS message for second factor authentication"""
@@ -155,9 +158,10 @@ class OktaClient(object):
             verify=self._verify_ssl_certs
         )
 
+        response_data = response.json()
         print("A verification code has been sent to " +
               factor['profile']['phoneNumber'])
-        return {'stateToken': stateToken, 'apiResponse': response.json()}
+        return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
 
     def _login_send_push(self, stateToken, factor):
         """ Send 'push' for the Okta Verify mobile app """
@@ -168,8 +172,9 @@ class OktaClient(object):
             verify=self._verify_ssl_certs
         )
 
+        response_data = response.json()
         print("Okta Verify push sent...")
-        return {'stateToken': stateToken, 'apiResponse': response.json()}
+        return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
 
     def _login_multi_factor(self, stateToken, login_data):
         """ handle multi-factor authentication with Okta"""
@@ -190,7 +195,8 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
-        return {'stateToken': stateToken, 'apiResponse': response.json()}
+        response_data = response.json()
+        return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
 
     def _check_push_result(self, stateToken, login_data):
         """ Check Okta API to see if the push request has been responded to"""
@@ -201,7 +207,8 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
-        return {'stateToken': stateToken, 'apiResponse': response.json()}
+        response_data = response.json()
+        return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
 
     def get_saml_response(self, url):
         """ return the base64 SAML value object from the SAML Response"""
@@ -229,7 +236,8 @@ class OktaClient(object):
     def get_aws_account_info(self, gimme_creds_server_url):
         """ Retrieve the user's AWS accounts from the gimme_creds_server"""
         api_url = gimme_creds_server_url + '/api/v1/accounts'
-        response = self._http_client.get(api_url, verify=self._verify_ssl_certs)
+        response = self._http_client.get(
+            api_url, verify=self._verify_ssl_certs)
 
         # Throw an error if we didn't get any accounts back
         if response.json() == []:
