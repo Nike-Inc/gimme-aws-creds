@@ -55,8 +55,8 @@ class OktaClient(object):
     def set_username(self, username):
         self._username = username
 
-    def login(self, embed_link):
-        """ Login to Okta and authenticate to the gimme-creds-server"""
+    def stepup_auth(self, embed_link):
+        """ Login to Okta using the Step-up authentication flow"""
         self._server_embed_link = embed_link
 
         flowState = self._get_initial_flow_state()
@@ -65,8 +65,14 @@ class OktaClient(object):
             flowState = self._next_login_step(
                 flowState['stateToken'], flowState['apiResponse'])
 
+        return flowState['apiResponse']
+
+    def stepup_auth_saml(self, embed_link):
+        """ Login to a SAML-protected service using the Step-up authentication flow"""
+        apiResponse = self.stepup_auth(embed_link)
+
         samlResponse = self.get_saml_response(
-            flowState['apiResponse']['_links']['next']['href'])
+            apiResponse['_links']['next']['href'])
 
         login_result = self._http_client.post(
             samlResponse['TargetUrl'],
@@ -74,10 +80,8 @@ class OktaClient(object):
             verify=self._verify_ssl_certs
         )
 
-        if login_result.status_code is 200:
-            return True
-        else:
-            return False
+        return login_result.text
+
 
     def _get_headers(self):
         """sets the default headers"""
