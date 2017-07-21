@@ -114,18 +114,32 @@ class OktaClient(object):
         if access_token is True:
             response_types.append('token')
 
-
         if 'authorization_server' not in kwargs:
             oauth_url = self._okta_org_url + '/oauth2/v1/authorize'
         else:
             oauth_url = self._okta_org_url + '/oauth2/' + kwargs['authorization_server'] + '/v1/authorize'
 
+        if 'redirect_uri' not in kwargs:
+            redirect_uri = 'http://localhost:8080/login'
+        else:
+            redirect_uri = kwargs['redirect_uri']
+
+        if 'nonce' not in kwargs:
+            nonce = 1
+        else:
+            nonce = kwargs['nonce']
+
+        if 'state' not in kwargs:
+            state = 'auth_oauth'
+        else:
+            state = kwargs['state']
+
         params = {
             'sessionToken': loginResponse['sessionToken'],
             'client_id': client_id,
-            'redirect_uri': 'http://localhost:8080/login',
-            'nonce': 1,
-            'state': 'auth_oauth',
+            'redirect_uri': redirect_uri,
+            'nonce': nonce,
+            'state': state,
             'response_type': ' '.join(response_types),
             'scope': ' '.join(scopes)
         }
@@ -355,57 +369,6 @@ class OktaClient(object):
         else:
             print("Unknown MFA type: " + factor['factorType'])
             return ""
-
-    def choose_app(self, aws_info):
-        """ gets a list of available apps and
-        ask the user to select the app they want
-        to assume a roles for and returns the selection
-        """
-
-        print("Pick an app:")
-        # print out the apps and let the user select
-        for i, app in enumerate(aws_info):
-            print('[', i, ']', app["name"])
-
-        selection = input("Selection: ")
-
-        # make sure the choice is valid
-        if int(selection) > len(aws_info):
-            print("You made an invalid selection")
-            sys.exit(1)
-
-        return aws_info[int(selection)]
-
-    def get_app_by_name(self, aws_info, appname):
-        """ returns the app with the matching name"""
-        for i, app in enumerate(aws_info):
-            if app["name"] == appname:
-                return app
-
-    def get_role_by_name(self, app_info, rolename):
-        """ returns the role with the matching name"""
-        for i, role in enumerate(app_info['roles']):
-            if role["name"] == rolename:
-                return role
-
-    def choose_role(self, app_info):
-        """ gets a list of available roles and
-        asks the user to select the role they want to assume
-        """
-
-        print("Pick a role:")
-        # print out the roles and let the user select
-        for i, role in enumerate(app_info['roles']):
-            print('[', i, ']', role["name"])
-
-        selection = input("Selection: ")
-
-        # make sure the choice is valid
-        if int(selection) > len(app_info['roles']):
-            print("You made an invalid selection")
-            sys.exit(1)
-
-        return app_info['roles'][int(selection)]
 
     def _get_username_password_creds(self):
         """Get's creds for Okta login from the user."""
