@@ -137,8 +137,9 @@ class Config(object):
            Either updates existing config file or creates new one.
            Config Options:
                 okta_org_url = Okta URL
-                embed_link = IdP-initiated login URL for the gimme-creds-server
-                gimme_creds_server = URL of the gimme_creds_server
+                gimme_creds_server = URL of the gimme-creds-server
+                client_id = OAuth Client id for the gimme-creds-server
+                okta_auth_server = Server ID for the OAuth authorization server used by gimme-creds-server
                 write_aws_creds = Option to write creds to ~/.aws/credentials
                 cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
                 aws_appname = (optional) Okta AWS App Name
@@ -150,7 +151,8 @@ class Config(object):
 
         defaults = {
             'okta_org_url': '',
-            'embed_link': '',
+            'okta_auth_server': '',
+            'client_id': '',
             'gimme_creds_server': '',
             'aws_appname': '',
             'aws_rolename': '',
@@ -172,8 +174,9 @@ class Config(object):
         # Prompt user for config details and store in config_dict
         config_dict = {
             'okta_org_url': self._get_org_url_entry(defaults['okta_org_url']),
+            'okta_auth_server': self._get_auth_server_entry(defaults['okta_auth_server']),
+            'client_id': self._get_client_id_entry(defaults['client_id']),
             'gimme_creds_server': self._get_gimme_creds_server_entry(defaults['gimme_creds_server']),
-            'embed_link': self._get_embed_link_entry(defaults['embed_link']),
             'write_aws_creds': self._get_write_aws_creds(defaults['write_aws_creds']),
             'aws_appname': self._get_aws_appname(defaults['aws_appname']),
             'aws_rolename': self._get_aws_rolename(defaults['aws_rolename']),
@@ -214,24 +217,25 @@ class Config(object):
 
         return okta_org_url
 
-    def _get_embed_link_entry(self, default_entry):
-        """ Get and validate embed_link """
-        print("Enter the IdP-initiated login URL (embed link) for gimme-creds-server. If you do not know this URL, contact your Okta admin")
-        embed_link_valid = False
-        embed_link = default_entry
+    def _get_auth_server_entry(self, default_entry):
+        """ Get and validate okta_auth_server """
+        print("Enter the OAuth authorization server for the gimme-creds-server. If you do not know this value, contact your Okta admin")
+        okta_auth_server = default_entry
 
-        while embed_link_valid is False:
-            embed_link = self._get_user_input(
-                "Login URL for gimme-creds-server", default_entry)
-            # Validate that embed_link is a well formed okta URL
-            url_parse_results = urlparse(embed_link)
+        okta_auth_server = self._get_user_input("Authorization server", default_entry)
+        self._okta_auth_server = okta_auth_server
 
-            if self._okta_org_url in embed_link and "/home/" in url_parse_results.path:
-                embed_link_valid = True
-            else:
-                print("Embed link URL must be a URL in your organization's Okta domain (%s)" % (self._okta_org_url))
+        return okta_auth_server
 
-        return embed_link
+    def _get_client_id_entry(self, default_entry):
+        """ Get and validate client_id """
+        print("Enter the OAuth client id for the gimme-creds-server. If you do not know this value, contact your Okta admin")
+        client_id = default_entry
+
+        client_id = self._get_user_input("Client ID", default_entry)
+        self._client_id = client_id
+
+        return client_id
 
     def _get_gimme_creds_server_entry(self, default_entry):
         """ Get gimme_creds_server """
