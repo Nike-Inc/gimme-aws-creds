@@ -43,7 +43,6 @@ class OktaClient(object):
         if (verify_ssl_certs is False):
             requests.packages.urllib3.disable_warnings()
 
-        self._server_embed_link = None
         self._username = None
 
         # Allow up to 5 retries on requests to Okta in case we have network issues
@@ -57,9 +56,7 @@ class OktaClient(object):
 
     def stepup_auth(self, embed_link):
         """ Login to Okta using the Step-up authentication flow"""
-        self._server_embed_link = embed_link
-
-        flowState = self._get_initial_flow_state()
+        flowState = self._get_initial_flow_state(embed_link)
 
         while flowState['apiResponse']['status'] != 'SUCCESS':
             flowState = self._next_login_step(
@@ -82,6 +79,75 @@ class OktaClient(object):
 
         return login_result.text
 
+    def auth(self):
+        """ Login to Okta using the authentication API"""
+        flowState = self._login_username_password(None, self._okta_org_url + '/api/v1/authn')
+
+        while flowState['apiResponse']['status'] != 'SUCCESS':
+            flowState = self._next_login_step(
+                flowState['stateToken'], flowState['apiResponse'])
+
+        return flowState['apiResponse']
+
+    def auth_oauth(self, client_id, **kwargs):
+        """ Login to Okta and retrieve access token, ID token or both """
+        loginResponse = self.auth()
+
+        if 'access_token' not in kwargs:
+            access_token = True
+        else:
+            access_token = kwargs['access_token']
+
+        if 'id_token' not in kwargs:
+            id_token = False
+        else:
+            id_token = kwargs['id_token']
+
+        if 'scopes' not in kwargs:
+            scopes = ['openid']
+        else:
+            scopes = kwargs['scopes']
+
+        response_types = []
+        if id_token is True:
+            response_types.append('id_token')
+        if access_token is True:
+            response_types.append('token')
+
+
+        if 'authorization_server' not in kwargs:
+            oauth_url = self._okta_org_url + '/oauth2/v1/authorize'
+        else:
+            oauth_url = self._okta_org_url + '/oauth2/' + kwargs['authorization_server'] + '/v1/authorize'
+
+        params = {
+            'sessionToken': loginResponse['sessionToken'],
+            'client_id': client_id,
+            'redirect_uri': 'http://localhost:8080/login',
+            'nonce': 1,
+            'state': 'auth_oauth',
+            'response_type': ' '.join(response_types),
+            'scope': ' '.join(scopes)
+        }
+
+        response = self._http_client.get(
+            oauth_url,
+            params=params,
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs,
+            allow_redirects=False
+        )
+
+        url_parse_results = urlparse(response.headers['Location'])
+        query_result = parse_qs(url_parse_results.fragment)
+
+        tokens = {}
+        if 'access_token' in query_result:
+            tokens['access_token'] = query_result['access_token'][0]
+        if 'id_token' in query_result:
+            tokens['id_token'] = query_result['id_token'][0]
+
+        return tokens
 
     def _get_headers(self):
         """sets the default headers"""
@@ -90,15 +156,15 @@ class OktaClient(object):
             'Content-Type': 'application/json'}
         return headers
 
-    def _get_initial_flow_state(self):
+    def _get_initial_flow_state(self, embed_link):
         """ Starts the authentication flow with Okta"""
         response = self._http_client.get(
-            self._server_embed_link, allow_redirects=False)
+            embed_link, allow_redirects=False)
         url_parse_results = urlparse(response.headers['Location'])
         stateToken = parse_qs(url_parse_results.query)['stateToken'][0]
 
         response = self._http_client.post(
-            self._okta_org_url + '/authn',
+            self._okta_org_url + '/api/v1/authn',
             json={'stateToken': stateToken},
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
@@ -136,6 +202,7 @@ class OktaClient(object):
             'username': creds['username'],
             'password': creds['password']
         }
+        # If this isn't a Step-up auth flow, we won't have a stateToken
         if stateToken is not None:
             login_json['stateToken'] = stateToken
         response = self._http_client.post(
@@ -151,7 +218,10 @@ class OktaClient(object):
                   response_data['errorSummary'], "Error Code ", response_data['errorCode'])
             sys.exit(2)
 
-        return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        func_result = {'apiResponse': response_data}
+        if 'stateToken' in response_data:
+            func_result['stateToken'] = response_data['stateToken']
+        return func_result
 
     def _login_send_sms(self, stateToken, factor):
         """ Send SMS message for second factor authentication"""
@@ -237,18 +307,21 @@ class OktaClient(object):
 
         return {'SAMLResponse': saml_response, 'RelayState': relay_state, 'TargetUrl': form_action}
 
-    def get_aws_account_info(self, gimme_creds_server_url):
-        """ Retrieve the user's AWS accounts from the gimme_creds_server"""
-        api_url = gimme_creds_server_url + '/api/v1/accounts'
-        response = self._http_client.get(
-            api_url, verify=self._verify_ssl_certs)
+    def get(self, url, **kwargs):
+        """ Retrieve resource that is protected by Okta """
+        return self._http_client.get(url, **kwargs )
 
-        # Throw an error if we didn't get any accounts back
-        if response.json() == []:
-            print("No AWS accounts found")
-            exit()
+    def post(self, url, **kwargs):
+        """ Create resource that is protected by Okta """
+        return self._http_client.post(url, **kwargs )
 
-        return response.json()
+    def put(self, url, **kwargs):
+        """ Modify resource that is protected by Okta """
+        return self._http_client.put(url, **kwargs )
+
+    def delete(self, url, **kwargs):
+        """ Delete resource that is protected by Okta """
+        return self._http_client.delete(url, **kwargs )
 
     def _choose_factor(self, factors):
         """ gets a list of available authentication factors and
