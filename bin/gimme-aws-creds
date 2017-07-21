@@ -106,6 +106,18 @@ class GimmeAWSCreds(object):
 
         return response['Credentials']
 
+    def _get_aws_account_info(self, okta_connection, gimme_creds_server_url):
+        """ Retrieve the user's AWS accounts from the gimme_creds_server"""
+        api_url = gimme_creds_server_url + '/api/v1/accounts'
+        response = okta_connection.get(api_url)
+
+        # Throw an error if we didn't get any accounts back
+        if response.json() == []:
+            print("No AWS accounts found.")
+            exit()
+
+        return response.json()
+
     def run(self):
         """ Pulling it all together to make the CLI """
         config = Config()
@@ -121,7 +133,7 @@ class GimmeAWSCreds(object):
         if conf_dict['okta_org_url'] in [None, '']:
             print('No Okta organization URL in configuration.  Try running --config again.')
 
-        okta_org_url = conf_dict['okta_org_url'] + '/api/v1'
+        okta_org_url = conf_dict['okta_org_url']
 
         if conf_dict['embed_link'] in [None, '']:
             print('No IdP-initiated login URL (embed link) in configuration.  Try running --config again.')
@@ -133,9 +145,20 @@ class GimmeAWSCreds(object):
         if config.username is not None:
             okta.set_username(config.username)
 
+        # tokens = okta.auth_oauth('tocqhTv1QcotXrNqnTXg',
+        #     authorization_server='aus9cz9q21TeYIzid0h7',
+        #     access_token=True,
+        #     id_token=False,
+        #     scopes=['openid']
+        # )
+        #
+        # print(tokens)
+        #
+        # sys.exit()
+
         okta.stepup_auth_saml(conf_dict['embed_link'])
         print("Authentication Success! Getting AWS Accounts...")
-        aws_results = okta.get_aws_account_info(conf_dict['gimme_creds_server'])
+        aws_results = self._get_aws_account_info(okta, conf_dict['gimme_creds_server'])
 
         # check to see if appname and rolename are set
         # in the config, if not give user a selection to pick from
