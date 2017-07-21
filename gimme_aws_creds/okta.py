@@ -45,6 +45,11 @@ class OktaClient(object):
 
         self._username = None
 
+        self._use_oauth_access_token = False
+        self._use_oauth_id_token = False
+        self._oauth_access_token = None
+        self._oauth_id_token = None
+
         # Allow up to 5 retries on requests to Okta in case we have network issues
         self._http_client = requests.Session()
         retries = Retry(total=5, backoff_factor=1,
@@ -53,6 +58,12 @@ class OktaClient(object):
 
     def set_username(self, username):
         self._username = username
+
+    def use_oauth_access_token(self, val=True):
+        self._use_oauth_access_token = val
+
+    def use_oauth_id_token(self, val=True):
+        self._use_oauth_id_token = val
 
     def stepup_auth(self, embed_link):
         """ Login to Okta using the Step-up authentication flow"""
@@ -158,8 +169,10 @@ class OktaClient(object):
         tokens = {}
         if 'access_token' in query_result:
             tokens['access_token'] = query_result['access_token'][0]
+            self._oauth_access_token = query_result['access_token'][0]
         if 'id_token' in query_result:
             tokens['id_token'] = query_result['id_token'][0]
+            self._oauth_id_token = query_result['id_token'][0]
 
         return tokens
 
@@ -323,18 +336,54 @@ class OktaClient(object):
 
     def get(self, url, **kwargs):
         """ Retrieve resource that is protected by Okta """
+        if self._use_oauth_access_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = self._oauth_access_token
+
+        if self._use_oauth_id_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = self._oauth_id_token
         return self._http_client.get(url, **kwargs )
 
     def post(self, url, **kwargs):
         """ Create resource that is protected by Okta """
+        if self._use_oauth_access_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = self._oauth_access_token
+
+        if self._use_oauth_id_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = self._oauth_id_token
         return self._http_client.post(url, **kwargs )
 
     def put(self, url, **kwargs):
         """ Modify resource that is protected by Okta """
+        if self._use_oauth_access_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = self._oauth_access_token
+
+        if self._use_oauth_id_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = self._oauth_id_token
         return self._http_client.put(url, **kwargs )
 
     def delete(self, url, **kwargs):
         """ Delete resource that is protected by Okta """
+        if self._use_oauth_access_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = self._oauth_access_token
+
+        if self._use_oauth_id_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = self._oauth_id_token
         return self._http_client.delete(url, **kwargs )
 
     def _choose_factor(self, factors):
