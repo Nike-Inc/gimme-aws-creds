@@ -54,7 +54,9 @@ class GimmeAWSCreds(object):
 
         Config Options:
            okta_org_url = Okta URL
-           embed_link = IdP-initiated login URL for the gimme-creds-server
+           gimme_creds_server = URL of the gimme-creds-server
+           client_id = OAuth Client id for the gimme-creds-server
+           okta_auth_server = Server ID for the OAuth authorization server used by gimme-creds-server
            write_aws_creds = Option to write creds to ~/.aws/credentials
            cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
            aws_appname = (optional) Okta AWS App Name
@@ -108,8 +110,7 @@ class GimmeAWSCreds(object):
 
     def _get_aws_account_info(self, okta_connection, gimme_creds_server_url):
         """ Retrieve the user's AWS accounts from the gimme_creds_server"""
-        api_url = gimme_creds_server_url + '/api/v1/accounts'
-        response = okta_connection.get(api_url)
+        response = okta_connection.get(gimme_creds_server_url)
 
         # Throw an error if we didn't get any accounts back
         if response.json() == []:
@@ -196,18 +197,17 @@ class GimmeAWSCreds(object):
         if config.username is not None:
             okta.set_username(config.username)
 
-        # tokens = okta.auth_oauth('tocqhTv1QcotXrNqnTXg',
-        #     authorization_server='aus9cz9q21TeYIzid0h7',
-        #     access_token=True,
-        #     id_token=False,
-        #     scopes=['openid']
-        # )
-        #
-        # print(tokens)
-        #
-        # sys.exit()
+        # Authenticate with Okta
+        tokens = okta.auth_oauth(conf_dict['client_id'],
+            authorization_server=conf_dict['okta_auth_server'],
+            access_token=True,
+            id_token=False,
+            scopes=['openid']
+        )
 
-        okta.stepup_auth_saml(conf_dict['embed_link'])
+        # Add Access Tokens to Okta-protected requests
+        okta.use_oauth_access_token(True)
+
         print("Authentication Success! Getting AWS Accounts...")
         aws_results = self._get_aws_account_info(okta, conf_dict['gimme_creds_server'])
 
