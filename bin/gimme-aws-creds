@@ -118,6 +118,57 @@ class GimmeAWSCreds(object):
 
         return response.json()
 
+    def _choose_app(self, aws_info):
+        """ gets a list of available apps and
+        ask the user to select the app they want
+        to assume a roles for and returns the selection
+        """
+
+        print("Pick an app:")
+        # print out the apps and let the user select
+        for i, app in enumerate(aws_info):
+            print('[', i, ']', app["name"])
+
+        selection = input("Selection: ")
+
+        # make sure the choice is valid
+        if int(selection) > len(aws_info):
+            print("You made an invalid selection")
+            sys.exit(1)
+
+        return aws_info[int(selection)]
+
+    def _get_app_by_name(self, aws_info, appname):
+        """ returns the app with the matching name"""
+        for i, app in enumerate(aws_info):
+            if app["name"] == appname:
+                return app
+
+    def _get_role_by_name(self, app_info, rolename):
+        """ returns the role with the matching name"""
+        for i, role in enumerate(app_info['roles']):
+            if role["name"] == rolename:
+                return role
+
+    def _choose_role(self, app_info):
+        """ gets a list of available roles and
+        asks the user to select the role they want to assume
+        """
+
+        print("Pick a role:")
+        # print out the roles and let the user select
+        for i, role in enumerate(app_info['roles']):
+            print('[', i, ']', role["name"])
+
+        selection = input("Selection: ")
+
+        # make sure the choice is valid
+        if int(selection) > len(app_info['roles']):
+            print("You made an invalid selection")
+            sys.exit(1)
+
+        return app_info['roles'][int(selection)]
+
     def run(self):
         """ Pulling it all together to make the CLI """
         config = Config()
@@ -165,15 +216,15 @@ class GimmeAWSCreds(object):
         aws_appname = ""
         aws_rolename = ""
         if not conf_dict['aws_appname']:
-            aws_app = okta.choose_app(aws_results)
+            aws_app = self._choose_app(aws_results)
         else:
-            aws_app = okta.get_app_by_name(
+            aws_app = self._get_app_by_name(
                 aws_results, conf_dict['aws_appname'])
 
         if not conf_dict['aws_rolename']:
-            aws_role = okta.choose_role(aws_app)
+            aws_role = self._choose_role(aws_app)
         else:
-            aws_role = okta.get_role_by_name(
+            aws_role = self._get_role_by_name(
                 aws_app, conf_dict['aws_rolename'])
 
         # Get the the identityProviderArn from the aws app
