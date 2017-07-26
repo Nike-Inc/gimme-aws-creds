@@ -187,8 +187,8 @@ class GimmeAWSCreds(object):
 
         okta_org_url = conf_dict['okta_org_url']
 
-        if conf_dict['embed_link'] in [None, '']:
-            print('No IdP-initiated login URL (embed link) in configuration.  Try running --config again.')
+        if conf_dict['client_id'] in [None, '']:
+            print('No OAuth Client ID in configuration.  Try running --config again.')
 
         if conf_dict['gimme_creds_server'] in [None, '']:
             print('No gimme-creds-server URL in configuration.  Try running --config again.')
