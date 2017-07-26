@@ -246,7 +246,6 @@ class Config(object):
         while gimme_creds_server_valid is False:
             gimme_creds_server = self._get_user_input(
                 "URL for gimme-creds-server", default_entry)
-            # Validate that embed_link is a well formed URL
             url_parse_results = urlparse(gimme_creds_server)
 
             if url_parse_results.scheme == "https":
