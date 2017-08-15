@@ -95,6 +95,7 @@ class Config(object):
             password = keyring.get_password('gimme-aws-creds', username)
             working_keyring = True
         except:
+            password = None
             working_keyring = False
         if password is not None:
             print("Using password from keyring for {}".format(username))
