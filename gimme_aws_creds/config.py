@@ -90,8 +90,9 @@ class Config(object):
         # Otherwise just ask the user
         else:
             username = self._get_user_input("Email address")
-        # Check to see if the password is available in the keyring
-        password = keyring.get_password('gimme-aws-creds', username)
+        # If the OS supports a keyring, check to see if the password is available
+        if keyring.get_keyring() is not None:
+            password = keyring.get_password('gimme-aws-creds', username)
         if password is not None:
             print("Using password from keyring for {}".format(username))
         else:
@@ -102,10 +103,12 @@ class Config(object):
             if len(password) == 0:
                 print("Password must be provided.")
                 sys.exit(1)
-            save_password  = self._get_user_input("Do you want to save this password in the keyring?", 'y')
-            if save_password == 'y':
-                keyring.set_password('gimme-aws-creds', username, password)
-                print("Password for {} saved in keyring.".format(username))
+            # If the OS supports a keyring, offer to save the password
+            if keyring.get_keyring() is not None:
+                save_password = self._get_user_input("Do you want to save this password in the keyring?", 'y')
+                if save_password == 'y':
+                    keyring.set_password('gimme-aws-creds', username, password)
+                    print("Password for {} saved in keyring.".format(username))
         self.username = username
         self.password = password
 
