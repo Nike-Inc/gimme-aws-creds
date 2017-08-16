@@ -202,12 +202,19 @@ class GimmeAWSCreds(object):
                 aws_creds['SessionToken']
             )
         else:
-            # Print out temporary AWS credentials.
-            print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'])
-            print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'])
-            print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'])
+            # Print out temporary AWS credentials.  Credentials are printed to stderr to simplify
+            # redirection for use in automated scripts
+            print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'], file=sys.stderr)
+            print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'], file=sys.stderr)
+            print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'], file=sys.stderr)
 
         config.clean_up()
 
 if __name__ == '__main__':
-    GimmeAWSCreds().run()
+    try:
+        GimmeAWSCreds().run()
+    except KeyboardInterrupt:
+        try:
+            sys.exit(1)
+        except SystemExit:
+            os._exit(1)
