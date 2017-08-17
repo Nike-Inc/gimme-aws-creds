@@ -244,7 +244,7 @@ class GimmeAWSCreds(object):
             if conf_dict['cred_profile'].lower() == 'default':
                 profile_name = 'default'
             elif conf_dict['cred_profile'].lower() == 'role':
-                profile_name = aws_rolename
+                profile_name = conf_dict['aws_rolename']
             else:
                 profile_name = conf_dict['cred_profile']
 
