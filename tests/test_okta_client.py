@@ -1,11 +1,14 @@
-"""Unit tests for gimme_aws_creds.okta.OktaClient"""
+"""Unit tests for gimme_aws_creds"""
 import json
 import unittest
-
+import sys
 import requests
 import responses
 from mock import patch
 from nose.tools import assert_equals
+
+from contextlib import contextmanager
+from io import StringIO
 
 from gimme_aws_creds.okta import OktaClient
 
@@ -13,6 +16,17 @@ from gimme_aws_creds.okta import OktaClient
 class TestOktaClient(unittest.TestCase):
     """Class to test Okta Client Class.
        Mock is used to mock external calls"""
+
+    @contextmanager
+    def captured_output(self):
+        """Capture StdErr and StdOut"""
+        new_out, new_err = StringIO(), StringIO()
+        old_out, old_err = sys.stdout, sys.stderr
+        try:
+            sys.stdout, sys.stderr = new_out, new_err
+            yield sys.stdout, sys.stderr
+        finally:
+            sys.stdout, sys.stderr = old_out, old_err
 
     def setUp(self):
         """Set up for the unit tests"""
@@ -97,6 +111,13 @@ class TestOktaClient(unittest.TestCase):
                 }
             }
 
+        self.unknown_factor = {
+                "id": "ost9ei4toqQBAzXmw0h7",
+                "factorType": "UNKNOWN_FACTOR",
+                "provider": "OKTA",
+                "vendorName": "OKTA"
+        }
+
         self.api_results = [{
           "id": "0oaabbfwyixfM6Gwu0h7",
           "name": "Sample AWS Account",
@@ -129,9 +150,10 @@ class TestOktaClient(unittest.TestCase):
 
         </html>"""
 
+        self.factor_list = [self.sms_factor, self.push_factor, self.totp_factor]
+
     def setUp_client(self, okta_org_url, verify_ssl_certs):
         client = OktaClient(okta_org_url, verify_ssl_certs)
-        client.set_username('ann')
         client.req_session = requests
         return client
 
@@ -194,15 +216,37 @@ class TestOktaClient(unittest.TestCase):
         self.assertEqual(result, {'stateToken': self.state_token, 'apiResponse': auth_response})
 
     @patch('getpass.getpass', return_value='1234qwert')
-    @patch('builtins.input', return_value='ann')
+    @patch('builtins.input', return_value='ann@example.com')
     def test_get_username_password_creds(self, mock_pass, mock_input):
         """Test that initial authentication works with Okta"""
         result = self.client._get_username_password_creds()
-        assert_equals(result, {'username': 'ann', 'password': '1234qwert' })
+        assert_equals(result, {'username': 'ann@example.com', 'password': '1234qwert' })
+
+    @patch('getpass.getpass', return_value='1234qwert')
+    @patch('builtins.input', return_value='')
+    def test_passed_username(self, mock_pass, mock_input):
+        """Test that initial authentication works with Okta"""
+        self.client.set_username('ann@example.com')
+        result = self.client._get_username_password_creds()
+        assert_equals(result, {'username': 'ann@example.com', 'password': '1234qwert' })
+
+    @patch('getpass.getpass', return_value='1234qwert')
+    @patch('builtins.input', return_value='ann')
+    def test_bad_username(self, mock_pass, mock_input):
+        """Test that initial authentication works with Okta"""
+        with self.assertRaises(SystemExit):
+            self.client._get_username_password_creds()
+
+    @patch('getpass.getpass', return_value='')
+    @patch('builtins.input', return_value='ann@example.com')
+    def test_missing_password(self, mock_pass, mock_input):
+        """Test that initial authentication works with Okta"""
+        with self.assertRaises(SystemExit):
+            self.client._get_username_password_creds()
 
     @responses.activate
     @patch('getpass.getpass', return_value='1234qwert')
-    @patch('builtins.input', return_value='ann')
+    @patch('builtins.input', return_value='ann@example.com')
     def test_login_username_password(self, mock_pass, mock_input):
         """Test that initial authentication works with Okta"""
         auth_response = {
@@ -612,6 +656,13 @@ class TestOktaClient(unittest.TestCase):
         result = self.client.get_saml_response('https://example.okta.com/app/gimmecreds/exkatg7u9g6LJfFrZ0h7/sso/saml')
         assert_equals(result['TargetUrl'], 'https://localhost:8443/saml/SSO')
 
+    @responses.activate
+    def test_missing_saml_response(self):
+        """Test that the SAML reponse was successful (failed)"""
+        responses.add(responses.GET, 'https://example.okta.com/app/gimmecreds/exkatg7u9g6LJfFrZ0h7/sso/saml', status=200, body="")
+        with self.assertRaises(RuntimeError):
+            result = self.client.get_saml_response('https://example.okta.com/app/gimmecreds/exkatg7u9g6LJfFrZ0h7/sso/saml')
+
     # @responses.activate
     # def test_get_aws_account_info(self):
     #     """Test the gimme_creds_server response"""
@@ -625,23 +676,26 @@ class TestOktaClient(unittest.TestCase):
     @patch('builtins.input', return_value='0')
     def test_choose_factor_sms(self, mock_input):
         """ Test selecting SMS as a MFA"""
-        factor_list = [self.sms_factor, self.push_factor, self.totp_factor]
-        result = self.client._choose_factor(factor_list)
+        result = self.client._choose_factor(self.factor_list)
         assert_equals(result, self.sms_factor)
 
     @patch('builtins.input', return_value='1')
     def test_choose_factor_push(self, mock_input):
         """ Test selecting Okta Verify as a MFA"""
-        factor_list = [self.sms_factor, self.push_factor, self.totp_factor]
-        result = self.client._choose_factor(factor_list)
+        result = self.client._choose_factor(self.factor_list)
         assert_equals(result, self.push_factor)
 
     @patch('builtins.input', return_value='2')
     def test_choose_factor_totp(self, mock_input):
         """ Test selecting TOTP code as a MFA"""
-        factor_list = [self.sms_factor, self.push_factor, self.totp_factor]
-        result = self.client._choose_factor(factor_list)
+        result = self.client._choose_factor(self.factor_list)
         assert_equals(result, self.totp_factor)
+
+    @patch('builtins.input', return_value='12')
+    def test_choose_bad_factor_totp(self, mock_input):
+        """ Test selecting an invalid MFA factor"""
+        with self.assertRaises(SystemExit):
+            result = self.client._choose_factor(self.factor_list)
 
     def test_build_factor_name_sms(self):
         """ Test building a display name for SMS"""
@@ -657,6 +711,15 @@ class TestOktaClient(unittest.TestCase):
         """ Test building a display name for TOTP"""
         result = self.client._build_factor_name(self.totp_factor)
         assert_equals(result, "token:software:totp: jane.doe@example.com")
+
+    def test_build_factor_name_unknown(self):
+        """ Handle an unknown MFA factor"""
+        with self.captured_output() as (out, err):
+            result = self.client._build_factor_name(self.unknown_factor)
+            assert_equals(result, "")
+        # Ensure the error message is printed to the screen
+        output = out.getvalue().strip()
+        self.assertEqual(output, 'Unknown MFA type: UNKNOWN_FACTOR')
 
     # def test_get_app_by_name(self):
     #     """ Test selecting app by name"""

@@ -4,6 +4,4 @@ bs4
 cerberus-python-client >= 0.2.0
 configparser >= 3.5
 mock
-nose
 requests
-responses
