@@ -18,6 +18,7 @@ import getpass
 import xml.etree.ElementTree as et
 from urllib.parse import urlparse
 from urllib.parse import parse_qs
+from codecs import decode
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -66,9 +67,9 @@ class OktaClient(object):
     def use_oauth_id_token(self, val=True):
         self._use_oauth_id_token = val
 
-    def stepup_auth(self, embed_link):
+    def stepup_auth(self, embed_link, stateToken = None):
         """ Login to Okta using the Step-up authentication flow"""
-        flowState = self._get_initial_flow_state(embed_link)
+        flowState = self._get_initial_flow_state(embed_link, stateToken)
 
         while flowState['apiResponse']['status'] != 'SUCCESS':
             flowState = self._next_login_step(
@@ -76,12 +77,17 @@ class OktaClient(object):
 
         return flowState['apiResponse']
 
-    def stepup_auth_saml(self, embed_link):
+    def stepup_auth_saml(self, embed_link, stateToken = None):
         """ Login to a SAML-protected service using the Step-up authentication flow"""
-        apiResponse = self.stepup_auth(embed_link)
+        apiResponse = self.stepup_auth(embed_link, stateToken)
 
-        samlResponse = self.get_saml_response(
-            apiResponse['_links']['next']['href'])
+        # if a session token is in the API response, we can use that to authenticate
+        if 'sessionToken' in apiResponse:
+            samlResponse = self.get_saml_response(
+                embed_link + '?sessionToken=' + apiResponse['sessionToken'])
+        else:
+            samlResponse = self.get_saml_response(
+                apiResponse['_links']['next']['href'])
 
         login_result = self._http_client.post(
             samlResponse['TargetUrl'],
@@ -184,12 +190,13 @@ class OktaClient(object):
             'Content-Type': 'application/json'}
         return headers
 
-    def _get_initial_flow_state(self, embed_link):
+    def _get_initial_flow_state(self, embed_link, stateToken = None):
         """ Starts the authentication flow with Okta"""
-        response = self._http_client.get(
-            embed_link, allow_redirects=False)
-        url_parse_results = urlparse(response.headers['Location'])
-        stateToken = parse_qs(url_parse_results.query)['stateToken'][0]
+        if stateToken is None:
+            response = self._http_client.get(
+                embed_link, allow_redirects=False)
+            url_parse_results = urlparse(response.headers['Location'])
+            stateToken = parse_qs(url_parse_results.query)['stateToken'][0]
 
         response = self._http_client.post(
             self._okta_org_url + '/api/v1/authn',
@@ -260,10 +267,12 @@ class OktaClient(object):
             verify=self._verify_ssl_certs
         )
 
+        print("A verification code has been sent to " + factor['profile']['phoneNumber'])
         response_data = response.json()
-        print("A verification code has been sent to " +
-              factor['profile']['phoneNumber'])
-        return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
     def _login_send_push(self, stateToken, factor):
         """ Send 'push' for the Okta Verify mobile app """
@@ -274,9 +283,12 @@ class OktaClient(object):
             verify=self._verify_ssl_certs
         )
 
-        response_data = response.json()
         print("Okta Verify push sent...")
-        return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        response_data = response.json()
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
     def _login_multi_factor(self, stateToken, login_data):
         """ handle multi-factor authentication with Okta"""
@@ -298,7 +310,10 @@ class OktaClient(object):
             verify=self._verify_ssl_certs
         )
         response_data = response.json()
-        return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
     def _check_push_result(self, stateToken, login_data):
         """ Check Okta API to see if the push request has been responded to"""
@@ -310,7 +325,10 @@ class OktaClient(object):
             verify=self._verify_ssl_certs
         )
         response_data = response.json()
-        return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
     def get_saml_response(self, url):
         """ return the base64 SAML value object from the SAML Response"""
@@ -330,6 +348,16 @@ class OktaClient(object):
                 relay_state = inputtag.get('value')
 
         if saml_response is None:
+            # We didn't get a SAML response.  Were we redirected to an MFA login page?
+            if hasattr(saml_soup.title, 'string') and re.match(".* - Extra Verification$", saml_soup.title.string):
+                print("MFA required.")
+                # extract the stateToken from the Javascript code in the page and step up to MFA
+                stateToken = decode(re.search(r"var stateToken = '(.*)';", response.text).group(1), "unicode-escape")
+                apiResponse = self.stepup_auth(url, stateToken)
+                samlResponse = self.get_saml_response(url + '?sessionToken=' + apiResponse['sessionToken'])
+
+                return(samlResponse)
+
             raise RuntimeError(
                 'Did not receive SAML Response after successful authentication [' + url + ']')
 
