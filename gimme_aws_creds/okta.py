@@ -9,6 +9,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
+import re
 import time
 import base64
 import json
@@ -421,6 +422,7 @@ class OktaClient(object):
 
     def _get_username_password_creds(self):
         """Get's creds for Okta login from the user."""
+
         # Check to see if the username arg has been set, if so use that
         if self._username is not None:
             username = self._username
@@ -428,6 +430,12 @@ class OktaClient(object):
         else:
             username = input("Email address: ")
             self._username = username
+
+        # The Okta username must be an email address
+        if not re.match("[^@]+@[^@]+\.[^@]+", username):
+            print("Okta username must be an email address.")
+            sys.exit(1)
+
         # Set prompt to include the user name, since username could be set
         # via OKTA_USERNAME env and user might not remember.
         passwd_prompt = "Password for {}: ".format(username)
