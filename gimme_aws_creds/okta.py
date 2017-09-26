@@ -368,12 +368,12 @@ class OktaClient(object):
         if self._use_oauth_access_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = self._oauth_access_token
+            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_access_token
 
         if self._use_oauth_id_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = self._oauth_id_token
+            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_id_token
         return self._http_client.get(url, **kwargs )
 
     def post(self, url, **kwargs):
@@ -381,12 +381,12 @@ class OktaClient(object):
         if self._use_oauth_access_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = self._oauth_access_token
+            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_access_token
 
         if self._use_oauth_id_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = self._oauth_id_token
+            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_id_token
         return self._http_client.post(url, **kwargs )
 
     def put(self, url, **kwargs):
@@ -394,12 +394,12 @@ class OktaClient(object):
         if self._use_oauth_access_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = self._oauth_access_token
+            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_access_token
 
         if self._use_oauth_id_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = self._oauth_id_token
+            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_id_token
         return self._http_client.put(url, **kwargs )
 
     def delete(self, url, **kwargs):
@@ -407,12 +407,12 @@ class OktaClient(object):
         if self._use_oauth_access_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = self._oauth_access_token
+            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_access_token
 
         if self._use_oauth_id_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = self._oauth_id_token
+            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_id_token
         return self._http_client.delete(url, **kwargs )
 
     def _choose_factor(self, factors):
