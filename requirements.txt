@@ -1,7 +1,6 @@
+git+https://github.com/okta/okta-sdk-python#egg=okta
 argparse
 boto3
 bs4
-cerberus-python-client >= 0.2.0
 configparser >= 3.5
-mock
 requests

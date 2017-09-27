@@ -107,6 +107,32 @@ class OktaClient(object):
 
         return flowState['apiResponse']
 
+    def auth_session(self, **kwargs):
+        """ Authenticate the user and return the Okta Session ID and username"""
+        loginResponse = self.auth()
+
+        session_url = self._okta_org_url + '/login/sessionCookieRedirect'
+
+        if 'redirect_uri' not in kwargs:
+            redirect_uri = 'http://localhost:8080/login'
+        else:
+            redirect_uri = kwargs['redirect_uri']
+
+        params = {
+            'token': loginResponse['sessionToken'],
+            'redirectUrl': redirect_uri
+        }
+
+        response = self._http_client.get(
+            session_url,
+            params=params,
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs,
+            allow_redirects=False
+        )
+
+        return {"username": loginResponse['_embedded']['user']['profile']['login'], "session": response.cookies['sid']}
+
     def auth_oauth(self, client_id, **kwargs):
         """ Login to Okta and retrieve access token, ID token or both """
         loginResponse = self.auth()
@@ -368,12 +394,12 @@ class OktaClient(object):
         if self._use_oauth_access_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_access_token
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
 
         if self._use_oauth_id_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_id_token
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
         return self._http_client.get(url, **kwargs )
 
     def post(self, url, **kwargs):
@@ -381,12 +407,12 @@ class OktaClient(object):
         if self._use_oauth_access_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_access_token
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
 
         if self._use_oauth_id_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_id_token
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
         return self._http_client.post(url, **kwargs )
 
     def put(self, url, **kwargs):
@@ -394,12 +420,12 @@ class OktaClient(object):
         if self._use_oauth_access_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_access_token
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
 
         if self._use_oauth_id_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_id_token
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
         return self._http_client.put(url, **kwargs )
 
     def delete(self, url, **kwargs):
@@ -407,12 +433,12 @@ class OktaClient(object):
         if self._use_oauth_access_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_access_token
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
 
         if self._use_oauth_id_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = "Bearer " + self._oauth_id_token
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
         return self._http_client.delete(url, **kwargs )
 
     def _choose_factor(self, factors):
