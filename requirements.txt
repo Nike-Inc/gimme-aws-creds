@@ -1,4 +1,4 @@
-git+https://github.com/okta/okta-sdk-python#egg=okta
+okta
 argparse
 boto3
 bs4
