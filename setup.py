@@ -5,7 +5,7 @@ with open('requirements.txt') as f:
 
 setup(
     name='gimme aws creds',
-    version='0.1.4',
+    version='0.1.26',
     install_requires=requirements,
     author='Ann Wallace',
     author_email='ann.wallace@nike.com',
