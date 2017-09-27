@@ -33,10 +33,15 @@ class Config(object):
     def __init__(self):
         self.configure = False
         self.username = None
+        self.api_key = None
         self.conf_profile = 'DEFAULT'
 
         if os.environ.get("OKTA_USERNAME") is not None:
             self.username = os.environ.get("OKTA_USERNAME")
+
+        if os.environ.get("OKTA_API_KEY") is not None:
+            self.api_key = os.environ.get("OKTA_API_KEY")
+
 
     def get_args(self):
         """Get the CLI args"""
@@ -137,7 +142,7 @@ class Config(object):
            Either updates existing config file or creates new one.
            Config Options:
                 okta_org_url = Okta URL
-                gimme_creds_server = URL of the gimme-creds-server
+                gimme_creds_server = URL of the gimme-creds-server or 'internal' for local processing
                 client_id = OAuth Client id for the gimme-creds-server
                 okta_auth_server = Server ID for the OAuth authorization server used by gimme-creds-server
                 write_aws_creds = Option to write creds to ~/.aws/credentials
@@ -153,7 +158,7 @@ class Config(object):
             'okta_org_url': '',
             'okta_auth_server': '',
             'client_id': '',
-            'gimme_creds_server': '',
+            'gimme_creds_server': 'internal',
             'aws_appname': '',
             'aws_rolename': '',
             'write_aws_creds': '',
@@ -172,15 +177,17 @@ class Config(object):
                     defaults[default] = profile.get(default, defaults[default])
 
         # Prompt user for config details and store in config_dict
-        config_dict = {
-            'okta_org_url': self._get_org_url_entry(defaults['okta_org_url']),
-            'okta_auth_server': self._get_auth_server_entry(defaults['okta_auth_server']),
-            'client_id': self._get_client_id_entry(defaults['client_id']),
-            'gimme_creds_server': self._get_gimme_creds_server_entry(defaults['gimme_creds_server']),
-            'write_aws_creds': self._get_write_aws_creds(defaults['write_aws_creds']),
-            'aws_appname': self._get_aws_appname(defaults['aws_appname']),
-            'aws_rolename': self._get_aws_rolename(defaults['aws_rolename']),
-        }
+        config_dict = defaults
+        config_dict['okta_org_url'] = self._get_org_url_entry(defaults['okta_org_url'])
+        config_dict['gimme_creds_server'] = self._get_gimme_creds_server_entry(defaults['gimme_creds_server'])
+
+        if config_dict['gimme_creds_server'] != 'internal':
+            config_dict['client_id'] = self._get_client_id_entry(defaults['client_id'])
+            config_dict['okta_auth_server'] = self._get_auth_server_entry(defaults['okta_auth_server'])
+
+        config_dict['write_aws_creds'] = self._get_write_aws_creds(defaults['write_aws_creds'])
+        config_dict['aws_appname'] = self._get_aws_appname(defaults['aws_appname'])
+        config_dict['aws_rolename'] = self._get_aws_rolename(defaults['aws_rolename'])
 
         # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
@@ -239,19 +246,22 @@ class Config(object):
 
     def _get_gimme_creds_server_entry(self, default_entry):
         """ Get gimme_creds_server """
-        print("Enter the URL for the gimme-creds-server.")
+        print("Enter the URL for the gimme-creds-server or 'internal' for handling Okta APIs locally.")
         gimme_creds_server_valid = False
         gimme_creds_server = default_entry
 
         while gimme_creds_server_valid is False:
             gimme_creds_server = self._get_user_input(
                 "URL for gimme-creds-server", default_entry)
-            url_parse_results = urlparse(gimme_creds_server)
-
-            if url_parse_results.scheme == "https":
+            if gimme_creds_server == "internal":
                 gimme_creds_server_valid = True
             else:
-                print("The gimme-creds-server must be a HTTPS URL")
+                url_parse_results = urlparse(gimme_creds_server)
+
+                if url_parse_results.scheme == "https":
+                    gimme_creds_server_valid = True
+                else:
+                    print("The gimme-creds-server must be a HTTPS URL")
 
         return gimme_creds_server
 
@@ -335,3 +345,4 @@ class Config(object):
     def clean_up(self):
         """ clean up secret stuff"""
         del self.username
+        del self.api_key
