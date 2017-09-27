@@ -171,7 +171,6 @@ class GimmeAWSCreds(object):
             aws_rolename = okta.get_role(aws_appname)
         else:
             aws_rolename = conf_dict['aws_rolename']
-        print("AWS ROLENAME ", aws_rolename)
 
         # get the applinks available to the user
         app_url = okta.get_app_url(aws_appname)

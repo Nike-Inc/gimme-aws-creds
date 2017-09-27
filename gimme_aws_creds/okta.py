@@ -53,13 +53,6 @@ class OktaClient(object):
             'Authorization': 'SSWS ' + self._okta_api_key}
         return headers
 
-    # def _get_session_token(self):
-    #     if self._session_token is not None:
-    #         return self._session_token
-    #     else:
-    #         self._get_login_response()
-    #         return self._session_token
-
     def _get_login_response(self):
         """ gets the login response from Okta and returns the json response"""
         headers = self._get_headers()
@@ -145,14 +138,12 @@ class OktaClient(object):
             print("ERROR: " + role_resp['errorSummary'], "Error Code ", role_resp['errorCode'])
             sys.exit(2)
 
-
-        rolename = self.get_rolename(role_resp, aws_appname)
-        if rolename:
-            return rolename
+        for app in role_resp:
+            rolename = self.get_rolename(aws_appname, app)
+            if rolename:
+                return rolename
 
         #paginate
-        print("LINKS")
-        print(response.links['next'])
         while response.links['next']:
             response = requests.get(
                 response.links['next']['url'],
@@ -160,37 +151,40 @@ class OktaClient(object):
                 verify=True
             )
             role_resp = json.loads(response.text)
-            rolename = self.get_rolename(role_resp, aws_appname)
-            if rolename:
-                return rolename
+            # Check if this is a valid response
+
+            if 'errorCode' in role_resp:
+                print("ERROR: " + role_resp['errorSummary'], "Error Code ", role_resp['errorCode'])
+                sys.exit(2)
+
+            for app in role_resp:
+                rolename = self.get_rolename(aws_appname, app)
+                if rolename:
+                    return rolename
 
         # if you made it this far something went wrong
         print("ERROR: No roles for " + aws_appname + " were returned.")
         sys.exit(3)
 
     @classmethod
-    def get_rolename(cls, role_resp, aws_appname):
+    def get_rolename(cls, aws_appname, app):
         """ return rolename"""
-        print("ENTER")
-        print("AWS NAME " + aws_appname)
-        for app in role_resp:
-            print('App ' + app['label'])
-            if app['label'] == aws_appname:
-                print("Pick a role:")
-                roles = app['_embedded']['user']['profile']['samlRoles']
+        if app['label'] == aws_appname:
+            print("Pick a role:")
+            roles = app['_embedded']['user']['profile']['samlRoles']
 
-                for i, role in enumerate(roles):
-                    print('[', i, ']:', role)
-                selection = input("Selection: ")
+            for i, role in enumerate(roles):
+                print('[', i, ']:', role)
+            selection = input("Selection: ")
 
-                # make sure the choice is valid
-                if int(selection) > len(roles):
-                    print("You selected an invalid selection")
-                    sys.exit(1)
+            # make sure the choice is valid
+            if int(selection) > len(roles):
+                print("You selected an invalid selection")
+                sys.exit(1)
 
-                return roles[int(selection)]
-            else:
-                return False
+            return roles[int(selection)]
+
+        return False
 
 
     def get_app_url(self, aws_appname):
@@ -233,10 +227,6 @@ class OktaClient(object):
         # grab the role ARNs that matches the role to assume
         for aws_role in aws_roles:
             chunks = aws_role.split(',')
-            #DELETE
-            print('AWS ROLE')
-            print(aws_rolename)
-            #DELETE
             if aws_rolename in chunks[1]:
                 return chunks[1]
 
