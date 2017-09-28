@@ -110,7 +110,7 @@ class GimmeAWSCreds(object):
 
         return response['Credentials']
 
-    def _call_gimmie_creds_server(self, okta_connection, gimme_creds_server_url):
+    def _call_gimme_creds_server(self, okta_connection, gimme_creds_server_url):
         """ Retrieve the user's AWS accounts from the gimme_creds_server"""
         response = okta_connection.get(gimme_creds_server_url)
 
@@ -302,7 +302,7 @@ class GimmeAWSCreds(object):
             okta.use_oauth_access_token(True)
 
             print("Authentication Success! Calling Gimme-Creds Server...")
-            aws_results = self._call_gimmie_creds_server(okta, conf_dict['gimme_creds_server'])
+            aws_results = self._call_gimme_creds_server(okta, conf_dict['gimme_creds_server'])
 
         # check to see if appname and rolename are set
         # in the config, if not give user a selection to pick from
