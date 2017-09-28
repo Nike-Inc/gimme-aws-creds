@@ -53,13 +53,6 @@ class OktaClient(object):
             'Authorization': 'SSWS ' + self._okta_api_key}
         return headers
 
-    # def _get_session_token(self):
-    #     if self._session_token is not None:
-    #         return self._session_token
-    #     else:
-    #         self._get_login_response()
-    #         return self._session_token
-
     def _get_login_response(self):
         """ gets the login response from Okta and returns the json response"""
         headers = self._get_headers()
@@ -131,6 +124,7 @@ class OktaClient(object):
         """
         # get available roles for the AWS app
         headers = self._get_headers()
+        print("Getting available roles for " + aws_appname)
         response = requests.get(
             self._idp_entry_url + '/apps/?filter=user.id+eq+\"' +
             self._user_id + '\"&expand=user/' + self._user_id + '&limit=200',
@@ -144,22 +138,54 @@ class OktaClient(object):
             print("ERROR: " + role_resp['errorSummary'], "Error Code ", role_resp['errorCode'])
             sys.exit(2)
 
-        # print out roles for the app and let the uesr select
         for app in role_resp:
-            if app['label'] == aws_appname:
-                print("Pick a role:")
-                roles = app['_embedded']['user']['profile']['samlRoles']
+            rolename = self.get_rolename(aws_appname, app)
+            if rolename:
+                return rolename
 
-                for i, role in enumerate(roles):
-                    print('[', i, ']:', role)
-                selection = input("Selection: ")
+        #paginate
+        while response.links['next']:
+            response = requests.get(
+                response.links['next']['url'],
+                headers=headers,
+                verify=True
+            )
+            role_resp = json.loads(response.text)
+            # Check if this is a valid response
 
-                # make sure the choice is valid
-                if int(selection) > len(roles):
-                    print("You selected an invalid selection")
-                    sys.exit(1)
+            if 'errorCode' in role_resp:
+                print("ERROR: " + role_resp['errorSummary'], "Error Code ", role_resp['errorCode'])
+                sys.exit(2)
 
-                return roles[int(selection)]
+            for app in role_resp:
+                rolename = self.get_rolename(aws_appname, app)
+                if rolename:
+                    return rolename
+
+        # if you made it this far something went wrong
+        print("ERROR: No roles for " + aws_appname + " were returned.")
+        sys.exit(3)
+
+    @classmethod
+    def get_rolename(cls, aws_appname, app):
+        """ return rolename"""
+        if app['label'] == aws_appname:
+            print("Pick a role:")
+            roles = app['_embedded']['user']['profile']['samlRoles']
+
+            for i, role in enumerate(roles):
+                print('[', i, ']:', role)
+            selection = input("Selection: ")
+
+            # make sure the choice is valid
+            if int(selection) > len(roles):
+                print("You selected an invalid selection")
+                sys.exit(1)
+
+            return roles[int(selection)]
+
+        return False
+
 
     def get_app_url(self, aws_appname):
         """ return the app link json for select aws app """

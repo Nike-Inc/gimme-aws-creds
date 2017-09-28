@@ -160,6 +160,8 @@ class GimmeAWSCreds(object):
 
         # check to see if appname and rolename are set
         # in the config, if not give user a selection to pick from
+        aws_appname = ""
+        aws_rolename = ""
         if not conf_dict['aws_appname']:
             aws_appname = okta.get_app()
         else:
