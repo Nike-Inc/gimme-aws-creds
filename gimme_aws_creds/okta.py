@@ -15,6 +15,7 @@ import base64
 import json
 import sys
 import getpass
+import keyring
 import xml.etree.ElementTree as et
 from urllib.parse import urlparse
 from urllib.parse import parse_qs
@@ -489,13 +490,30 @@ class OktaClient(object):
             print("Okta username must be an email address.")
             sys.exit(1)
 
-        # Set prompt to include the user name, since username could be set
-        # via OKTA_USERNAME env and user might not remember.
-        passwd_prompt = "Password for {}: ".format(username)
-        password = getpass.getpass(prompt=passwd_prompt)
-        if len(password) == 0:
-            print("Password must be provided.")
-            sys.exit(1)
+        try:
+            # if the OS supports a keyring, offer to save the password
+            password = keyring.get_password('gimme-aws-creds', username)
+            working_keyring = True
+        except:
+            password = None
+            working_keyring = False
+        if password is not None:
+            print("Using password from keyring for {}".format(username))
+        else:
+            # Set prompt to include the user name, since username could be set
+            # via OKTA_USERNAME env and user might not remember.
+            passwd_prompt = "Password for {}: ".format(username)
+            password = getpass.getpass(prompt=passwd_prompt)
+            if len(password) == 0:
+                print("Password must be provided.")
+                sys.exit(1)
+            if working_keyring:
+                # If the OS supports a keyring, offer to save the password
+                if input("Do you want to save this password in the keyring? (y/n)") == 'y':
+                    try:
+                        keyring.set_password('gimme-aws-creds', username, password)
+                        print("Password for {} saved in keyring.".format(username))
+                    except RuntimeError as err:
+                        print("Failed to save password in keyring: ", err)
         creds = {'username': username, 'password': password}
-
         return creds

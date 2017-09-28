@@ -11,8 +11,6 @@ See the License for the specific language governing permissions and* limitations
 """
 import argparse
 import configparser
-import getpass
-import keyring
 import os
 import sys
 from os.path import expanduser
@@ -96,45 +94,6 @@ class Config(object):
         else:
             print('Configuration file not found! Use the --configure flag to generate file.')
             sys.exit(1)
-
-    def get_user_creds(self):
-        """Get's creds for Okta login from the user."""
-        # Check to see if the username arg has been set, if so use that
-        if self.username is not None:
-            username = self.username
-        # Next check to see if the OKTA_USERNAME env var is set
-        elif os.environ.get("OKTA_USERNAME") is not None:
-            username = os.environ.get("OKTA_USERNAME")
-        # Otherwise just ask the user
-        else:
-            username = self._get_user_input("Email address")
-        try:
-            # if the OS supports a keyring, offer to save the password
-            password = keyring.get_password('gimme-aws-creds', username)
-            working_keyring = True
-        except:
-            password = None
-            working_keyring = False
-        if password is not None:
-            print("Using password from keyring for {}".format(username))
-        else:
-            # Set prompt to include the user name, since username could be set
-            # via OKTA_USERNAME env and user might not remember.
-            passwd_prompt = "Password for {}: ".format(username)
-            password = getpass.getpass(prompt=passwd_prompt)
-            if len(password) == 0:
-                print("Password must be provided.")
-                sys.exit(1)
-            if working_keyring:
-                # If the OS supports a keyring, offer to save the password
-                if self._get_user_input("Do you want to save this password in the keyring?", 'y') == 'y':
-                    try:
-                        keyring.set_password('gimme-aws-creds', username, password)
-                        print("Password for {} saved in keyring.".format(username))
-                    except RuntimeError as err:
-                        print("Failed to save password in keyring: ", err)
-        self.username = username
-        self.password = password
 
     def update_config_file(self):
         """
