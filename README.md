@@ -3,12 +3,11 @@
 [![][license img]][license]
 [![Build Status](https://travis-ci.org/Nike-Inc/gimme-aws-creds.svg?branch=master)](https://travis-ci.org/Nike-Inc/gimme-aws-creds)
 
-gimme-aws-creds is a CLI that utilizes [Okta](https://www.okta.com/) IdP via SAML to acquire a temporary AWS credentials via AWS STS.
+gimme-aws-creds is a CLI that utilizes an [Okta](https://www.okta.com/) IdP via SAML to acquire a temporary AWS credentials via AWS STS.
 
 Okta is a SAML identity provider (IdP), that can be easily set-up to do SSO to your AWS console. Okta does offer an [OSS java CLI]((https://github.com/oktadeveloper/okta-aws-cli-assume-role)) tool to obtain temporary AWS credentials, but I found it needs more information than the average Okta user would have and doesn't scale well if have more than one Okta App.
 
 With gimme-aws-creds all you need to know is your username, password, Okta url and MFA token, if MFA is enabled. gimme-aws-creds gives you the option to select which Okta AWS application and role you want credentials for. Alternatively, you can pre-configure the app and role name by passing -c or editing the config file. This is all covered in the usage section.
-
 
 ## Prerequisites
 
@@ -17,7 +16,7 @@ With gimme-aws-creds all you need to know is your username, password, Okta url a
 Python 3
 
 ### Optional
-[Cerberus](http://engineering.nike.com/cerberus/) can be used for storing the Okta API key. gimme-aws-creds uses the [Cerberus Python Client](https://github.com/Nike-Inc/cerberus-python-client) for interacting with Cerberus. It would be very easy to drop something else besides Cerberus to retrieve your API key. Otherwise, you can set the `OKTA_API_KEY` environment variable.
+Gimme-creds-lambda can be used as a proxy to the Okta APIs needed by gimme-aws-creds.  This removes the requirement of an Okta API key.  Gimme-aws-creds authneticates to gimme-creds-lambda using OpenID Connect and the lambda handles all interactions with the Okta APIs.  Alternately, you can set the `OKTA_API_KEY` environment variable and the `gimme_creds_server` configuration value to 'internal' to call the Okta APIs directly from gimme-aws-creds.
 
 
 ## Installation
@@ -44,25 +43,25 @@ A configuration wizard will prompt you to enter the necessary configuration para
 
 - conf_profile - This sets the Okta configuration profile name, the default is DEFAULT.
 - okta_org_url - This is your Okta organization url, which is typically something like `https://companyname.okta.com`.
+- okta_auth_server - [Okta API Authorization Server](https://help.okta.com/en/prev/Content/Topics/Security/API_Access.htm) used for OpenID Connect authentication for gimme-creds-lambda
+- client_id - OAuth client ID for gimme-creds-lambda
+- gimme_creds_server - URL for gimme-creds-lambda or 'internal' for direct interaction with the Okta APIs (`OKTA_API_KEY` environment variable required)
 - write_aws_creds - y or n - If yes, the AWS credentials will be written to `~/.aws/credentials` otherwise it will be written to stdout.
 - cred_profile - If writing to the AWS cred file, this sets the name of the AWS credential profile.
 - aws_appname - This is optional. The Okta AWS App name, which has the role you want to assume.
 - aws_rolename - This is optional. The name of the role you want temporary AWS credentials for.
-- cerberus_url - This is optional. This is the URL of your Cerberus instance, which can be use to store your Okta API Key.
-
 
 ## Usage
 
-**If you are not using Cerberus to store your Okta API key make sure you the OKTA_API_KEY environment variable.**
+**If you are not using gimme-creds-lambda, make sure you the OKTA_API_KEY environment variable.**
 
 After running --configure, just run gimme-aws-creds. You will be prompted for the necessary information.
-
 
 ```bash
 $ ./gimme-aws-creds
 Email address: user@domain.com
 Password for user@domain.com:
-Enter Google Authenticator security code: 098765
+Authentication Success! Calling Gimme-Creds Server...
 Pick an app:
 [ 0 ] AWS Test Account
 [ 1 ] AWS Prod Account
@@ -71,21 +70,25 @@ Pick a role:
 [ 0 ]: OktaAWSAdminRole
 [ 1 ]: OktaAWSReadOnlyRole
 Selection: 1
+Multi-factor Authentication required.
+Pick a factor:
+[ 0 ] Okta Verify App: SmartPhone_IPhone: iPhone
+[ 1 ] token:software:totp: user@domain.com
+Selection: 0
+Okta Verify push sent...
 export AWS_ACCESS_KEY_ID=AQWERTYUIOP
 export AWS_SECRET_ACCESS_KEY=T!#$JFLOJlsoddop1029405-P
 ```
 
-You can run a specific configuration profile with the `--profile` flag:
+You can run a specific configuration profile with the `--profile` parameter:
 
 ```bash
 $ ./gimme-aws-creds --profile profileName
 ```
 
-The username and password you are prompted for are the ones you login to Okta with. You can predefine your username by setting the `OKTA_USERNAME` environment variable.
+The username and password you are prompted for are the ones you login to Okta with. You can predefine your username by setting the `OKTA_USERNAME` environment variable or using the `-u username` parameter.
 
-If you are using Cerberus, it is assumed you use the same username and password for it. If MFA is enabled you will be prompted for it.
-
-If you have not configure an Okta App or Role, you will prompted to select one.
+If you have not configured an Okta App or Role, you will prompted to select one.
 
 If all goes well you will get your temporary AWS access, secret key and token, these will either be written to stdout or `~/.aws/credentials`.
 
