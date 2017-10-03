@@ -262,8 +262,12 @@ class GimmeAWSCreds(object):
         # get the config dict
         conf_dict = config.get_config_dict()
 
-        if conf_dict['okta_org_url'] in [None, '']:
+        if not conf_dict.get('okta_org_url'):
             print('No Okta organization URL in configuration.  Try running --config again.')
+            sys.exit(1)
+
+        if not conf_dict.get('gimme_creds_server'):
+            print('No Gimme-Creds server URL in configuration.  Try running --config again.')
             sys.exit(1)
 
         okta = OktaClient(conf_dict['okta_org_url'], config.verify_ssl_certs)
@@ -284,11 +288,9 @@ class GimmeAWSCreds(object):
 
         # Use the gimme_creds_lambda service
         else:
-            if conf_dict['gimme_creds_server'] in [None, '']:
-                print('No Gimme-Creds server URL in configuration.  Try running --config again.')
-            if conf_dict['client_id'] in [None, '']:
+            if not conf_dict.get('client_id'):
                 print('No OAuth Client ID in configuration.  Try running --config again.')
-            if conf_dict['okta_auth_server'] in [None, '']:
+            if not conf_dict.get('okta_auth_server'):
                 print('No OAuth Authorization server in configuration.  Try running --config again.')
             # Authenticate with Okta and get an OAuth access token
             tokens = okta.auth_oauth(conf_dict['client_id'],
@@ -308,13 +310,13 @@ class GimmeAWSCreds(object):
         # in the config, if not give user a selection to pick from
         aws_appname = ""
         aws_rolename = ""
-        if not conf_dict['aws_appname']:
+        if not conf_dict.get('aws_appname'):
             aws_app = self._choose_app(aws_results)
         else:
             aws_app = self._get_app_by_name(
                 aws_results, conf_dict['aws_appname'])
 
-        if not conf_dict['aws_rolename']:
+        if not conf_dict.get('aws_rolename'):
             aws_role = self._choose_role(aws_app)
         else:
             aws_role = self._get_role_by_name(
