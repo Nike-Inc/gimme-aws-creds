@@ -275,7 +275,7 @@ class GimmeAWSCreds(object):
             okta.set_username(config.username)
 
         # Call the Okta APIs and proces data locally
-        if conf_dict['gimme_creds_server'] == 'internal':
+        if conf_dict.get('gimme_creds_server') == 'internal':
             # Okta API key is required when calling Okta APIs internally
             if config.api_key is None:
                 print('OKTA_API_KEY environment variable not found!')
