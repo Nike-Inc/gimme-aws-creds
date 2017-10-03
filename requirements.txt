@@ -1,5 +1,4 @@
 okta==0.0.3
-argparse==1.4.0
 boto3==1.4.4
 beautifulsoup4==4.5.3
 configparser==3.5.0
