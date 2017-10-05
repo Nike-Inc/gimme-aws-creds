@@ -11,8 +11,6 @@ See the License for the specific language governing permissions and* limitations
 """
 import argparse
 import configparser
-import getpass
-import keyring
 import os
 import sys
 from os.path import expanduser
@@ -32,9 +30,16 @@ class Config(object):
 
     def __init__(self):
         self.configure = False
-        self.password = None
         self.username = None
+        self.api_key = None
         self.conf_profile = 'DEFAULT'
+
+        if os.environ.get("OKTA_USERNAME") is not None:
+            self.username = os.environ.get("OKTA_USERNAME")
+
+        if os.environ.get("OKTA_API_KEY") is not None:
+            self.api_key = os.environ.get("OKTA_API_KEY")
+
 
     def get_args(self):
         """Get the CLI args"""
@@ -56,10 +61,21 @@ class Config(object):
             '--profile', '-p',
             help='If set, the specified configuration profile will be used instead of the default.'
         )
+        parser.add_argument(
+            '--insecure', '-k',
+            action='store_true',
+            help='Allow connections to SSL sites without cert verification.'
+        )
         args = parser.parse_args()
 
         self.configure = args.configure
-        self.username = args.username
+        if args.insecure is True:
+            print("Warning: SSL certificate validation is disabled!")
+            self.verify_ssl_certs = False
+        else:
+            self.verify_ssl_certs = True
+        if args.username is not None:
+            self.username = args.username
         self.conf_profile = args.profile or 'DEFAULT'
 
     def get_config_dict(self):
@@ -79,66 +95,31 @@ class Config(object):
             print('Configuration file not found! Use the --configure flag to generate file.')
             sys.exit(1)
 
-    def get_user_creds(self):
-        """Get's creds for Okta login from the user."""
-        # Check to see if the username arg has been set, if so use that
-        if self.username is not None:
-            username = self.username
-        # Next check to see if the OKTA_USERNAME env var is set
-        elif os.environ.get("OKTA_USERNAME") is not None:
-            username = os.environ.get("OKTA_USERNAME")
-        # Otherwise just ask the user
-        else:
-            username = self._get_user_input("Email address")
-        try:
-            # if the OS supports a keyring, offer to save the password
-            password = keyring.get_password('gimme-aws-creds', username)
-            working_keyring = True
-        except:
-            password = None
-            working_keyring = False
-        if password is not None:
-            print("Using password from keyring for {}".format(username))
-        else:
-            # Set prompt to include the user name, since username could be set
-            # via OKTA_USERNAME env and user might not remember.
-            passwd_prompt = "Password for {}: ".format(username)
-            password = getpass.getpass(prompt=passwd_prompt)
-            if len(password) == 0:
-                print("Password must be provided.")
-                sys.exit(1)
-            if working_keyring:
-                # If the OS supports a keyring, offer to save the password
-                if self._get_user_input("Do you want to save this password in the keyring?", 'y') == 'y':
-                    try:
-                        keyring.set_password('gimme-aws-creds', username, password)
-                        print("Password for {} saved in keyring.".format(username))
-                    except RuntimeError as err:
-                        print("Failed to save password in keyring: ", err)
-        self.username = username
-        self.password = password
-
     def update_config_file(self):
         """
            Prompts user for config details for the okta_aws_login tool.
            Either updates existing config file or creates new one.
            Config Options:
-                idp_entry_url = Okta URL
+                okta_org_url = Okta URL
+                gimme_creds_server = URL of the gimme-creds-server or 'internal' for local processing
+                client_id = OAuth Client id for the gimme-creds-server
+                okta_auth_server = Server ID for the OAuth authorization server used by gimme-creds-server
                 write_aws_creds = Option to write creds to ~/.aws/credentials
                 cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
                 aws_appname = (optional) Okta AWS App Name
                 aws_rolename =  (optional) Okta Role Name
-                cerberus_url = (optional) Cerberus URL, for retrieving Okta API key
         """
         config = configparser.ConfigParser()
         if self.configure:
             self.conf_profile = self._get_conf_profile_name(self.conf_profile)
 
         defaults = {
-            'idp_entry_url': '',
+            'okta_org_url': '',
+            'okta_auth_server': '',
+            'client_id': '',
+            'gimme_creds_server': 'internal',
             'aws_appname': '',
             'aws_rolename': '',
-            'cerberus_url': '',
             'write_aws_creds': '',
             'cred_profile': 'role'
         }
@@ -155,17 +136,22 @@ class Config(object):
                     defaults[default] = profile.get(default, defaults[default])
 
         # Prompt user for config details and store in config_dict
-        config_dict = {
-            'idp_entry_url': self._get_idp_entry(defaults['idp_entry_url']),
-            'write_aws_creds': self._get_write_aws_creds(defaults['write_aws_creds']),
-            'aws_appname': self._get_aws_appname(defaults['aws_appname']),
-            'aws_rolename': self._get_aws_rolename(defaults['aws_rolename']),
-            'cerberus_url': self._get_cerberus_url(defaults['cerberus_url'])
-        }
+        config_dict = defaults
+        config_dict['okta_org_url'] = self._get_org_url_entry(defaults['okta_org_url'])
+        config_dict['gimme_creds_server'] = self._get_gimme_creds_server_entry(defaults['gimme_creds_server'])
+
+        if config_dict['gimme_creds_server'] != 'internal':
+            config_dict['client_id'] = self._get_client_id_entry(defaults['client_id'])
+            config_dict['okta_auth_server'] = self._get_auth_server_entry(defaults['okta_auth_server'])
+
+        config_dict['write_aws_creds'] = self._get_write_aws_creds(defaults['write_aws_creds'])
+        config_dict['aws_appname'] = self._get_aws_appname(defaults['aws_appname'])
+        config_dict['aws_rolename'] = self._get_aws_rolename(defaults['aws_rolename'])
 
         # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
-            config_dict['cred_profile'] = self._get_cred_profile(defaults['cred_profile'])
+            config_dict['cred_profile'] = self._get_cred_profile(
+                defaults['cred_profile'])
         else:
             config_dict['cred_profile'] = defaults['cred_profile']
 
@@ -176,23 +162,67 @@ class Config(object):
         with open(self.OKTA_CONFIG, 'w') as configfile:
             config.write(configfile)
 
-    def _get_idp_entry(self, default_entry):
-        """ Get and validate idp_entry_url """
-        print("Enter the IDP Entry URL. This is https://something.okta[preview].com")
-        idp_entry_url_valid = False
-        idp_entry_url = default_entry
+    def _get_org_url_entry(self, default_entry):
+        """ Get and validate okta_org_url """
+        print("Enter the Okta URL for your organization. This is https://something.okta[preview].com")
+        okta_org_url_valid = False
+        okta_org_url = default_entry
 
-        while idp_entry_url_valid is False:
-            idp_entry_url = self._get_user_input("IDP Entry URL", default_entry)
-            # Validate that idp_entry_url is a well formed okta URL
-            url_parse_results = urlparse(idp_entry_url)
+        while okta_org_url_valid is False:
+            okta_org_url = self._get_user_input(
+                "Okta URL for your organization", default_entry)
+            # Validate that okta_org_url is a well formed okta URL
+            url_parse_results = urlparse(okta_org_url)
 
-            if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" in idp_entry_url:
-                idp_entry_url_valid = True
+            if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" in okta_org_url:
+                okta_org_url_valid = True
             else:
-                print("IDP Entry URL must be HTTPS URL for okta.com or oktapreview.com domain")
+                print("Okta organization URL must be HTTPS URL for okta.com or oktapreview.com domain")
 
-        return idp_entry_url
+        self._okta_org_url = okta_org_url
+
+        return okta_org_url
+
+    def _get_auth_server_entry(self, default_entry):
+        """ Get and validate okta_auth_server """
+        print("Enter the OAuth authorization server for the gimme-creds-server. If you do not know this value, contact your Okta admin")
+        okta_auth_server = default_entry
+
+        okta_auth_server = self._get_user_input("Authorization server", default_entry)
+        self._okta_auth_server = okta_auth_server
+
+        return okta_auth_server
+
+    def _get_client_id_entry(self, default_entry):
+        """ Get and validate client_id """
+        print("Enter the OAuth client id for the gimme-creds-server. If you do not know this value, contact your Okta admin")
+        client_id = default_entry
+
+        client_id = self._get_user_input("Client ID", default_entry)
+        self._client_id = client_id
+
+        return client_id
+
+    def _get_gimme_creds_server_entry(self, default_entry):
+        """ Get gimme_creds_server """
+        print("Enter the URL for the gimme-creds-server or 'internal' for handling Okta APIs locally.")
+        gimme_creds_server_valid = False
+        gimme_creds_server = default_entry
+
+        while gimme_creds_server_valid is False:
+            gimme_creds_server = self._get_user_input(
+                "URL for gimme-creds-server", default_entry)
+            if gimme_creds_server == "internal":
+                gimme_creds_server_valid = True
+            else:
+                url_parse_results = urlparse(gimme_creds_server)
+
+                if url_parse_results.scheme == "https":
+                    gimme_creds_server_valid = True
+                else:
+                    print("The gimme-creds-server must be a HTTPS URL")
+
+        return gimme_creds_server
 
     def _get_write_aws_creds(self, default_entry):
         """ Option to write to the ~/.aws/credentials or to stdour"""
@@ -202,7 +232,8 @@ class Config(object):
         write_aws_creds = None
         while write_aws_creds is not True and write_aws_creds is not False:
             default_entry = 'y' if default_entry is True else 'n'
-            answer = self._get_user_input("Write AWS Credentials", default_entry)
+            answer = self._get_user_input(
+                "Write AWS Credentials", default_entry)
             answer = answer.lower()
 
             if answer == 'y':
@@ -221,7 +252,8 @@ class Config(object):
               "If set to 'default' then the temp creds will be stored in the default profile\n"
               "If set to any other value, the name of the profile will match that value.")
 
-        cred_profile = self._get_user_input("AWS Credential Profile", default_entry)
+        cred_profile = self._get_user_input(
+            "AWS Credential Profile", default_entry)
 
         if cred_profile.lower() in ['default', 'role']:
             cred_profile = cred_profile.lower()
@@ -242,19 +274,13 @@ class Config(object):
         aws_rolename = self._get_user_input("AWS Role Name", default_entry)
         return aws_rolename
 
-    def _get_cerberus_url(self, default_entry):
-        """ Get and validate cerberus url - this is optional"""
-        print("If you are using Cerberus to store your Okta API Key, this is optional.\n"
-              "Enter your Cerberus URL.")
-        cerberus_url = self._get_user_input("Cerberus URL", default_entry)
-        return cerberus_url
-
     def _get_conf_profile_name(self, default_entry):
         """Get and validate configuration profile name. [Optional]"""
         print("If you'd like to assign the Okta configuration to a specific profile\n"
               "instead of to the default profile, specify the name of the profile.\n"
               "This is optional.")
-        conf_profile = self._get_user_input("Okta Configuration Profile Name", default_entry)
+        conf_profile = self._get_user_input(
+            "Okta Configuration Profile Name", default_entry)
         return conf_profile
 
     @staticmethod
@@ -278,4 +304,4 @@ class Config(object):
     def clean_up(self):
         """ clean up secret stuff"""
         del self.username
-        del self.password
+        del self.api_key

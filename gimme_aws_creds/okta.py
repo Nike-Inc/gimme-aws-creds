@@ -9,12 +9,22 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
+import re
+import time
 import base64
 import json
 import sys
+import getpass
+import keyring
 import xml.etree.ElementTree as et
+from urllib.parse import urlparse
+from urllib.parse import parse_qs
+from codecs import decode
 
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+
 from bs4 import BeautifulSoup
 
 
@@ -25,226 +35,485 @@ class OktaClient(object):
        Okta API key and URL must be provided.
     """
 
-    def __init__(self, idp_entry_url, api_key, username, password):
+    def __init__(self, okta_org_url, verify_ssl_certs=True):
         """
-        :param idp_entry_url: Base URL string for Okta IDP.
-        :param api_key: Okta API key string.
-        :param username: User's username string.
-        :param password: User's password string.
+        :param okta_org_url: Base URL string for Okta IDP.
+        :param verify_ssl_certs: Enable/disable SSL verification
         """
-        self._okta_api_key = api_key
-        self._idp_entry_url = idp_entry_url
+        self._okta_org_url = okta_org_url
+        self._verify_ssl_certs = verify_ssl_certs
 
-        self._user_id = None
-        self._session_token = None
-        self._saml_assertion = None
+        if (verify_ssl_certs is False):
+            requests.packages.urllib3.disable_warnings()
 
-        # Unfortunately we have to store credentials in memory since we'll need them more than once.
+        self._username = None
+
+        self._use_oauth_access_token = False
+        self._use_oauth_id_token = False
+        self._oauth_access_token = None
+        self._oauth_id_token = None
+
+        # Allow up to 5 retries on requests to Okta in case we have network issues
+        self._http_client = requests.Session()
+        retries = Retry(total=5, backoff_factor=1,
+                        method_whitelist=['GET', 'POST'])
+        self._http_client.mount('https://', HTTPAdapter(max_retries=retries))
+
+    def set_username(self, username):
         self._username = username
-        self._password = password
 
-        self._get_login_response()
+    def use_oauth_access_token(self, val=True):
+        self._use_oauth_access_token = val
+
+    def use_oauth_id_token(self, val=True):
+        self._use_oauth_id_token = val
+
+    def stepup_auth(self, embed_link, stateToken = None):
+        """ Login to Okta using the Step-up authentication flow"""
+        flowState = self._get_initial_flow_state(embed_link, stateToken)
+
+        while flowState['apiResponse']['status'] != 'SUCCESS':
+            flowState = self._next_login_step(
+                flowState['stateToken'], flowState['apiResponse'])
+
+        return flowState['apiResponse']
+
+    def stepup_auth_saml(self, embed_link, stateToken = None):
+        """ Login to a SAML-protected service using the Step-up authentication flow"""
+        apiResponse = self.stepup_auth(embed_link, stateToken)
+
+        # if a session token is in the API response, we can use that to authenticate
+        if 'sessionToken' in apiResponse:
+            samlResponse = self.get_saml_response(
+                embed_link + '?sessionToken=' + apiResponse['sessionToken'])
+        else:
+            samlResponse = self.get_saml_response(
+                apiResponse['_links']['next']['href'])
+
+        login_result = self._http_client.post(
+            samlResponse['TargetUrl'],
+            data=samlResponse,
+            verify=self._verify_ssl_certs
+        )
+
+        return login_result.text
+
+    def auth(self):
+        """ Login to Okta using the authentication API"""
+        flowState = self._login_username_password(None, self._okta_org_url + '/api/v1/authn')
+
+        while flowState['apiResponse']['status'] != 'SUCCESS':
+            flowState = self._next_login_step(
+                flowState['stateToken'], flowState['apiResponse'])
+
+        return flowState['apiResponse']
+
+    def auth_session(self, **kwargs):
+        """ Authenticate the user and return the Okta Session ID and username"""
+        loginResponse = self.auth()
+
+        session_url = self._okta_org_url + '/login/sessionCookieRedirect'
+
+        if 'redirect_uri' not in kwargs:
+            redirect_uri = 'http://localhost:8080/login'
+        else:
+            redirect_uri = kwargs['redirect_uri']
+
+        params = {
+            'token': loginResponse['sessionToken'],
+            'redirectUrl': redirect_uri
+        }
+
+        response = self._http_client.get(
+            session_url,
+            params=params,
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs,
+            allow_redirects=False
+        )
+
+        return {"username": loginResponse['_embedded']['user']['profile']['login'], "session": response.cookies['sid']}
+
+    def auth_oauth(self, client_id, **kwargs):
+        """ Login to Okta and retrieve access token, ID token or both """
+        loginResponse = self.auth()
+
+        if 'access_token' not in kwargs:
+            access_token = True
+        else:
+            access_token = kwargs['access_token']
+
+        if 'id_token' not in kwargs:
+            id_token = False
+        else:
+            id_token = kwargs['id_token']
+
+        if 'scopes' not in kwargs:
+            scopes = ['openid']
+        else:
+            scopes = kwargs['scopes']
+
+        response_types = []
+        if id_token is True:
+            response_types.append('id_token')
+        if access_token is True:
+            response_types.append('token')
+
+        if 'authorization_server' not in kwargs:
+            oauth_url = self._okta_org_url + '/oauth2/v1/authorize'
+        else:
+            oauth_url = self._okta_org_url + '/oauth2/' + kwargs['authorization_server'] + '/v1/authorize'
+
+        if 'redirect_uri' not in kwargs:
+            redirect_uri = 'http://localhost:8080/login'
+        else:
+            redirect_uri = kwargs['redirect_uri']
+
+        if 'nonce' not in kwargs:
+            nonce = 1
+        else:
+            nonce = kwargs['nonce']
+
+        if 'state' not in kwargs:
+            state = 'auth_oauth'
+        else:
+            state = kwargs['state']
+
+        params = {
+            'sessionToken': loginResponse['sessionToken'],
+            'client_id': client_id,
+            'redirect_uri': redirect_uri,
+            'nonce': nonce,
+            'state': state,
+            'response_type': ' '.join(response_types),
+            'scope': ' '.join(scopes)
+        }
+
+        response = self._http_client.get(
+            oauth_url,
+            params=params,
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs,
+            allow_redirects=False
+        )
+
+        url_parse_results = urlparse(response.headers['Location'])
+        query_result = parse_qs(url_parse_results.fragment)
+
+        tokens = {}
+        if 'access_token' in query_result:
+            tokens['access_token'] = query_result['access_token'][0]
+            self._oauth_access_token = query_result['access_token'][0]
+        if 'id_token' in query_result:
+            tokens['id_token'] = query_result['id_token'][0]
+            self._oauth_id_token = query_result['id_token'][0]
+
+        return tokens
 
     def _get_headers(self):
-        """sets the default header"""
+        """sets the default headers"""
         headers = {
             'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': 'SSWS ' + self._okta_api_key}
+            'Content-Type': 'application/json'}
         return headers
 
-    def _get_login_response(self):
-        """ gets the login response from Okta and returns the json response"""
-        headers = self._get_headers()
-        response = requests.post(
-            self._idp_entry_url + '/authn',
-            json={'username': self._username, 'password': self._password},
-            headers=headers
+    def _get_initial_flow_state(self, embed_link, stateToken = None):
+        """ Starts the authentication flow with Okta"""
+        if stateToken is None:
+            response = self._http_client.get(
+                embed_link, allow_redirects=False)
+            url_parse_results = urlparse(response.headers['Location'])
+            stateToken = parse_qs(url_parse_results.query)['stateToken'][0]
+
+        response = self._http_client.post(
+            self._okta_org_url + '/api/v1/authn',
+            json={'stateToken': stateToken},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
         )
+        return {'stateToken': stateToken, 'apiResponse': response.json()}
 
-        login_data = response.json()
-
+    def _next_login_step(self, stateToken, login_data):
+        """ decide what the next step in the login process is"""
         if 'errorCode' in login_data:
-            print("LOGIN ERROR: " + login_data['errorSummary'], "Error Code ", login_data['errorCode'])
+            print("LOGIN ERROR: " +
+                  login_data['errorSummary'], "Error Code ", login_data['errorCode'])
             sys.exit(2)
-        elif login_data['status'] == 'MFA_REQUIRED':
-            raise NotImplementedError('Okta MFA not yet implemented.')
 
-        self._user_id = login_data['_embedded']['user']['id']
-        self._session_token = login_data['sessionToken']
+        status = login_data['status']
 
-    def get_app_links(self):
-        """ return appLinks obejct for the user """
-        headers = self._get_headers()
+        if status == 'UNAUTHENTICATED':
+            return self._login_username_password(stateToken, login_data['_links']['next']['href'])
+        elif status == 'MFA_ENROLL':
+            print("You must enroll in MFA before using this tool.")
+            sys.exit(2)
+        elif status == 'MFA_REQUIRED':
+            return self._login_multi_factor(stateToken, login_data)
+        elif status == 'MFA_CHALLENGE':
+            if 'factorResult' in login_data and login_data['factorResult'] == 'WAITING':
+                return self._check_push_result(stateToken, login_data)
+            else:
+                return self._login_input_mfa_challenge(stateToken, login_data['_links']['next']['href'])
+        else:
+            raise RuntimeError('Unknown login status: ' + status)
 
-        response = requests.get(
-            self._idp_entry_url + '/users/' + self._user_id + '/appLinks',
-            headers=headers,
-            verify=True
+    def _login_username_password(self, stateToken, url):
+        """ login to Okta with a username and password"""
+        creds = self._get_username_password_creds()
+        login_json = {
+            'username': creds['username'],
+            'password': creds['password']
+        }
+        # If this isn't a Step-up auth flow, we won't have a stateToken
+        if stateToken is not None:
+            login_json['stateToken'] = stateToken
+        response = self._http_client.post(
+            url,
+            json=login_json,
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
         )
-        app_resp = json.loads(response.text)
 
-        # create a list from appName = amazon_aws
-        apps = []
-        for app in app_resp:
-            if app['appName'] == 'amazon_aws':
-                apps.append(app)
-
-        if 'errorCode' in app_resp:
-            print("APP LINK ERROR: " + app_resp['errorSummary'], "Error Code ", app_resp['errorCode'])
+        response_data = response.json()
+        if 'errorCode' in response_data:
+            print("LOGIN ERROR: " +
+                  response_data['errorSummary'], "Error Code ", response_data['errorCode'])
             sys.exit(2)
 
-        return apps
+        func_result = {'apiResponse': response_data}
+        if 'stateToken' in response_data:
+            func_result['stateToken'] = response_data['stateToken']
+        return func_result
 
-    def get_app(self):
-        """ gets a list of available apps and
-        ask the user to select the app they want
-        to assume a roles for and returns the selection
-        """
-        app_resp = self.get_app_links()
-        print("Pick an app:")
-        # print out the apps and let the user select
-        for i, app in enumerate(app_resp):
-            print('[', i, ']', app["label"])
+    def _login_send_sms(self, stateToken, factor):
+        """ Send SMS message for second factor authentication"""
+        response = self._http_client.post(
+            factor['_links']['verify']['href'],
+            json={'stateToken': stateToken},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+
+        print("A verification code has been sent to " + factor['profile']['phoneNumber'])
+        response_data = response.json()
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+
+    def _login_send_push(self, stateToken, factor):
+        """ Send 'push' for the Okta Verify mobile app """
+        response = self._http_client.post(
+            factor['_links']['verify']['href'],
+            json={'stateToken': stateToken},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+
+        print("Okta Verify push sent...")
+        response_data = response.json()
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+
+    def _login_multi_factor(self, stateToken, login_data):
+        """ handle multi-factor authentication with Okta"""
+        factor = self._choose_factor(login_data['_embedded']['factors'])
+        if factor['factorType'] == 'sms':
+            return self._login_send_sms(stateToken, factor)
+        elif factor['factorType'] == 'token:software:totp':
+            return self._login_input_mfa_challenge(stateToken, factor['_links']['verify']['href'])
+        elif factor['factorType'] == 'push':
+            return self._login_send_push(stateToken, factor)
+
+    def _login_input_mfa_challenge(self, stateToken, next_url):
+        """ Submit verification code for SMS or TOTP authentication methods"""
+        passCode = input("Enter verification code: ")
+        response = self._http_client.post(
+            next_url,
+            json={'stateToken': stateToken, 'passCode': passCode},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+        response_data = response.json()
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+
+    def _check_push_result(self, stateToken, login_data):
+        """ Check Okta API to see if the push request has been responded to"""
+        time.sleep(1)
+        response = self._http_client.post(
+            login_data['_links']['next']['href'],
+            json={'stateToken': stateToken},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+        response_data = response.json()
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+
+    def get_saml_response(self, url):
+        """ return the base64 SAML value object from the SAML Response"""
+        response = self._http_client.get(url, verify=self._verify_ssl_certs)
+
+        saml_response = None
+        relay_state = None
+        form_action = None
+
+        saml_soup = BeautifulSoup(response.text, "html.parser")
+        if saml_soup.find('form') is not None:
+            form_action = saml_soup.find('form').get('action')
+        for inputtag in saml_soup.find_all('input'):
+            if inputtag.get('name') == 'SAMLResponse':
+                saml_response = inputtag.get('value')
+            elif inputtag.get('name') == 'RelayState':
+                relay_state = inputtag.get('value')
+
+        if saml_response is None:
+            # We didn't get a SAML response.  Were we redirected to an MFA login page?
+            if hasattr(saml_soup.title, 'string') and re.match(".* - Extra Verification$", saml_soup.title.string):
+                # extract the stateToken from the Javascript code in the page and step up to MFA
+                stateToken = decode(re.search(r"var stateToken = '(.*)';", response.text).group(1), "unicode-escape")
+                apiResponse = self.stepup_auth(url, stateToken)
+                samlResponse = self.get_saml_response(url + '?sessionToken=' + apiResponse['sessionToken'])
+
+                return(samlResponse)
+
+            raise RuntimeError(
+                'Did not receive SAML Response after successful authentication [' + url + ']')
+
+        return {'SAMLResponse': saml_response, 'RelayState': relay_state, 'TargetUrl': form_action}
+
+    def get(self, url, **kwargs):
+        """ Retrieve resource that is protected by Okta """
+        if self._use_oauth_access_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
+
+        if self._use_oauth_id_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
+        return self._http_client.get(url, **kwargs )
+
+    def post(self, url, **kwargs):
+        """ Create resource that is protected by Okta """
+        if self._use_oauth_access_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
+
+        if self._use_oauth_id_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
+        return self._http_client.post(url, **kwargs )
+
+    def put(self, url, **kwargs):
+        """ Modify resource that is protected by Okta """
+        if self._use_oauth_access_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
+
+        if self._use_oauth_id_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
+        return self._http_client.put(url, **kwargs )
+
+    def delete(self, url, **kwargs):
+        """ Delete resource that is protected by Okta """
+        if self._use_oauth_access_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
+
+        if self._use_oauth_id_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
+        return self._http_client.delete(url, **kwargs )
+
+    def _choose_factor(self, factors):
+        """ gets a list of available authentication factors and
+        asks the user to select the factor they want to use """
+
+        print("Multi-factor Authentication required.")
+        print("Pick a factor:")
+        # print out the factors and let the user select
+        for i, factor in enumerate(factors):
+            factorName = self._build_factor_name(factor)
+            if factorName is not "":
+                print('[', i, ']', factorName)
 
         selection = input("Selection: ")
 
         # make sure the choice is valid
-        if int(selection) > len(app_resp):
-            print("You selected an invalid selection")
+        if int(selection) > len(factors):
+            print("You made an invalid selection")
             sys.exit(1)
 
-        # delete
-        return app_resp[int(selection)]["label"]
+        return factors[int(selection)]
 
-    def get_role(self, aws_appname):
-        """ gets a list of available roles and
-        ask the user to select the role they want
-        to assume and returns the selection
-        """
-        # get available roles for the AWS app
-        headers = self._get_headers()
-        print("Getting available roles for " + aws_appname)
-        response = requests.get(
-            self._idp_entry_url + '/apps/?filter=user.id+eq+\"' +
-            self._user_id + '\"&expand=user/' + self._user_id + '&limit=200',
-            headers=headers,
-            verify=True
-        )
-        role_resp = json.loads(response.text)
+    def _build_factor_name(self, factor):
+        """ Build the display name for a MFA factor based on the factor type"""
+        if factor['factorType'] == 'push':
+            return "Okta Verify App: " + factor['profile']['deviceType'] + ": " + factor['profile']['name']
+        elif factor['factorType'] == 'sms':
+            return factor['factorType'] + ": " + factor['profile']['phoneNumber']
+        elif factor['factorType'] == 'token:software:totp':
+            return factor['factorType'] + ": " + factor['profile']['credentialId']
+        else:
+            print("Unknown MFA type: " + factor['factorType'])
+            return ""
 
-        # Check if this is a valid response
-        if 'errorCode' in role_resp:
-            print("ERROR: " + role_resp['errorSummary'], "Error Code ", role_resp['errorCode'])
-            sys.exit(2)
+    def _get_username_password_creds(self):
+        """Get's creds for Okta login from the user."""
 
-        for app in role_resp:
-            rolename = self.get_rolename(aws_appname, app)
-            if rolename:
-                return rolename
+        # Check to see if the username arg has been set, if so use that
+        if self._username is not None:
+            username = self._username
+        # Otherwise just ask the user
+        else:
+            username = input("Email address: ")
+            self._username = username
 
-        #paginate
-        while response.links['next']:
-            response = requests.get(
-                response.links['next']['url'],
-                headers=headers,
-                verify=True
-            )
-            role_resp = json.loads(response.text)
-            # Check if this is a valid response
+        # The Okta username must be an email address
+        if not re.match("[^@]+@[^@]+\.[^@]+", username):
+            print("Okta username must be an email address.")
+            sys.exit(1)
 
-            if 'errorCode' in role_resp:
-                print("ERROR: " + role_resp['errorSummary'], "Error Code ", role_resp['errorCode'])
-                sys.exit(2)
-
-            for app in role_resp:
-                rolename = self.get_rolename(aws_appname, app)
-                if rolename:
-                    return rolename
-
-        # if you made it this far something went wrong
-        print("ERROR: No roles for " + aws_appname + " were returned.")
-        sys.exit(3)
-
-    @classmethod
-    def get_rolename(cls, aws_appname, app):
-        """ return rolename"""
-        if app['label'] == aws_appname:
-            print("Pick a role:")
-            roles = app['_embedded']['user']['profile']['samlRoles']
-
-            for i, role in enumerate(roles):
-                print('[', i, ']:', role)
-            selection = input("Selection: ")
-
-            # make sure the choice is valid
-            if int(selection) > len(roles):
-                print("You selected an invalid selection")
+        try:
+            # if the OS supports a keyring, offer to save the password
+            password = keyring.get_password('gimme-aws-creds', username)
+            working_keyring = True
+        except:
+            password = None
+            working_keyring = False
+        if password is not None:
+            print("Using password from keyring for {}".format(username))
+        else:
+            # Set prompt to include the user name, since username could be set
+            # via OKTA_USERNAME env and user might not remember.
+            passwd_prompt = "Password for {}: ".format(username)
+            password = getpass.getpass(prompt=passwd_prompt)
+            if len(password) == 0:
+                print("Password must be provided.")
                 sys.exit(1)
-
-            return roles[int(selection)]
-
-        return False
-
-
-    def get_app_url(self, aws_appname):
-        """ return the app link json for select aws app """
-        app_resp = self.get_app_links()
-
-        for app in app_resp:
-            if app['label'] == 'AWS_API':
-                print(app['linkUrl'])
-            if app['label'] == aws_appname:
-                return app
-
-        print("ERROR app not found:", aws_appname)
-        sys.exit(2)
-
-    def get_idp_arn(self, app_id):
-        """ return the PrincipalArn based on the app instance id """
-        headers = self._get_headers()
-        response = requests.get(
-            self._idp_entry_url + '/apps/' + app_id,
-            headers=headers,
-            verify=True
-        )
-        app_resp = json.loads(response.text)
-        return app_resp['settings']['app']['identityProviderArn']
-
-    def get_role_arn(self, link_url, aws_rolename):
-        """ return the role arn for the selected role """
-        # decode the saml so we can find our arns
-        # https://aws.amazon.com/blogs/security/how-to-implement-federated-api-and-cli-access-using-saml-2-0-and-ad-fs/
-        aws_roles = []
-        root = et.fromstring(base64.b64decode(self.get_saml_assertion(link_url)))
-
-        for saml2attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
-            if saml2attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role':
-                for saml2attributevalue in saml2attribute.iter(
-                        '{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
-                    aws_roles.append(saml2attributevalue.text)
-
-        # grab the role ARNs that matches the role to assume
-        for aws_role in aws_roles:
-            chunks = aws_role.split(',')
-            if aws_rolename in chunks[1]:
-                return chunks[1]
-
-        # if you got this far something went wrong
-        print("ERROR no ARN found for", aws_rolename)
-        sys.exit(2)
-
-    def get_saml_assertion(self, app_url):
-        """return the base64 SAML value object from the SAML Response"""
-        if self._saml_assertion is None:
-            response = requests.get(
-                app_url + '/?sessionToken=' + self._session_token,
-                verify=True
-            )
-
-            saml_soup = BeautifulSoup(response.text, "html.parser")
-            for inputtag in saml_soup.find_all('input'):
-                if inputtag.get('name') == 'SAMLResponse':
-                    self._saml_assertion = inputtag.get('value')
-
-        return self._saml_assertion
+            if working_keyring:
+                # If the OS supports a keyring, offer to save the password
+                if input("Do you want to save this password in the keyring? (y/n)") == 'y':
+                    try:
+                        keyring.set_password('gimme-aws-creds', username, password)
+                        print("Password for {} saved in keyring.".format(username))
+                    except RuntimeError as err:
+                        print("Failed to save password in keyring: ", err)
+        creds = {'username': username, 'password': password}
+        return creds
