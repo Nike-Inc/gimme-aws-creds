@@ -4,6 +4,3 @@ beautifulsoup4==4.5.3
 configparser==3.5.0
 keyring==10.4.0
 requests==2.13.0
-responses==0.5.1
-nose==1.3.7
-mock==2.0.0
