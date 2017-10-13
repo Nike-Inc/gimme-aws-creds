@@ -33,13 +33,13 @@ class Config(object):
         self.username = None
         self.api_key = None
         self.conf_profile = 'DEFAULT'
+        self.verify_ssl_certs = True
 
         if os.environ.get("OKTA_USERNAME") is not None:
             self.username = os.environ.get("OKTA_USERNAME")
 
         if os.environ.get("OKTA_API_KEY") is not None:
             self.api_key = os.environ.get("OKTA_API_KEY")
-
 
     def get_args(self):
         """Get the CLI args"""
@@ -186,7 +186,6 @@ class Config(object):
     def _get_auth_server_entry(self, default_entry):
         """ Get and validate okta_auth_server """
         print("Enter the OAuth authorization server for the gimme-creds-server. If you do not know this value, contact your Okta admin")
-        okta_auth_server = default_entry
 
         okta_auth_server = self._get_user_input("Authorization server", default_entry)
         self._okta_auth_server = okta_auth_server
@@ -196,7 +195,6 @@ class Config(object):
     def _get_client_id_entry(self, default_entry):
         """ Get and validate client_id """
         print("Enter the OAuth client id for the gimme-creds-server. If you do not know this value, contact your Okta admin")
-        client_id = default_entry
 
         client_id = self._get_user_input("Client ID", default_entry)
         self._client_id = client_id

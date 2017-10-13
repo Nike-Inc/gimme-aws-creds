@@ -9,23 +9,19 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
-import re
-import time
-import base64
-import json
-import sys
 import getpass
-import keyring
-import xml.etree.ElementTree as et
-from urllib.parse import urlparse
-from urllib.parse import parse_qs
+import re
+import sys
+import time
 from codecs import decode
+from urllib.parse import parse_qs
+from urllib.parse import urlparse
 
+import keyring
 import requests
+from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
-
-from bs4 import BeautifulSoup
 
 
 class OktaClient(object):
@@ -43,7 +39,7 @@ class OktaClient(object):
         self._okta_org_url = okta_org_url
         self._verify_ssl_certs = verify_ssl_certs
 
-        if (verify_ssl_certs is False):
+        if verify_ssl_certs is False:
             requests.packages.urllib3.disable_warnings()
 
         self._username = None
@@ -68,31 +64,31 @@ class OktaClient(object):
     def use_oauth_id_token(self, val=True):
         self._use_oauth_id_token = val
 
-    def stepup_auth(self, embed_link, stateToken = None):
+    def stepup_auth(self, embed_link, state_token=None):
         """ Login to Okta using the Step-up authentication flow"""
-        flowState = self._get_initial_flow_state(embed_link, stateToken)
+        flow_state = self._get_initial_flow_state(embed_link, state_token)
 
-        while flowState['apiResponse']['status'] != 'SUCCESS':
-            flowState = self._next_login_step(
-                flowState['stateToken'], flowState['apiResponse'])
+        while flow_state['apiResponse']['status'] != 'SUCCESS':
+            flow_state = self._next_login_step(
+                flow_state['stateToken'], flow_state['apiResponse'])
 
-        return flowState['apiResponse']
+        return flow_state['apiResponse']
 
-    def stepup_auth_saml(self, embed_link, stateToken = None):
+    def stepup_auth_saml(self, embed_link, state_token=None):
         """ Login to a SAML-protected service using the Step-up authentication flow"""
-        apiResponse = self.stepup_auth(embed_link, stateToken)
+        api_response = self.stepup_auth(embed_link, state_token)
 
         # if a session token is in the API response, we can use that to authenticate
-        if 'sessionToken' in apiResponse:
-            samlResponse = self.get_saml_response(
-                embed_link + '?sessionToken=' + apiResponse['sessionToken'])
+        if 'sessionToken' in api_response:
+            saml_response = self.get_saml_response(
+                embed_link + '?sessionToken=' + api_response['sessionToken'])
         else:
-            samlResponse = self.get_saml_response(
-                apiResponse['_links']['next']['href'])
+            saml_response = self.get_saml_response(
+                api_response['_links']['next']['href'])
 
         login_result = self._http_client.post(
-            samlResponse['TargetUrl'],
-            data=samlResponse,
+            saml_response['TargetUrl'],
+            data=saml_response,
             verify=self._verify_ssl_certs
         )
 
@@ -100,17 +96,17 @@ class OktaClient(object):
 
     def auth(self):
         """ Login to Okta using the authentication API"""
-        flowState = self._login_username_password(None, self._okta_org_url + '/api/v1/authn')
+        flow_state = self._login_username_password(None, self._okta_org_url + '/api/v1/authn')
 
-        while flowState['apiResponse']['status'] != 'SUCCESS':
-            flowState = self._next_login_step(
-                flowState['stateToken'], flowState['apiResponse'])
+        while flow_state['apiResponse']['status'] != 'SUCCESS':
+            flow_state = self._next_login_step(
+                flow_state['stateToken'], flow_state['apiResponse'])
 
-        return flowState['apiResponse']
+        return flow_state['apiResponse']
 
     def auth_session(self, **kwargs):
         """ Authenticate the user and return the Okta Session ID and username"""
-        loginResponse = self.auth()
+        login_response = self.auth()
 
         session_url = self._okta_org_url + '/login/sessionCookieRedirect'
 
@@ -120,7 +116,7 @@ class OktaClient(object):
             redirect_uri = kwargs['redirect_uri']
 
         params = {
-            'token': loginResponse['sessionToken'],
+            'token': login_response['sessionToken'],
             'redirectUrl': redirect_uri
         }
 
@@ -132,11 +128,11 @@ class OktaClient(object):
             allow_redirects=False
         )
 
-        return {"username": loginResponse['_embedded']['user']['profile']['login'], "session": response.cookies['sid']}
+        return {"username": login_response['_embedded']['user']['profile']['login'], "session": response.cookies['sid']}
 
     def auth_oauth(self, client_id, **kwargs):
         """ Login to Okta and retrieve access token, ID token or both """
-        loginResponse = self.auth()
+        login_response = self.auth()
 
         if 'access_token' not in kwargs:
             access_token = True
@@ -180,7 +176,7 @@ class OktaClient(object):
             state = kwargs['state']
 
         params = {
-            'sessionToken': loginResponse['sessionToken'],
+            'sessionToken': login_response['sessionToken'],
             'client_id': client_id,
             'redirect_uri': redirect_uri,
             'nonce': nonce,
@@ -210,30 +206,31 @@ class OktaClient(object):
 
         return tokens
 
-    def _get_headers(self):
+    @staticmethod
+    def _get_headers():
         """sets the default headers"""
         headers = {
             'Accept': 'application/json',
             'Content-Type': 'application/json'}
         return headers
 
-    def _get_initial_flow_state(self, embed_link, stateToken = None):
+    def _get_initial_flow_state(self, embed_link, state_token=None):
         """ Starts the authentication flow with Okta"""
-        if stateToken is None:
+        if state_token is None:
             response = self._http_client.get(
                 embed_link, allow_redirects=False)
             url_parse_results = urlparse(response.headers['Location'])
-            stateToken = parse_qs(url_parse_results.query)['stateToken'][0]
+            state_token = parse_qs(url_parse_results.query)['stateToken'][0]
 
         response = self._http_client.post(
             self._okta_org_url + '/api/v1/authn',
-            json={'stateToken': stateToken},
+            json={'stateToken': state_token},
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
-        return {'stateToken': stateToken, 'apiResponse': response.json()}
+        return {'stateToken': state_token, 'apiResponse': response.json()}
 
-    def _next_login_step(self, stateToken, login_data):
+    def _next_login_step(self, state_token, login_data):
         """ decide what the next step in the login process is"""
         if 'errorCode' in login_data:
             print("LOGIN ERROR: " +
@@ -243,21 +240,21 @@ class OktaClient(object):
         status = login_data['status']
 
         if status == 'UNAUTHENTICATED':
-            return self._login_username_password(stateToken, login_data['_links']['next']['href'])
+            return self._login_username_password(state_token, login_data['_links']['next']['href'])
         elif status == 'MFA_ENROLL':
             print("You must enroll in MFA before using this tool.")
             sys.exit(2)
         elif status == 'MFA_REQUIRED':
-            return self._login_multi_factor(stateToken, login_data)
+            return self._login_multi_factor(state_token, login_data)
         elif status == 'MFA_CHALLENGE':
             if 'factorResult' in login_data and login_data['factorResult'] == 'WAITING':
-                return self._check_push_result(stateToken, login_data)
+                return self._check_push_result(state_token, login_data)
             else:
-                return self._login_input_mfa_challenge(stateToken, login_data['_links']['next']['href'])
+                return self._login_input_mfa_challenge(state_token, login_data['_links']['next']['href'])
         else:
             raise RuntimeError('Unknown login status: ' + status)
 
-    def _login_username_password(self, stateToken, url):
+    def _login_username_password(self, state_token, url):
         """ login to Okta with a username and password"""
         creds = self._get_username_password_creds()
         login_json = {
@@ -265,8 +262,8 @@ class OktaClient(object):
             'password': creds['password']
         }
         # If this isn't a Step-up auth flow, we won't have a stateToken
-        if stateToken is not None:
-            login_json['stateToken'] = stateToken
+        if state_token is not None:
+            login_json['stateToken'] = state_token
         response = self._http_client.post(
             url,
             json=login_json,
@@ -285,11 +282,11 @@ class OktaClient(object):
             func_result['stateToken'] = response_data['stateToken']
         return func_result
 
-    def _login_send_sms(self, stateToken, factor):
+    def _login_send_sms(self, state_token, factor):
         """ Send SMS message for second factor authentication"""
         response = self._http_client.post(
             factor['_links']['verify']['href'],
-            json={'stateToken': stateToken},
+            json={'stateToken': state_token},
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
@@ -301,11 +298,11 @@ class OktaClient(object):
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
-    def _login_send_push(self, stateToken, factor):
+    def _login_send_push(self, state_token, factor):
         """ Send 'push' for the Okta Verify mobile app """
         response = self._http_client.post(
             factor['_links']['verify']['href'],
-            json={'stateToken': stateToken},
+            json={'stateToken': state_token},
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
@@ -317,22 +314,22 @@ class OktaClient(object):
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
-    def _login_multi_factor(self, stateToken, login_data):
+    def _login_multi_factor(self, state_token, login_data):
         """ handle multi-factor authentication with Okta"""
         factor = self._choose_factor(login_data['_embedded']['factors'])
         if factor['factorType'] == 'sms':
-            return self._login_send_sms(stateToken, factor)
+            return self._login_send_sms(state_token, factor)
         elif factor['factorType'] == 'token:software:totp':
-            return self._login_input_mfa_challenge(stateToken, factor['_links']['verify']['href'])
+            return self._login_input_mfa_challenge(state_token, factor['_links']['verify']['href'])
         elif factor['factorType'] == 'push':
-            return self._login_send_push(stateToken, factor)
+            return self._login_send_push(state_token, factor)
 
-    def _login_input_mfa_challenge(self, stateToken, next_url):
+    def _login_input_mfa_challenge(self, state_token, next_url):
         """ Submit verification code for SMS or TOTP authentication methods"""
-        passCode = input("Enter verification code: ")
+        pass_code = input("Enter verification code: ")
         response = self._http_client.post(
             next_url,
-            json={'stateToken': stateToken, 'passCode': passCode},
+            json={'stateToken': state_token, 'passCode': pass_code},
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
@@ -342,12 +339,12 @@ class OktaClient(object):
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
-    def _check_push_result(self, stateToken, login_data):
+    def _check_push_result(self, state_token, login_data):
         """ Check Okta API to see if the push request has been responded to"""
         time.sleep(1)
         response = self._http_client.post(
             login_data['_links']['next']['href'],
-            json={'stateToken': stateToken},
+            json={'stateToken': state_token},
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
@@ -378,11 +375,11 @@ class OktaClient(object):
             # We didn't get a SAML response.  Were we redirected to an MFA login page?
             if hasattr(saml_soup.title, 'string') and re.match(".* - Extra Verification$", saml_soup.title.string):
                 # extract the stateToken from the Javascript code in the page and step up to MFA
-                stateToken = decode(re.search(r"var stateToken = '(.*)';", response.text).group(1), "unicode-escape")
-                apiResponse = self.stepup_auth(url, stateToken)
-                samlResponse = self.get_saml_response(url + '?sessionToken=' + apiResponse['sessionToken'])
+                state_token = decode(re.search(r"var stateToken = '(.*)';", response.text).group(1), "unicode-escape")
+                api_response = self.stepup_auth(url, state_token)
+                saml_response = self.get_saml_response(url + '?sessionToken=' + api_response['sessionToken'])
 
-                return(samlResponse)
+                return saml_response
 
             raise RuntimeError(
                 'Did not receive SAML Response after successful authentication [' + url + ']')
@@ -400,7 +397,7 @@ class OktaClient(object):
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
             kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
-        return self._http_client.get(url, **kwargs )
+        return self._http_client.get(url, **kwargs)
 
     def post(self, url, **kwargs):
         """ Create resource that is protected by Okta """
@@ -413,7 +410,7 @@ class OktaClient(object):
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
             kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
-        return self._http_client.post(url, **kwargs )
+        return self._http_client.post(url, **kwargs)
 
     def put(self, url, **kwargs):
         """ Modify resource that is protected by Okta """
@@ -426,7 +423,7 @@ class OktaClient(object):
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
             kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
-        return self._http_client.put(url, **kwargs )
+        return self._http_client.put(url, **kwargs)
 
     def delete(self, url, **kwargs):
         """ Delete resource that is protected by Okta """
@@ -439,7 +436,7 @@ class OktaClient(object):
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
             kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
-        return self._http_client.delete(url, **kwargs )
+        return self._http_client.delete(url, **kwargs)
 
     def _choose_factor(self, factors):
         """ gets a list of available authentication factors and
@@ -449,9 +446,9 @@ class OktaClient(object):
         print("Pick a factor:")
         # print out the factors and let the user select
         for i, factor in enumerate(factors):
-            factorName = self._build_factor_name(factor)
-            if factorName is not "":
-                print('[', i, ']', factorName)
+            factor_name = self._build_factor_name(factor)
+            if factor_name is not "":
+                print('[', i, ']', factor_name)
 
         selection = input("Selection: ")
 
@@ -462,7 +459,8 @@ class OktaClient(object):
 
         return factors[int(selection)]
 
-    def _build_factor_name(self, factor):
+    @staticmethod
+    def _build_factor_name(factor):
         """ Build the display name for a MFA factor based on the factor type"""
         if factor['factorType'] == 'push':
             return "Okta Verify App: " + factor['profile']['deviceType'] + ": " + factor['profile']['name']
@@ -490,6 +488,7 @@ class OktaClient(object):
             print("Okta username must be an email address.")
             sys.exit(1)
 
+        # noinspection PyBroadException
         try:
             # if the OS supports a keyring, offer to save the password
             password = keyring.get_password('gimme-aws-creds', username)
