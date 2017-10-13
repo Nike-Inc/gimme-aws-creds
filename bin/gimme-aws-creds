@@ -298,6 +298,15 @@ class GimmeAWSCreds(object):
             if not conf_dict.get('okta_auth_server'):
                 print('No OAuth Authorization server in configuration.  Try running --config again.')
 
+            # Authenticate with Okta and get an OAuth access token
+            okta.auth_oauth(
+                conf_dict['client_id'],
+                authorization_server=conf_dict['okta_auth_server'],
+                access_token=True,
+                id_token=False,
+                scopes=['openid']
+            )
+
             # Add Access Tokens to Okta-protected requests
             okta.use_oauth_access_token(True)
 
