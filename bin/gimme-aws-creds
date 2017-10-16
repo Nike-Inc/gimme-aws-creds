@@ -13,16 +13,15 @@ See the License for the specific language governing permissions and* limitations
 # standard imports
 import configparser
 import os
-import sys
 import re
-import json
+import sys
 from os.path import expanduser
+
 # extras
 import boto3
-from urllib.parse import urlparse
-from requests.exceptions import MissingSchema
 from okta.framework.ApiClient import ApiClient
 from okta.framework.OktaError import OktaError
+
 # local imports
 from gimme_aws_creds.config import Config
 from gimme_aws_creds.okta import OktaClient
@@ -110,30 +109,30 @@ class GimmeAWSCreds(object):
 
         return response['Credentials']
 
-    def _call_gimme_creds_server(self, okta_connection, gimme_creds_server_url):
+    @staticmethod
+    def _call_gimme_creds_server(okta_connection, gimme_creds_server_url):
         """ Retrieve the user's AWS accounts from the gimme_creds_server"""
         response = okta_connection.get(gimme_creds_server_url)
 
         # Throw an error if we didn't get any accounts back
-        if response.json() == []:
+        if not response.json():
             print("No AWS accounts found.")
             exit()
 
         return response.json()
 
-    def _get_aws_account_info(self, okta_org_url, okta_api_key, username):
+    @staticmethod
+    def _get_aws_account_info(okta_org_url, okta_api_key, username):
         """ Call the Okta User and App APIs and process the results to return
         just the information we need for gimme_aws_creds"""
         # We need access to the entire JSON response from the Okta APIs, so we need to
         # use the low-level ApiClient instead of UsersClient and AppInstanceClient
-        usersClient = ApiClient(okta_org_url, okta_api_key,
-                                pathname='/api/v1/users')
-        appClient = ApiClient(okta_org_url, okta_api_key,
-                              pathname='/api/v1/apps')
+        users_client = ApiClient(okta_org_url, okta_api_key, pathname='/api/v1/users')
+        app_client = ApiClient(okta_org_url, okta_api_key, pathname='/api/v1/apps')
 
         # Get User information
         try:
-            result = usersClient.get_path('/{0}'.format(username))
+            result = users_client.get_path('/{0}'.format(username))
             user = result.json()
         except OktaError as e:
             if e.error_code == 'E0000007':
@@ -151,13 +150,13 @@ class GimmeAWSCreds(object):
 
         try:
             # Get first page of results
-            result = appClient.get_path('/', params=params)
+            result = app_client.get_path('/', params=params)
             final_result = result.json()
 
             # Loop through other pages
             while 'next' in result.links:
                 print('.', end='', flush=True)
-                result = appClient.get(result.links['next']['url'])
+                result = app_client.get(result.links['next']['url'])
                 final_result = final_result + result.json()
             print("done\n")
         except OktaError as e:
@@ -169,37 +168,40 @@ class GimmeAWSCreds(object):
                 exit(1)
 
         # Loop through the list of apps and filter it down to just the info we need
-        appList = []
+        app_list = []
         for app in final_result:
             # All AWS connections have the same app name
-            if (app['name'] == 'amazon_aws'):
-                newAppEntry = {}
-                newAppEntry['id'] = app['id']
-                newAppEntry['name'] = app['label']
-                newAppEntry['identityProviderArn'] = app['settings']['app']['identityProviderArn']
-                newAppEntry['roles'] = []
+            if app['name'] == 'amazon_aws':
+                new_app_entry = {
+                    'id': app['id'],
+                    'name': app['label'],
+                    'identityProviderArn': app['settings']['app']['identityProviderArn'],
+                    'roles': []
+                }
                 # Build a list of the roles this user has access to
                 for role in app['_embedded']['user']['profile']['samlRoles']:
-                    roleInfo = {}
-                    roleInfo['name'] = role
+                    role_info = {
+                        'name': role,
+                        'arn': re.sub(
+                            ':saml-provider.*', ':role/' + role, app['settings']['app']['identityProviderArn']
+                        )
+                    }
                     # We can figure out the role ARN based on the ARN for the IdP
-                    roleInfo['arn'] = re.sub(':saml-provider.*',
-                                             ':role/' + role,
-                                             app['settings']['app']['identityProviderArn'])
-                    newAppEntry['roles'].append(roleInfo)
-                newAppEntry['links'] = {}
-                newAppEntry['links']['appLink'] = app['_links']['appLinks'][0]['href']
-                newAppEntry['links']['appLogo'] = app['_links']['logo'][0]['href']
-                appList.append(newAppEntry)
+                    new_app_entry['roles'].append(role_info)
+                new_app_entry['links'] = {}
+                new_app_entry['links']['appLink'] = app['_links']['appLinks'][0]['href']
+                new_app_entry['links']['appLogo'] = app['_links']['logo'][0]['href']
+                app_list.append(new_app_entry)
 
         # Throw an error if we didn't get any accounts back
-        if appList == []:
+        if not app_list:
             print("No AWS accounts found.")
             exit()
 
-        return appList
+        return app_list
 
-    def _choose_app(self, aws_info):
+    @staticmethod
+    def _choose_app(aws_info):
         """ gets a list of available apps and
         ask the user to select the app they want
         to assume a roles for and returns the selection
@@ -219,19 +221,22 @@ class GimmeAWSCreds(object):
 
         return aws_info[int(selection)]
 
-    def _get_app_by_name(self, aws_info, appname):
+    @staticmethod
+    def _get_app_by_name(aws_info, appname):
         """ returns the app with the matching name"""
         for i, app in enumerate(aws_info):
             if app["name"] == appname:
                 return app
 
-    def _get_role_by_name(self, app_info, rolename):
+    @staticmethod
+    def _get_role_by_name(app_info, rolename):
         """ returns the role with the matching name"""
         for i, role in enumerate(app_info['roles']):
             if role["name"] == rolename:
                 return role
 
-    def _choose_role(self, app_info):
+    @staticmethod
+    def _choose_role(app_info):
         """ gets a list of available roles and
         asks the user to select the role they want to assume
         """
@@ -292,8 +297,10 @@ class GimmeAWSCreds(object):
                 print('No OAuth Client ID in configuration.  Try running --config again.')
             if not conf_dict.get('okta_auth_server'):
                 print('No OAuth Authorization server in configuration.  Try running --config again.')
+
             # Authenticate with Okta and get an OAuth access token
-            tokens = okta.auth_oauth(conf_dict['client_id'],
+            okta.auth_oauth(
+                conf_dict['client_id'],
                 authorization_server=conf_dict['okta_auth_server'],
                 access_token=True,
                 id_token=False,
@@ -308,8 +315,6 @@ class GimmeAWSCreds(object):
 
         # check to see if appname and rolename are set
         # in the config, if not give user a selection to pick from
-        aws_appname = ""
-        aws_rolename = ""
         if not conf_dict.get('aws_appname'):
             aws_app = self._choose_app(aws_results)
         else:
@@ -364,7 +369,4 @@ if __name__ == '__main__':
     try:
         GimmeAWSCreds().run()
     except KeyboardInterrupt:
-        try:
-            sys.exit(1)
-        except SystemExit:
-            os._exit(1)
+        pass
