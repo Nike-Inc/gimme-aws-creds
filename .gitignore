@@ -97,3 +97,8 @@ ENV/
 
 # IntelliJ IDE
 .idea/
+
+# Vim swap files
+*.swp
+*.swo
+*~
