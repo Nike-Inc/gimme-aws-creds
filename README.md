@@ -54,9 +54,9 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - client_id - OAuth client ID for gimme-creds-lambda
 - gimme_creds_server - URL for gimme-creds-lambda or 'internal' for direct interaction with the Okta APIs (`OKTA_API_KEY` environment variable required)
 - write_aws_creds - y or n - If yes, the AWS credentials will be written to `~/.aws/credentials` otherwise it will be written to stdout.
-- cred_profile - If writing to the AWS cred file, this sets the name of the AWS credential profile.
+- cred_profile - If writing to the AWS cred file, this sets the name of the AWS credential profile.  The reserved word 'role' will use the name component of the role arn as the profile name.  i.e. arn:aws:iam::123456789012:role/okta-1234-role becomes section [okta-1234-role] in the aws credentials file
 - aws_appname - This is optional. The Okta AWS App name, which has the role you want to assume.
-- aws_rolename - This is optional. The name of the role you want temporary AWS credentials for.
+- aws_rolename - This is optional. The name of the role you want temporary AWS credentials for.  The reserved word 'all' can be used to get and store credentials for every role the user is permissioned for.
 
 ## Usage
 
