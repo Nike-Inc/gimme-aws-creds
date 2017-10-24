@@ -1,15 +1,36 @@
+#!/usr/bin/env python3
+"""
+Copyright 2016-present Nike, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+You may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+      http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and* limitations under the License.*
+"""
+# For enumerating saml roles
+import base64
+# standard imports
 import configparser
 import os
 import re
 import sys
+import xml.etree.ElementTree as ET
+from collections import namedtuple
 from os.path import expanduser
 
+# extras
 import boto3
 from okta.framework.ApiClient import ApiClient
 from okta.framework.OktaError import OktaError
 
+# local imports
 from gimme_aws_creds.config import Config
 from gimme_aws_creds.okta import OktaClient
+
+RoleSet = namedtuple('RoleSet', 'idp, role')
 
 
 class GimmeAWSCreds(object):
@@ -46,14 +67,10 @@ class GimmeAWSCreds(object):
            write_aws_creds = Option to write creds to ~/.aws/credentials
            cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
            aws_appname = (optional) Okta AWS App Name
-           aws_rolename =  (optional) Okta Role Name
+           aws_rolename =  (optional) AWS Role Name. 'ALL' will retrieve all roles.
     """
     FILE_ROOT = expanduser("~")
     AWS_CONFIG = FILE_ROOT + '/.aws/credentials'
-
-    def __init__(self):
-        self.idp_arn = None
-        self.role_arn = None
 
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
     def _write_aws_creds(self, profile, access_key, secret_key, token):
@@ -81,13 +98,41 @@ class GimmeAWSCreds(object):
         with open(self.AWS_CONFIG, 'w+') as configfile:
             config.write(configfile)
 
-    def _get_sts_creds(self, assertion, duration=3600):
+    @staticmethod
+    def _enumerate_saml_roles(assertion):
+        """ using the assertion and arns return aws sts creds """
+        role_pairs = []
+        root = ET.fromstring(base64.b64decode(assertion))
+        for saml2_attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
+            if saml2_attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role':
+                for saml2_attribute_value in saml2_attribute.iter('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
+                    role_pairs.append(saml2_attribute_value.text)
+
+        # Normalize pieces of string; order may vary per AWS sample
+        result = []
+        for role_pair in role_pairs:
+            idp, role = None, None
+            for field in role_pair.split(','):
+                if 'saml-provider' in field:
+                    idp = field
+                elif 'role' in field:
+                    role = field
+            if not idp or not role:
+                print('Parsing error on {}'.format(role_pair))
+                exit()
+            else:
+                result.append(RoleSet(idp=idp, role=role))
+
+        return result
+
+    @staticmethod
+    def _get_sts_creds(assertion, idp, role, duration=3600):
         """ using the assertion and arns return aws sts creds """
         client = boto3.client('sts')
 
         response = client.assume_role_with_saml(
-            RoleArn=self.role_arn,
-            PrincipalArn=self.idp_arn,
+            RoleArn=role,
+            PrincipalArn=idp,
             SAMLAssertion=assertion,
             DurationSeconds=duration
         )
@@ -220,26 +265,19 @@ class GimmeAWSCreds(object):
             if app["name"] == appname:
                 return app
 
-    @staticmethod
-    def _get_role_by_name(app_info, rolename):
-        """ returns the role with the matching name"""
-        for i, role in enumerate(app_info['roles']):
-            if role["name"] == rolename:
-                return role
-
-    def _choose_role(self, app_info):
+    def _choose_role(self, roles):
         """ gets a list of available roles and
         asks the user to select the role they want to assume
         """
-        if not app_info:
+        if not roles:
             return None
 
         # Gather the roles available to the user.
         role_strs = []
-        for i, role in enumerate(app_info['roles']):
+        for i, role in enumerate(roles):
             if not role:
                 continue
-            role_strs.append('[{}] {}'.format(i, role["name"]))
+            role_strs.append('[{}] {}'.format(i, role.role))
 
         if role_strs:
             print("Pick a role:")
@@ -248,13 +286,13 @@ class GimmeAWSCreds(object):
         else:
             return None
 
-        selection = self._get_user_int_selection(0, len(app_info['roles'])-1)
+        selection = self._get_user_int_selection(0, len(roles)-1)
 
         if selection is None:
             print("You made an invalid selection")
             exit(1)
 
-        return app_info['roles'][int(selection)]
+        return roles[int(selection)].role
 
     @staticmethod
     def _get_user_int_selection(min_int, max_int, max_retries=5):
@@ -308,7 +346,7 @@ class GimmeAWSCreds(object):
             # Authenticate with Okta
             auth_result = okta.auth_session()
 
-            print("Authentication Success! Getting AWS Accounts", end='', flush=True)
+            print("Authentication Success! Getting AWS Accounts")
             aws_results = self._get_aws_account_info(conf_dict['okta_org_url'], config.api_key, auth_result['username'])
 
         # Use the gimme_creds_lambda service
@@ -338,56 +376,52 @@ class GimmeAWSCreds(object):
         if not conf_dict.get('aws_appname'):
             aws_app = self._choose_app(aws_results)
         else:
-            aws_app = self._get_app_by_name(
-                aws_results, conf_dict['aws_appname'])
-
-        if not aws_app:
-            print('AWS app {} not found for this user.'.format(conf_dict['aws_appname']))
-            exit(1)
-
-        if not conf_dict.get('aws_rolename'):
-            aws_role = self._choose_role(aws_app)
-        else:
-            aws_role = self._get_role_by_name(
-                aws_app, conf_dict['aws_rolename'])
-
-        if not aws_role:
-            print('No roles available to this user.')
-            exit(1)
-
-        # Get the the identityProviderArn from the aws app
-        self.idp_arn = aws_app['identityProviderArn']
-
-        # Get the role ARNs
-        self.role_arn = aws_role['arn']
+            aws_app = self._get_app_by_name(aws_results, conf_dict['aws_appname'])
 
         saml_data = okta.get_saml_response(aws_app['links']['appLink'])
-        aws_creds = self._get_sts_creds(saml_data['SAMLResponse'])
+        roles = self._enumerate_saml_roles(saml_data['SAMLResponse'])
 
-        # check if write_aws_creds is true if so
-        # get the profile name and write out the file
-        if str(conf_dict['write_aws_creds']) == 'True':
-            print('writing to ', self.AWS_CONFIG)
-            # set the profile name
-            if conf_dict['cred_profile'].lower() == 'default':
-                profile_name = 'default'
-            elif conf_dict['cred_profile'].lower() == 'role':
-                profile_name = conf_dict['aws_rolename']
-            else:
-                profile_name = conf_dict['cred_profile']
-
-            # Write out the AWS Config file
-            self._write_aws_creds(
-                profile_name,
-                aws_creds['AccessKeyId'],
-                aws_creds['SecretAccessKey'],
-                aws_creds['SessionToken']
-            )
+        if not conf_dict.get('aws_rolename'):
+            aws_role = self._choose_role(roles)
         else:
-            # Print out temporary AWS credentials.  Credentials are printed to stderr to simplify
-            # redirection for use in automated scripts
-            print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'], file=sys.stderr)
-            print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'], file=sys.stderr)
-            print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'], file=sys.stderr)
+            aws_role = conf_dict.get('aws_rolename')
+
+        for i, role in enumerate(roles):
+            # Skip irrelevant roles
+            if aws_role != 'all' and aws_role not in role.role:
+                continue
+
+            aws_creds = self._get_sts_creds(saml_data['SAMLResponse'], role.idp, role.role)
+            deriv_profname = re.sub('arn:aws:iam:.*/', '', role.role)
+
+            # check if write_aws_creds is true if so
+            # get the profile name and write out the file
+            if str(conf_dict['write_aws_creds']) == 'True':
+                # set the profile name
+                # Note if there are multiple roles, and 'default' is
+                # selected it will be overwritten multiple times and last role
+                # wins.
+                if conf_dict['cred_profile'].lower() == 'default':
+                    profile_name = 'default'
+                elif conf_dict['cred_profile'].lower() == 'role':
+                    profile_name = deriv_profname
+                else:
+                    profile_name = conf_dict['cred_profile']
+
+                # Write out the AWS Config file
+                print('writing role {} to {}'.format(role.role, self.AWS_CONFIG))
+                self._write_aws_creds(
+                    profile_name,
+                    aws_creds['AccessKeyId'],
+                    aws_creds['SecretAccessKey'],
+                    aws_creds['SessionToken']
+                )
+            else:
+                # Print out temporary AWS credentials.  Credentials are printed to stderr to simplify
+                # redirection for use in automated scripts
+                print("\nexport AWS_PROFILE=" + deriv_profname, file=sys.stderr)
+                print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'], file=sys.stderr)
+                print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'], file=sys.stderr)
+                print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'], file=sys.stderr)
 
         config.clean_up()
