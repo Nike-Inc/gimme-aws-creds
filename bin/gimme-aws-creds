@@ -72,8 +72,6 @@ class GimmeAWSCreds(object):
     FILE_ROOT = expanduser("~")
     AWS_CONFIG = FILE_ROOT + '/.aws/credentials'
 
-    def __init__(self):
-
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
     def _write_aws_creds(self, profile, access_key, secret_key, token):
         """ Writes the AWS STS token into the AWS credential file"""
