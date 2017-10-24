@@ -206,18 +206,27 @@ class GimmeAWSCreds(object):
         ask the user to select the app they want
         to assume a roles for and returns the selection
         """
-
-        print("Pick an app:")
-        # print out the apps and let the user select
+        if not aws_info:
+            return None
+        
+        app_strs = []
         for i, app in enumerate(aws_info):
-            print('[', i, ']', app["name"])
+            app_strs.append('[{}] {}'.format(i, app["name"]))
+
+        if app_strs:
+            print("Pick an app:")
+            # print out the apps and let the user select
+            for app in app_strs:
+                print(app)
+        else:
+            return None
 
         selection = input("Selection: ")
 
         # make sure the choice is valid
         if int(selection) > len(aws_info):
             print("You made an invalid selection")
-            sys.exit(1)
+            exit(1)
 
         return aws_info[int(selection)]
 
@@ -240,18 +249,28 @@ class GimmeAWSCreds(object):
         """ gets a list of available roles and
         asks the user to select the role they want to assume
         """
+        if not app_info:
+            return None
 
-        print("Pick a role:")
-        # print out the roles and let the user select
+        # Gather the roles available to the user.
+        role_strs = []
         for i, role in enumerate(app_info['roles']):
-            print('[', i, ']', role["name"])
+            if not role:
+                continue
+            role_strs.append('[{}] {}'.format(i, role["name"]))
+
+        if role_strs:
+            print("Pick a role:")
+            for role in role_strs:
+                print(role)
+        else:
+            return None
 
         selection = input("Selection: ")
-
         # make sure the choice is valid
         if int(selection) > len(app_info['roles']):
             print("You made an invalid selection")
-            sys.exit(1)
+            exit(1)
 
         return app_info['roles'][int(selection)]
 
@@ -262,18 +281,18 @@ class GimmeAWSCreds(object):
         # Create/Update config when configure arg set
         if config.configure is True:
             config.update_config_file()
-            sys.exit()
+            exit()
 
         # get the config dict
         conf_dict = config.get_config_dict()
 
         if not conf_dict.get('okta_org_url'):
             print('No Okta organization URL in configuration.  Try running --config again.')
-            sys.exit(1)
+            exit(1)
 
         if not conf_dict.get('gimme_creds_server'):
             print('No Gimme-Creds server URL in configuration.  Try running --config again.')
-            sys.exit(1)
+            exit(1)
 
         okta = OktaClient(conf_dict['okta_org_url'], config.verify_ssl_certs)
         if config.username is not None:
@@ -284,7 +303,7 @@ class GimmeAWSCreds(object):
             # Okta API key is required when calling Okta APIs internally
             if config.api_key is None:
                 print('OKTA_API_KEY environment variable not found!')
-                sys.exit(1)
+                exit(1)
             # Authenticate with Okta
             auth_result = okta.auth_session()
 
@@ -320,12 +339,20 @@ class GimmeAWSCreds(object):
         else:
             aws_app = self._get_app_by_name(
                 aws_results, conf_dict['aws_appname'])
+            
+        if not aws_app:
+            print('AWS app {} not found for this user.'.format(conf_dict['aws_appname']))
+            exit(1)
 
         if not conf_dict.get('aws_rolename'):
             aws_role = self._choose_role(aws_app)
         else:
             aws_role = self._get_role_by_name(
                 aws_app, conf_dict['aws_rolename'])
+            
+        if not aws_role:
+            print('No roles available to this user.')
+            exit(1)
 
         # Get the the identityProviderArn from the aws app
         self.idp_arn = aws_app['identityProviderArn']
