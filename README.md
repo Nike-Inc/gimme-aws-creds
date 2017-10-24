@@ -22,7 +22,14 @@ Gimme-creds-lambda can be used as a proxy to the Okta APIs needed by gimme-aws-c
 ## Installation
 This is a Python 3 project.
 
-Install the gimme-aws-creds script and required python packages:
+Install the latest gimme-aws-creds package direct from GitHub:
+```bash
+pip3 install git+git://github.com/Nike-Inc/gimme-aws-creds.git
+```
+
+__OR__
+
+Install the gimme-aws-creds package if you have already cloned the source:
 ```bash
 python3 setup.py install
 ```
