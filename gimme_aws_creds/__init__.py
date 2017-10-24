@@ -1,1 +1,1 @@
-__all__ = ['config', 'okta']
+__all__ = ['config', 'okta', 'main']
