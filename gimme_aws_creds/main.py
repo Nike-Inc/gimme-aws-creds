@@ -261,9 +261,10 @@ class GimmeAWSCreds(object):
     @staticmethod
     def _get_app_by_name(aws_info, appname):
         """ returns the app with the matching name"""
-        for i, app in enumerate(aws_info):
+        for _, app in enumerate(aws_info):
             if app["name"] == appname:
                 return app
+        raise RuntimeError('Did not find an Okta AWS app with the name '+ appname +'')
 
     def _choose_role(self, roles):
         """ gets a list of available roles and

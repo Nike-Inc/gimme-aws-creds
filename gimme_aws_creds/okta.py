@@ -371,6 +371,8 @@ class OktaClient(object):
             elif inputtag.get('name') == 'RelayState':
                 relay_state = inputtag.get('value')
 
+        print('SAML is')
+        print(saml_response)
         if saml_response is None:
             # We didn't get a SAML response.  Were we redirected to an MFA login page?
             if hasattr(saml_soup.title, 'string') and re.match(".* - Extra Verification$", saml_soup.title.string):
