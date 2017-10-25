@@ -67,7 +67,7 @@ class GimmeAWSCreds(object):
            write_aws_creds = Option to write creds to ~/.aws/credentials
            cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
            aws_appname = (optional) Okta AWS App Name
-           aws_rolename =  (optional) AWS Role Name. 'ALL' will retrieve all roles.
+           aws_rolename =  (optional) AWS Role ARN. 'ALL' will retrieve all roles.
     """
     FILE_ROOT = expanduser("~")
     AWS_CONFIG = FILE_ROOT + '/.aws/credentials'
