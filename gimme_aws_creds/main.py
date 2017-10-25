@@ -371,20 +371,36 @@ class GimmeAWSCreds(object):
             print("Authentication Success! Calling Gimme-Creds Server...")
             aws_results = self._call_gimme_creds_server(okta, conf_dict['gimme_creds_server'])
 
-        # check to see if appname and rolename are set
-        # in the config, if not give user a selection to pick from
+        # check to see if an appname is in the config and look for it in the results from Okta
+        if conf_dict.get('aws_appname'):
+            aws_app = self._get_app_by_name(aws_results, conf_dict['aws_appname'])
+            # The provided AWS account wasn't in the list.  Throw an error and remove the config option
+            if aws_app is None:
+                print("ERROR: AWS account [{}] not found!".format(conf_dict['aws_appname']))
+                conf_dict.pop('aws_appname', None)
+
+        # No app is in the config, present the user with a list
         if not conf_dict.get('aws_appname'):
             aws_app = self._choose_app(aws_results)
-        else:
-            aws_app = self._get_app_by_name(aws_results, conf_dict['aws_appname'])
 
         saml_data = okta.get_saml_response(aws_app['links']['appLink'])
         roles = self._enumerate_saml_roles(saml_data['SAMLResponse'])
 
+        # check to see if a role is in the config and look for it in the results from Okta
+        if conf_dict.get('aws_rolename'):
+            found_role = False
+            for i, role in enumerate(roles):
+                if conf_dict.get('aws_rolename') == role.role:
+                    found_role = True
+                    aws_role = conf_dict.get('aws_rolename')
+            # The provided AWS role wasn't in the list.  Throw an error and remove the config option
+            if found_role is False:
+                print("ERROR: AWS role [{}] not found!".format(conf_dict['aws_rolename']))
+                conf_dict.pop('aws_rolename', None)
+
+        # No role is set in the confg, present the user with a list
         if not conf_dict.get('aws_rolename'):
             aws_role = self._choose_role(roles)
-        else:
-            aws_role = conf_dict.get('aws_rolename')
 
         for i, role in enumerate(roles):
             # Skip irrelevant roles
