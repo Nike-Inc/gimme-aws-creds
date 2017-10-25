@@ -258,9 +258,9 @@ class GimmeAWSCreds(object):
 
         return aws_info[int(selection)]
 
-    def _get_app(self, aws_appname, aws_info):
-        """ Compare the App name provided in the config file with the values
-        from the Okta API """
+    def _get_selected_app(self, aws_appname, aws_info):
+        """ select the application from the config file if it exists in the
+        results from Okta.  If not, present the user with a menu."""
 
         if aws_appname:
             for _, app in enumerate(aws_info):
@@ -271,10 +271,10 @@ class GimmeAWSCreds(object):
         # Present the user with a list of apps to choose from
         return self._choose_app(aws_info)
 
-    def _get_role(self, aws_rolename, aws_roles):
-        """ Compare the Role ARN provided in the config file with the values
-        from the SAML response """
-        
+    def _get_selected_role(self, aws_rolename, aws_roles):
+        """ select the role from the config file if it exists in the
+        results from Okta.  If not, present the user with a menu. """
+
         # 'all' is a special case - skip procesing
         if aws_rolename == 'all':
             return aws_rolename
@@ -394,10 +394,10 @@ class GimmeAWSCreds(object):
             print("Authentication Success! Calling Gimme-Creds Server...")
             aws_results = self._call_gimme_creds_server(okta, conf_dict['gimme_creds_server'])
 
-        aws_app = self._get_app(conf_dict.get('aws_appname'), aws_results)
+        aws_app = self._get_selected_app(conf_dict.get('aws_appname'), aws_results)
         saml_data = okta.get_saml_response(aws_app['links']['appLink'])
         roles = self._enumerate_saml_roles(saml_data['SAMLResponse'])
-        aws_role = self._get_role(conf_dict.get('aws_rolename'), roles)
+        aws_role = self._get_selected_role(conf_dict.get('aws_rolename'), roles)
 
         for i, role in enumerate(roles):
             # Skip irrelevant roles
