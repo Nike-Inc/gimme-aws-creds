@@ -15,6 +15,7 @@ import os
 import sys
 from os.path import expanduser
 from urllib.parse import urlparse
+from . import version
 
 
 class Config(object):
@@ -66,6 +67,10 @@ class Config(object):
             action='store_true',
             help='Allow connections to SSL sites without cert verification.'
         )
+        parser.add_argument(
+            '--version', action='version',
+            version='%(prog)s {}'.format(version),
+            help='show the version number and exit')
         args = parser.parse_args()
 
         self.configure = args.configure

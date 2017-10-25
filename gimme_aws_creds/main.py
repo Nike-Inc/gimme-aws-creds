@@ -30,6 +30,7 @@ from okta.framework.OktaError import OktaError
 from gimme_aws_creds.config import Config
 from gimme_aws_creds.okta import OktaClient
 
+
 RoleSet = namedtuple('RoleSet', 'idp, role')
 
 

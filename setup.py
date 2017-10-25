@@ -1,11 +1,12 @@
 from setuptools import setup, find_packages
+import gimme_aws_creds
 
 with open('requirements.txt') as f:
     requirements = f.read().splitlines()
 
 setup(
     name='gimme aws creds',
-    version='1.0.4',
+    version=gimme_aws_creds.version,
     install_requires=requirements,
     author='Ann Wallace',
     author_email='ann.wallace@nike.com',
