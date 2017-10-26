@@ -46,7 +46,7 @@ You can also set up different Okta configuration profiles, this useful if you ha
 gimme-aws-creds --configure --profile profileName
 ```
 
-If you are in AWS GovCloud or the China Region you will need to specify your region:
+If you are in AWS GovCloud or the China Region you will need to specify your region, these are [region partitions](http://boto3.readthedocs.io/en/latest/reference/core/session.html#boto3.session.Session.get_available_regions) (GovCloud and China):
 ```bash
 gimme-aws-creds --region XXX
 ```
