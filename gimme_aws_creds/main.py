@@ -15,11 +15,12 @@ import base64
 # standard imports
 import configparser
 import os
+from os.path import expanduser
 import re
 import sys
 import xml.etree.ElementTree as ET
 from collections import namedtuple
-from os.path import expanduser
+
 
 # extras
 import boto3
@@ -299,7 +300,7 @@ class GimmeAWSCreds(object):
     @staticmethod
     def _get_user_int_selection(min_int, max_int, max_retries=5):
         selection = None
-        for i in range(0, max_retries):
+        for _ in range(0, max_retries):
             try:
                 selection = int(input("Selection: "))
                 break
@@ -388,7 +389,7 @@ class GimmeAWSCreds(object):
         else:
             aws_role = conf_dict.get('aws_rolename')
 
-        for i, role in enumerate(roles):
+        for _, role in enumerate(roles):
             # Skip irrelevant roles
             if aws_role != 'all' and aws_role not in role.role:
                 continue

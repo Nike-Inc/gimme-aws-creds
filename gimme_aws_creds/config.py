@@ -70,7 +70,7 @@ class Config(object):
         parser.add_argument(
             '--version', action='version',
             version='%(prog)s {}'.format(version),
-            help='show the version number and exit')
+            help='gimme-aws-creds version')
         args = parser.parse_args()
 
         self.configure = args.configure
@@ -94,7 +94,7 @@ class Config(object):
             try:
                 return dict(config[self.conf_profile])
             except KeyError:
-                print('Configuration profile not found!  Use the --configure flag to generate the profile.')
+                print('Configuration profile not found! Use the --configure flag to generate the profile.')
                 sys.exit(1)
         else:
             print('Configuration file not found! Use the --configure flag to generate file.')

@@ -6,6 +6,7 @@ from mock import patch
 from nose.tools import assert_equals
 
 from gimme_aws_creds.config import Config
+from gimme_aws_creds import version
 
 
 class TestConfig(unittest.TestCase):
@@ -26,3 +27,8 @@ class TestConfig(unittest.TestCase):
         """Test to make sure username gets returned"""
         self.config.get_args()
         assert_equals(self.config.username, 'ann')
+
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_get_version(self):
+        self.config.get_args()
+        assert_equals(self.config.version, '1.0.4')
