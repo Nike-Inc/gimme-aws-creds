@@ -28,7 +28,4 @@ class TestConfig(unittest.TestCase):
         self.config.get_args()
         assert_equals(self.config.username, 'ann')
 
-    #@patch('argparse.ArgumentParser.parse_args')
-    #def test_get_version(self):
-    #    self.config.get_args()
-    #    assert_equals(self.config.version, '1.0.4')
+    
