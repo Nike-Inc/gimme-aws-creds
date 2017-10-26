@@ -110,7 +110,7 @@ $ nosetests --verbosity=2 tests/
 ```
 
 ## Maintenance
-This project is maintained by Ann Wallace `ann.wallace@nike.com`
+This project is maintained by Ann Wallace `@anners`, Eric Pierce `epierce`, and Justin Wiley `sectornine50`
 
 ## Thanks and Credit
 I came across [okta_aws_login](https://github.com/nimbusscale/okta_aws_login) written by Joe Keegan, when I was searching for a CLI tool that generates AWS tokens via Okta. Unfortunately it hasn't been updated since 2015 and didn't seem to work with the current Okta version. But there was still some great code I was able to reuse under the MIT license for gimme-aws-creds. I have noted in the comments where I used his code, to make sure he receives proper credit.  
