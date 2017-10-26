@@ -107,7 +107,7 @@ class Config(object):
                 write_aws_creds = Option to write creds to ~/.aws/credentials
                 cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
                 aws_appname = (optional) Okta AWS App Name
-                aws_rolename =  (optional) Okta Role Name
+                aws_rolename =  (optional) Okta Role ARN
         """
         config = configparser.ConfigParser()
         if self.configure:
@@ -266,10 +266,10 @@ class Config(object):
         return aws_appname
 
     def _get_aws_rolename(self, default_entry):
-        """ Get the AWS Role name"""
-        print("Enter the AWS role name you want credentials for."
+        """ Get the AWS Role ARN"""
+        print("Enter the ARN for the AWS role you want credentials for. 'ALL' will retrieve all roles."
               "\nThis is optional, you can select the role when you run the CLI.")
-        aws_rolename = self._get_user_input("AWS Role Name", default_entry)
+        aws_rolename = self._get_user_input("AWS Role ARN", default_entry)
         return aws_rolename
 
     def _get_conf_profile_name(self, default_entry):

@@ -67,7 +67,7 @@ class GimmeAWSCreds(object):
            write_aws_creds = Option to write creds to ~/.aws/credentials
            cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
            aws_appname = (optional) Okta AWS App Name
-           aws_rolename =  (optional) AWS Role Name. 'ALL' will retrieve all roles.
+           aws_rolename =  (optional) AWS Role ARN. 'ALL' will retrieve all roles.
     """
     FILE_ROOT = expanduser("~")
     AWS_CONFIG = FILE_ROOT + '/.aws/credentials'
@@ -258,12 +258,35 @@ class GimmeAWSCreds(object):
 
         return aws_info[int(selection)]
 
-    @staticmethod
-    def _get_app_by_name(aws_info, appname):
-        """ returns the app with the matching name"""
-        for i, app in enumerate(aws_info):
-            if app["name"] == appname:
-                return app
+    def _get_selected_app(self, aws_appname, aws_info):
+        """ select the application from the config file if it exists in the
+        results from Okta.  If not, present the user with a menu."""
+
+        if aws_appname:
+            for _, app in enumerate(aws_info):
+                if app["name"] == aws_appname:
+                    return app
+            print("ERROR: AWS account [{}] not found!".format(aws_appname))
+
+        # Present the user with a list of apps to choose from
+        return self._choose_app(aws_info)
+
+    def _get_selected_role(self, aws_rolename, aws_roles):
+        """ select the role from the config file if it exists in the
+        results from Okta.  If not, present the user with a menu. """
+
+        # 'all' is a special case - skip procesing
+        if aws_rolename == 'all':
+            return aws_rolename
+        # check to see if a role is in the config and look for it in the results from Okta
+        if aws_rolename:
+            for _, role in enumerate(aws_roles):
+                if aws_rolename == role.role:
+                    return aws_rolename
+            print("ERROR: AWS role [{}] not found!".format(aws_rolename))
+
+        # Present the user with a list of roles to choose from
+        return self._choose_role(aws_roles)
 
     def _choose_role(self, roles):
         """ gets a list of available roles and
@@ -371,20 +394,10 @@ class GimmeAWSCreds(object):
             print("Authentication Success! Calling Gimme-Creds Server...")
             aws_results = self._call_gimme_creds_server(okta, conf_dict['gimme_creds_server'])
 
-        # check to see if appname and rolename are set
-        # in the config, if not give user a selection to pick from
-        if not conf_dict.get('aws_appname'):
-            aws_app = self._choose_app(aws_results)
-        else:
-            aws_app = self._get_app_by_name(aws_results, conf_dict['aws_appname'])
-
+        aws_app = self._get_selected_app(conf_dict.get('aws_appname'), aws_results)
         saml_data = okta.get_saml_response(aws_app['links']['appLink'])
         roles = self._enumerate_saml_roles(saml_data['SAMLResponse'])
-
-        if not conf_dict.get('aws_rolename'):
-            aws_role = self._choose_role(roles)
-        else:
-            aws_role = conf_dict.get('aws_rolename')
+        aws_role = self._get_selected_role(conf_dict.get('aws_rolename'), roles)
 
         for i, role in enumerate(roles):
             # Skip irrelevant roles
