@@ -46,6 +46,11 @@ You can also set up different Okta configuration profiles, this useful if you ha
 gimme-aws-creds --configure --profile profileName
 ```
 
+If you are in AWS GovCloud or the China Region you will need to specify your region:
+```bash
+gimme-aws-creds --region XXX
+```
+
 A configuration wizard will prompt you to enter the necessary configuration parameters for the tool to run, the only one that is required is the `okta_org_url`. The configuration file is written to `~/.okta_aws_login_config`.
 
 - conf_profile - This sets the Okta configuration profile name, the default is DEFAULT.
@@ -110,7 +115,7 @@ $ nosetests --verbosity=2 tests/
 ```
 
 ## Maintenance
-This project is maintained by Ann Wallace `ann.wallace@nike.com`
+This project is maintained by Ann Wallace `@anners`, Eric Pierce `@epierce`, and Justin Wiley `sectornine50`
 
 ## Thanks and Credit
 I came across [okta_aws_login](https://github.com/nimbusscale/okta_aws_login) written by Joe Keegan, when I was searching for a CLI tool that generates AWS tokens via Okta. Unfortunately it hasn't been updated since 2015 and didn't seem to work with the current Okta version. But there was still some great code I was able to reuse under the MIT license for gimme-aws-creds. I have noted in the comments where I used his code, to make sure he receives proper credit.  
