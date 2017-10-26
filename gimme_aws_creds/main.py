@@ -15,11 +15,12 @@ import base64
 # standard imports
 import configparser
 import os
+from os.path import expanduser
 import re
 import sys
 import xml.etree.ElementTree as ET
 from collections import namedtuple
-from os.path import expanduser
+
 
 # extras
 import boto3
@@ -29,6 +30,7 @@ from okta.framework.OktaError import OktaError
 # local imports
 from gimme_aws_creds.config import Config
 from gimme_aws_creds.okta import OktaClient
+
 
 RoleSet = namedtuple('RoleSet', 'idp, role')
 
@@ -320,7 +322,7 @@ class GimmeAWSCreds(object):
     @staticmethod
     def _get_user_int_selection(min_int, max_int, max_retries=5):
         selection = None
-        for i in range(0, max_retries):
+        for _ in range(0, max_retries):
             try:
                 selection = int(input("Selection: "))
                 break
@@ -399,7 +401,8 @@ class GimmeAWSCreds(object):
         roles = self._enumerate_saml_roles(saml_data['SAMLResponse'])
         aws_role = self._get_selected_role(conf_dict.get('aws_rolename'), roles)
 
-        for i, role in enumerate(roles):
+       
+        for _, role in enumerate(roles):
             # Skip irrelevant roles
             if aws_role != 'all' and aws_role not in role.role:
                 continue
@@ -430,8 +433,8 @@ class GimmeAWSCreds(object):
                     aws_creds['SessionToken']
                 )
             else:
-                # Print out temporary AWS credentials.  Credentials are printed to stderr to simplify
-                # redirection for use in automated scripts
+                #Print out temporary AWS credentials.  Credentials are printed to stderr to simplify
+                #redirection for use in automated scripts
                 print("\nexport AWS_PROFILE=" + deriv_profname, file=sys.stderr)
                 print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'], file=sys.stderr)
                 print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'], file=sys.stderr)
