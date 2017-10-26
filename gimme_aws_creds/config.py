@@ -15,6 +15,7 @@ import os
 import sys
 from os.path import expanduser
 from urllib.parse import urlparse
+from . import version
 
 
 class Config(object):
@@ -34,6 +35,7 @@ class Config(object):
         self.api_key = None
         self.conf_profile = 'DEFAULT'
         self.verify_ssl_certs = True
+        self.region = None
 
         if os.environ.get("OKTA_USERNAME") is not None:
             self.username = os.environ.get("OKTA_USERNAME")
@@ -66,6 +68,15 @@ class Config(object):
             action='store_true',
             help='Allow connections to SSL sites without cert verification.'
         )
+        parser.add_argument(
+            '--version', action='version',
+            version='%(prog)s {}'.format(version),
+            help='gimme-aws-creds version'
+        )
+        parser.add_argument(
+            '--region', '-r',
+            help='Sets the default AWS region. This is needed for China and GovCloud'
+        )
         args = parser.parse_args()
 
         self.configure = args.configure
@@ -77,6 +88,8 @@ class Config(object):
         if args.username is not None:
             self.username = args.username
         self.conf_profile = args.profile or 'DEFAULT'
+        if args.region is not None:
+            self.region = args.region
 
     def get_config_dict(self):
         """returns the conf dict from the okta config file"""
@@ -89,7 +102,7 @@ class Config(object):
             try:
                 return dict(config[self.conf_profile])
             except KeyError:
-                print('Configuration profile not found!  Use the --configure flag to generate the profile.')
+                print('Configuration profile not found! Use the --configure flag to generate the profile.')
                 sys.exit(1)
         else:
             print('Configuration file not found! Use the --configure flag to generate file.')
