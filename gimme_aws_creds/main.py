@@ -401,6 +401,7 @@ class GimmeAWSCreds(object):
         roles = self._enumerate_saml_roles(saml_data['SAMLResponse'])
         aws_role = self._get_selected_role(conf_dict.get('aws_rolename'), roles)
 
+       
         for _, role in enumerate(roles):
             # Skip irrelevant roles
             if aws_role != 'all' and aws_role not in role.role:
