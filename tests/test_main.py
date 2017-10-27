@@ -95,3 +95,26 @@ class TestMain(unittest.TestCase):
 
         selection = creds._get_selected_role('test3', self.APP_INFO)
         self.assertEqual(selection, 'test1')
+
+    def test_get_partition_aws(self):
+        creds = GimmeAWSCreds()
+
+        partition = creds._get_partition_from_saml_acs('https://signin.aws.amazon.com/saml')
+        self.assertEqual(partition, 'aws')
+
+    def test_get_partition_china(self):
+        creds = GimmeAWSCreds()
+
+        partition = creds._get_partition_from_saml_acs('https://signin.amazonaws.cn/saml')
+        self.assertEqual(partition, 'aws-cn')
+
+    def test_get_partition_govcloud(self):
+        creds = GimmeAWSCreds()
+
+        partition = creds._get_partition_from_saml_acs('https://signin.amazonaws-us-gov.com/saml')
+        self.assertEqual(partition, 'aws-us-gov')
+
+    def test_get_partition_unkown(self):
+        creds = GimmeAWSCreds()
+
+        self.assertRaises(SystemExit, creds._get_partition_from_saml_acs, 'https://signin.amazonaws-foo.com/saml')

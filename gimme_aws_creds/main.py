@@ -128,9 +128,28 @@ class GimmeAWSCreds(object):
         return result
 
     @staticmethod
-    def _get_sts_creds(assertion, idp, role, duration=3600):
+    def _get_partition_from_saml_acs(saml_acs_url):
+        """ Determine the AWS partition by looking at the ACS endpoint URL"""
+        if saml_acs_url == 'https://signin.aws.amazon.com/saml':
+            return 'aws'
+        elif saml_acs_url == 'https://signin.amazonaws.cn/saml':
+            return 'aws-cn'
+        elif saml_acs_url == 'https://signin.amazonaws-us-gov.com/saml':
+            return 'aws-us-gov'
+        else:
+            print("{} is an unknown ACS URL".format(saml_acs_url))
+            sys.exit(1)
+
+    @staticmethod
+    def _get_sts_creds(partition, assertion, idp, role, duration=3600):
         """ using the assertion and arns return aws sts creds """
-        client = boto3.client('sts')
+
+        # Use the first available region for partitions other than the public AWS
+        if partition != 'aws':
+            regions = boto3.session.Session().get_available_regions('sts', partition)
+            client = boto3.client('sts', regions[0])
+        else:
+            client = boto3.client('sts')
 
         response = client.assume_role_with_saml(
             RoleArn=role,
@@ -400,14 +419,14 @@ class GimmeAWSCreds(object):
         saml_data = okta.get_saml_response(aws_app['links']['appLink'])
         roles = self._enumerate_saml_roles(saml_data['SAMLResponse'])
         aws_role = self._get_selected_role(conf_dict.get('aws_rolename'), roles)
+        aws_partition = self._get_partition_from_saml_acs(saml_data['TargetUrl'])
 
-       
         for _, role in enumerate(roles):
             # Skip irrelevant roles
             if aws_role != 'all' and aws_role not in role.role:
                 continue
 
-            aws_creds = self._get_sts_creds(saml_data['SAMLResponse'], role.idp, role.role)
+            aws_creds = self._get_sts_creds(aws_partition, saml_data['SAMLResponse'], role.idp, role.role)
             deriv_profname = re.sub('arn:aws:iam:.*/', '', role.role)
 
             # check if write_aws_creds is true if so
