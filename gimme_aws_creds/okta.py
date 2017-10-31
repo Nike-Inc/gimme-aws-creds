@@ -13,6 +13,7 @@ import getpass
 import re
 import sys
 import time
+import uuid
 from codecs import decode
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
@@ -166,7 +167,7 @@ class OktaClient(object):
             redirect_uri = kwargs['redirect_uri']
 
         if 'nonce' not in kwargs:
-            nonce = 1
+            nonce = uuid.uuid4().hex
         else:
             nonce = kwargs['nonce']
 
