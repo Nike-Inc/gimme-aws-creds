@@ -174,12 +174,11 @@ class GimmeAWSCreds(object):
 
     @staticmethod
     def _get_aws_account_info(okta_org_url, okta_api_key, username):
-        """ Call the Okta User and App APIs and process the results to return
+        """ Call the Okta User API and process the results to return
         just the information we need for gimme_aws_creds"""
         # We need access to the entire JSON response from the Okta APIs, so we need to
         # use the low-level ApiClient instead of UsersClient and AppInstanceClient
         users_client = ApiClient(okta_org_url, okta_api_key, pathname='/api/v1/users')
-        app_client = ApiClient(okta_org_url, okta_api_key, pathname='/api/v1/apps')
 
         # Get User information
         try:
@@ -193,20 +192,13 @@ class GimmeAWSCreds(object):
                 print("Error: " + e.error_summary)
                 exit(1)
 
-        # Get a list of apps for this user and include extended info about the user
-        params = {
-            'limit': 50,
-            'filter': 'user.id+eq+%22' + user['id'] + '%22&expand=user%2F' + user['id']
-        }
-
         try:
             # Get first page of results
-            result = app_client.get_path('/', params=params)
+            result = users_client.get_path('/{0}/appLinks'.format(user['id']))
             final_result = result.json()
 
             # Loop through other pages
             while 'next' in result.links:
-                print('.', end='', flush=True)
                 result = app_client.get(result.links['next']['url'])
                 final_result = final_result + result.json()
             print("done\n")
@@ -222,27 +214,14 @@ class GimmeAWSCreds(object):
         app_list = []
         for app in final_result:
             # All AWS connections have the same app name
-            if app['name'] == 'amazon_aws':
-                new_app_entry = {
-                    'id': app['id'],
-                    'name': app['label'],
-                    'identityProviderArn': app['settings']['app']['identityProviderArn'],
-                    'roles': []
-                }
-                # Build a list of the roles this user has access to
-                for role in app['_embedded']['user']['profile']['samlRoles']:
-                    role_info = {
-                        'name': role,
-                        'arn': re.sub(
-                            ':saml-provider.*', ':role/' + role, app['settings']['app']['identityProviderArn']
-                        )
-                    }
-                    # We can figure out the role ARN based on the ARN for the IdP
-                    new_app_entry['roles'].append(role_info)
-                new_app_entry['links'] = {}
-                new_app_entry['links']['appLink'] = app['_links']['appLinks'][0]['href']
-                new_app_entry['links']['appLogo'] = app['_links']['logo'][0]['href']
-                app_list.append(new_app_entry)
+            if (app['appName'] == 'amazon_aws'):
+                newAppEntry = {}
+                newAppEntry['id'] = app['id']
+                newAppEntry['name'] = app['label']
+                newAppEntry['links'] = {}
+                newAppEntry['links']['appLink'] = app['linkUrl']
+                newAppEntry['links']['appLogo'] = app['logoUrl']
+                app_list.append(newAppEntry)
 
         # Throw an error if we didn't get any accounts back
         if not app_list:
