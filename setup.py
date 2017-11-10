@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+
 import gimme_aws_creds
 
 with open('requirements.txt') as f:
@@ -15,5 +16,5 @@ setup(
     license='Apache License, v2.0',
     packages=find_packages(exclude=('tests', 'docs')),
     test_suite="tests",
-    scripts=['bin/gimme-aws-creds'],
+    scripts=['bin/gimme-aws-creds', 'bin/gimme-aws-creds.py'],
 )
