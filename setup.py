@@ -16,5 +16,5 @@ setup(
     license='Apache License, v2.0',
     packages=find_packages(exclude=('tests', 'docs')),
     test_suite="tests",
-    scripts=['bin/gimme-aws-creds', 'bin/gimmie-aws-creds.py'],
+    scripts=['bin/gimme-aws-creds', 'bin/gimme-aws-creds.py'],
 )
