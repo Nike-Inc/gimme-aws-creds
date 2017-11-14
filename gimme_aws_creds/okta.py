@@ -262,13 +262,16 @@ class OktaClient(object):
     def _login_username_password(self, state_token, url):
         """ login to Okta with a username and password"""
         creds = self._get_username_password_creds()
+
         login_json = {
             'username': creds['username'],
             'password': creds['password']
         }
+
         # If this isn't a Step-up auth flow, we won't have a stateToken
         if state_token is not None:
             login_json['stateToken'] = state_token
+
         response = self._http_client.post(
             url,
             json=login_json,
@@ -291,6 +294,7 @@ class OktaClient(object):
         func_result = {'apiResponse': response_data}
         if 'stateToken' in response_data:
             func_result['stateToken'] = response_data['stateToken']
+
         return func_result
 
     def _login_send_sms(self, state_token, factor):
@@ -304,6 +308,7 @@ class OktaClient(object):
 
         print("A verification code has been sent to " + factor['profile']['phoneNumber'])
         response_data = response.json()
+
         if 'stateToken' in response_data:
             return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
         if 'sessionToken' in response_data:
@@ -320,6 +325,7 @@ class OktaClient(object):
 
         print("Okta Verify push sent...")
         response_data = response.json()
+
         if 'stateToken' in response_data:
             return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
         if 'sessionToken' in response_data:
@@ -359,6 +365,7 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
+
         response_data = response.json()
         if 'stateToken' in response_data:
             return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
@@ -505,11 +512,9 @@ class OktaClient(object):
             try:
                 # If the OS supports a keyring, offer to save the password
                 password = keyring.get_password(self.KEYRING_SERVICE, username)
+                print("Using password from keyring for {}".format(username))
             except RuntimeError:
                 password = None
-
-        if password is not None:
-            print("Using password from keyring for {}".format(username))
         else:
             # Set prompt to include the user name, since username could be set
             # via OKTA_USERNAME env and user might not remember.
@@ -519,10 +524,6 @@ class OktaClient(object):
                 if len(password) > 0:
                     break
 
-            if not password:
-                print('Password must be provided.')
-                exit(1)
-
             if self.KEYRING_ENABLED:
                 # If the OS supports a keyring, offer to save the password
                 if input("Do you want to save this password in the keyring? (y/n)") == 'y':
@@ -531,5 +532,9 @@ class OktaClient(object):
                         print("Password for {} saved in keyring.".format(username))
                     except RuntimeError as err:
                         print("Failed to save password in keyring: ", err)
+
+        if not password:
+            print('Password was not provided. Exiting.')
+            exit(1)
 
         return {'username': username, 'password': password}
