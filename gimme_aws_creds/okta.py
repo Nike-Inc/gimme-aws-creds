@@ -21,6 +21,8 @@ from urllib.parse import urlparse
 import keyring
 import requests
 from bs4 import BeautifulSoup
+from keyring.backends.fail import Keyring as FailKeyring
+from keyring.errors import PasswordDeleteError
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
@@ -31,6 +33,9 @@ class OktaClient(object):
        calls to Okta to get temporary AWS credentials. An
        Okta API key and URL must be provided.
     """
+
+    KEYRING_SERVICE = 'gimme-aws-creds'
+    KEYRING_ENABLED = not isinstance(keyring.get_keyring(), FailKeyring)
 
     def __init__(self, okta_org_url, verify_ssl_certs=True):
         """
@@ -234,9 +239,8 @@ class OktaClient(object):
     def _next_login_step(self, state_token, login_data):
         """ decide what the next step in the login process is"""
         if 'errorCode' in login_data:
-            print("LOGIN ERROR: " +
-                  login_data['errorSummary'], "Error Code ", login_data['errorCode'])
-            sys.exit(2)
+            print("LOGIN ERROR: {} | Error Code: {}".format(login_data['errorSummary'], login_data['errorCode']))
+            exit(2)
 
         status = login_data['status']
 
@@ -274,9 +278,15 @@ class OktaClient(object):
 
         response_data = response.json()
         if 'errorCode' in response_data:
-            print("LOGIN ERROR: " +
-                  response_data['errorSummary'], "Error Code ", response_data['errorCode'])
-            sys.exit(2)
+            print("LOGIN ERROR: {} | Error Code: {}".format(response_data['errorSummary'], response_data['errorCode']))
+
+            if self.KEYRING_ENABLED:
+                try:
+                    keyring.delete_password(self.KEYRING_SERVICE, creds['username'])
+                except PasswordDeleteError:
+                    pass
+
+            exit(2)
 
         func_result = {'apiResponse': response_data}
         if 'stateToken' in response_data:
@@ -456,7 +466,7 @@ class OktaClient(object):
         # make sure the choice is valid
         if int(selection) > len(factors):
             print("You made an invalid selection")
-            sys.exit(1)
+            exit(1)
 
         return factors[int(selection)]
 
@@ -487,33 +497,39 @@ class OktaClient(object):
         # The Okta username must be an email address
         if not re.match("[^@]+@[^@]+\.[^@]+", username):
             print("Okta username must be an email address.")
-            sys.exit(1)
+            exit(1)
 
         # noinspection PyBroadException
-        try:
-            # if the OS supports a keyring, offer to save the password
-            password = keyring.get_password('gimme-aws-creds', username)
-            working_keyring = True
-        except:
-            password = None
-            working_keyring = False
+        password = None
+        if self.KEYRING_ENABLED:
+            try:
+                # If the OS supports a keyring, offer to save the password
+                password = keyring.get_password(self.KEYRING_SERVICE, username)
+            except RuntimeError:
+                password = None
+
         if password is not None:
             print("Using password from keyring for {}".format(username))
         else:
             # Set prompt to include the user name, since username could be set
             # via OKTA_USERNAME env and user might not remember.
-            passwd_prompt = "Password for {}: ".format(username)
-            password = getpass.getpass(prompt=passwd_prompt)
-            if len(password) == 0:
-                print("Password must be provided.")
-                sys.exit(1)
-            if working_keyring:
+            for x in range(0, 5):
+                passwd_prompt = "Password for {}: ".format(username)
+                password = getpass.getpass(prompt=passwd_prompt)
+                if len(password) > 0:
+                    break
+
+            if not password:
+                print('Password must be provided.')
+                exit(1)
+
+            if self.KEYRING_ENABLED:
                 # If the OS supports a keyring, offer to save the password
                 if input("Do you want to save this password in the keyring? (y/n)") == 'y':
                     try:
-                        keyring.set_password('gimme-aws-creds', username, password)
+                        keyring.set_password(self.KEYRING_SERVICE, username, password)
                         print("Password for {} saved in keyring.".format(username))
                     except RuntimeError as err:
                         print("Failed to save password in keyring: ", err)
-        creds = {'username': username, 'password': password}
-        return creds
+
+        return {'username': username, 'password': password}
