@@ -17,6 +17,7 @@ import uuid
 from codecs import decode
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
+from . import version
 
 import keyring
 import requests
@@ -216,6 +217,7 @@ class OktaClient(object):
     def _get_headers():
         """sets the default headers"""
         headers = {
+            'User-Agent': "gimme-aws-creds {}".format(version),
             'Accept': 'application/json',
             'Content-Type': 'application/json'}
         return headers
