@@ -113,6 +113,7 @@ class Config(object):
                 cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
                 aws_appname = (optional) Okta AWS App Name
                 aws_rolename =  (optional) Okta Role ARN
+                okta_username = Okta username
         """
         config = configparser.ConfigParser()
         if self.configure:
@@ -126,7 +127,8 @@ class Config(object):
             'aws_appname': '',
             'aws_rolename': '',
             'write_aws_creds': '',
-            'cred_profile': 'role'
+            'cred_profile': 'role',
+            'okta_username': ''
         }
 
         # See if a config file already exists.
@@ -152,6 +154,7 @@ class Config(object):
         config_dict['write_aws_creds'] = self._get_write_aws_creds(defaults['write_aws_creds'])
         config_dict['aws_appname'] = self._get_aws_appname(defaults['aws_appname'])
         config_dict['aws_rolename'] = self._get_aws_rolename(defaults['aws_rolename'])
+        config_dict['okta_username'] = self._get_okta_username(defaults['okta_username'])
 
         # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
@@ -285,6 +288,14 @@ class Config(object):
         conf_profile = self._get_user_input(
             "Okta Configuration Profile Name", default_entry)
         return conf_profile
+
+    def _get_okta_username(self, default_entry):
+        """Get and validate okta username. [Optional]"""
+        print("If you'd like to set your okta username in the config file, specify the username\n."
+              "This is optional.")
+        okta_username = self._get_user_input(
+            "Okta User Name", default_entry)
+        return okta_username
 
     @staticmethod
     def _get_user_input(message, default=None):
