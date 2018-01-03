@@ -70,6 +70,7 @@ class GimmeAWSCreds(object):
            cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
            aws_appname = (optional) Okta AWS App Name
            aws_rolename =  (optional) AWS Role ARN. 'ALL' will retrieve all roles.
+           okta_username = (optional) Okta User Name
     """
     FILE_ROOT = expanduser("~")
     AWS_CONFIG = FILE_ROOT + '/.aws/credentials'
@@ -357,8 +358,12 @@ class GimmeAWSCreds(object):
             exit(1)
 
         okta = OktaClient(conf_dict['okta_org_url'], config.verify_ssl_certs)
+
         if config.username is not None:
             okta.set_username(config.username)
+        else:
+            if conf_dict.get('okta_username'):
+                okta.set_username(conf_dict['okta_username'])
 
         # Call the Okta APIs and proces data locally
         if conf_dict.get('gimme_creds_server') == 'internal':
