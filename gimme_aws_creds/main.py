@@ -433,7 +433,6 @@ class GimmeAWSCreds(object):
             else:
                 #Print out temporary AWS credentials.  Credentials are printed to stderr to simplify
                 #redirection for use in automated scripts
-                print("\nexport AWS_PROFILE=" + deriv_profname, file=sys.stderr)
                 print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'], file=sys.stderr)
                 print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'], file=sys.stderr)
                 print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'], file=sys.stderr)
