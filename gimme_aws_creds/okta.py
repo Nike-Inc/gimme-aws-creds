@@ -340,6 +340,8 @@ class OktaClient(object):
             return self._login_send_sms(state_token, factor)
         elif factor['factorType'] == 'token:software:totp':
             return self._login_input_mfa_challenge(state_token, factor['_links']['verify']['href'])
+        elif factor['factorType'] == 'token':
+            return self._login_input_mfa_challenge(state_token, factor['_links']['verify']['href'])
         elif factor['factorType'] == 'push':
             return self._login_send_push(state_token, factor)
 
@@ -487,6 +489,8 @@ class OktaClient(object):
         elif factor['factorType'] == 'sms':
             return factor['factorType'] + ": " + factor['profile']['phoneNumber']
         elif factor['factorType'] == 'token:software:totp':
+            return factor['factorType'] + ": " + factor['profile']['credentialId']
+        elif factor['factorType'] == 'token':
             return factor['factorType'] + ": " + factor['profile']['credentialId']
         else:
             print("Unknown MFA type: " + factor['factorType'])
