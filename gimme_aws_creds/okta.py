@@ -504,13 +504,8 @@ class OktaClient(object):
             username = self._username
         # Otherwise just ask the user
         else:
-            username = input("Email address: ")
+            username = input("Username: ")
             self._username = username
-
-        # The Okta username must be an email address
-        if not re.match("[^@]+@[^@]+\.[^@]+", username):
-            print("Okta username must be an email address.")
-            exit(1)
 
         # noinspection PyBroadException
         password = None
@@ -521,8 +516,8 @@ class OktaClient(object):
                 print("Using password from keyring for {}".format(username))
             except RuntimeError:
                 print("Unable to get password from keyring.")
-
         if not password:
+            print('Prompting Password ...')
             # Set prompt to include the user name, since username could be set
             # via OKTA_USERNAME env and user might not remember.
             for x in range(0, 5):

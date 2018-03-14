@@ -35,6 +35,7 @@ class Config(object):
         self.api_key = None
         self.conf_profile = 'DEFAULT'
         self.verify_ssl_certs = True
+        self.app_link = None
 
         if os.environ.get("OKTA_USERNAME") is not None:
             self.username = os.environ.get("OKTA_USERNAME")
@@ -106,7 +107,7 @@ class Config(object):
            Either updates existing config file or creates new one.
            Config Options:
                 okta_org_url = Okta URL
-                gimme_creds_server = URL of the gimme-creds-server or 'internal' for local processing
+                gimme_creds_server = URL of the gimme-creds-server or 'internal' for local processing or 'directlink' when app url available
                 client_id = OAuth Client id for the gimme-creds-server
                 okta_auth_server = Server ID for the OAuth authorization server used by gimme-creds-server
                 write_aws_creds = Option to write creds to ~/.aws/credentials
@@ -123,12 +124,13 @@ class Config(object):
             'okta_org_url': '',
             'okta_auth_server': '',
             'client_id': '',
-            'gimme_creds_server': 'internal',
+            'gimme_creds_server': 'directlink',
             'aws_appname': '',
             'aws_rolename': '',
             'write_aws_creds': '',
             'cred_profile': 'role',
-            'okta_username': ''
+            'okta_username': '',
+			'app_link': ''
         }
 
         # See if a config file already exists.
@@ -147,7 +149,9 @@ class Config(object):
         config_dict['okta_org_url'] = self._get_org_url_entry(defaults['okta_org_url'])
         config_dict['gimme_creds_server'] = self._get_gimme_creds_server_entry(defaults['gimme_creds_server'])
 
-        if config_dict['gimme_creds_server'] != 'internal':
+        if config_dict['gimme_creds_server'] == 'directlink':
+            config_dict['app_link'] = self._get_applink_entry(defaults['app_link'])
+        elif config_dict['gimme_creds_server'] != 'internal':
             config_dict['client_id'] = self._get_client_id_entry(defaults['client_id'])
             config_dict['okta_auth_server'] = self._get_auth_server_entry(defaults['okta_auth_server'])
 
@@ -208,6 +212,15 @@ class Config(object):
         self._client_id = client_id
 
         return client_id
+		
+    def _get_applink_entry(self, default_entry):
+        """ Get and validate app_link """
+        print("Enter the application link")
+
+        app_link = self._get_user_input("Application link", default_entry)
+        self._app_link = app_link
+
+        return app_link		
 
     def _get_gimme_creds_server_entry(self, default_entry):
         """ Get gimme_creds_server """
@@ -219,6 +232,8 @@ class Config(object):
             gimme_creds_server = self._get_user_input(
                 "URL for gimme-creds-server", default_entry)
             if gimme_creds_server == "internal":
+                gimme_creds_server_valid = True
+            elif gimme_creds_server == "directlink":
                 gimme_creds_server_valid = True
             else:
                 url_parse_results = urlparse(gimme_creds_server)

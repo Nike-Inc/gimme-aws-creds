@@ -239,6 +239,9 @@ class GimmeAWSCreds(object):
         if not aws_info:
             return None
 
+        if len(aws_info) == 1:
+            return aws_info[0];	# auto select when only 1 choice 
+
         app_strs = []
         for i, app in enumerate(aws_info):
             app_strs.append('[{}] {}'.format(i, app["name"]))
@@ -262,13 +265,16 @@ class GimmeAWSCreds(object):
     def _get_selected_app(self, aws_appname, aws_info):
         """ select the application from the config file if it exists in the
         results from Okta.  If not, present the user with a menu."""
-
+		
         if aws_appname:
             for _, app in enumerate(aws_info):
                 if app["name"] == aws_appname:
                     return app
+                elif app["name"] == "fakelabel":
+                    # auto select this app
+                    return app
             print("ERROR: AWS account [{}] not found!".format(aws_appname))
-
+			
         # Present the user with a list of apps to choose from
         return self._choose_app(aws_info)
 
@@ -377,6 +383,29 @@ class GimmeAWSCreds(object):
             print("Authentication Success! Getting AWS Accounts")
             aws_results = self._get_aws_account_info(conf_dict['okta_org_url'], config.api_key, auth_result['username'])
 
+        elif conf_dict.get('gimme_creds_server') == 'directlink':
+            # bypass lambda & API call
+            # Apps url is required when calling with directlink
+            if conf_dict.get('app_link'):
+                config.app_link = conf_dict['app_link']
+            if config.app_link is None:
+                print('OKTA_APP_URL environment variable not found!')
+                exit(1)
+
+            # Authenticate with Okta
+            auth_result = okta.auth_session()
+            print("Authentication Success! Getting AWS Accounts")
+
+            # build app list
+            aws_results = []
+            newAppEntry = {}
+            newAppEntry['id'] = "fakeid"  # not used anyway
+            newAppEntry['name'] = "fakelabel" #not used anyway
+            newAppEntry['links'] = {}
+            newAppEntry['links']['appLink'] = config.app_link
+            # newAppEntry['links']['appLogo'] = app['logoUrl'] # not used anyway
+            aws_results.append(newAppEntry)
+			
         # Use the gimme_creds_lambda service
         else:
             if not conf_dict.get('client_id'):
