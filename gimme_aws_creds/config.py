@@ -215,7 +215,7 @@ class Config(object):
 		
     def _get_applink_entry(self, default_entry):
         """ Get and validate app_link """
-        print("Enter the application link")
+        print("Enter the application link. This is https://something.okta[preview].com/home/amazon_aws/<app_id>/something")
 
         app_link = self._get_user_input("Application link", default_entry)
         self._app_link = app_link
