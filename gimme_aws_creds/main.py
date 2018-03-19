@@ -113,7 +113,7 @@ class GimmeAWSCreds(object):
         # Normalize pieces of string; order may vary per AWS sample
         result = []
         for role_pair in role_pairs:
-            idp, role, friendly_account_name, friendly_role_name = None, None, None, None
+            idp, role = None, None
             for field in role_pair.split(','):
                 if 'saml-provider' in field:
                     idp = field
@@ -294,21 +294,6 @@ class GimmeAWSCreds(object):
         # Present the user with a list of roles to choose from
         return self._choose_role(aws_roles)
 
-    @staticmethod
-    def _display_role(roles):
-        """ gets a list of available roles and
-        asks the user to select the role they want to assume
-        """
-        # Gather the roles available to the user.
-        role_strs = []
-        for i, role in enumerate(roles):
-            if not role:
-                continue
-            role_strs.append('[{}] {}'.format(i, role.role))
-
-        return role_strs
-
-
     def _choose_role(self, roles):
         """ gets a list of available roles and
         asks the user to select the role they want to assume
@@ -317,7 +302,11 @@ class GimmeAWSCreds(object):
             return None
 
         # Gather the roles available to the user.
-        role_strs = self._display_role(roles)
+        role_strs = []
+        for i, role in enumerate(roles):
+            if not role:
+                continue
+            role_strs.append('[{}] {}'.format(i, role.role))
 
         if role_strs:
             print("Pick a role:")
