@@ -517,7 +517,6 @@ class OktaClient(object):
             except RuntimeError:
                 print("Unable to get password from keyring.")
         if not password:
-            print('Prompting Password ...')
             # Set prompt to include the user name, since username could be set
             # via OKTA_USERNAME env and user might not remember.
             for x in range(0, 5):

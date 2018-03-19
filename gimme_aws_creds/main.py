@@ -30,9 +30,11 @@ from okta.framework.OktaError import OktaError
 # local imports
 from gimme_aws_creds.config import Config
 from gimme_aws_creds.okta import OktaClient
+from gimme_aws_creds.aws import AwsClient
+import gimme_aws_creds.gdef as gdef
 
 
-RoleSet = namedtuple('RoleSet', 'idp, role')
+#RoleSet = namedtuple('RoleSet', 'idp, role, friendly_account_name, friendly_role_name')
 
 
 class GimmeAWSCreds(object):
@@ -114,7 +116,7 @@ class GimmeAWSCreds(object):
         # Normalize pieces of string; order may vary per AWS sample
         result = []
         for role_pair in role_pairs:
-            idp, role = None, None
+            idp, role, friendly_account_name, friendly_role_name = None, None, None, None
             for field in role_pair.split(','):
                 if 'saml-provider' in field:
                     idp = field
@@ -124,7 +126,7 @@ class GimmeAWSCreds(object):
                 print('Parsing error on {}'.format(role_pair))
                 exit()
             else:
-                result.append(RoleSet(idp=idp, role=role))
+                result.append(gdef.RoleSet(idp=idp, role=role))
 
         return result
 
@@ -295,6 +297,21 @@ class GimmeAWSCreds(object):
         # Present the user with a list of roles to choose from
         return self._choose_role(aws_roles)
 
+    @staticmethod
+    def _display_role(roles):
+        """ gets a list of available roles and
+        asks the user to select the role they want to assume
+        """
+        # Gather the roles available to the user.
+        role_strs = []
+        for i, role in enumerate(roles):
+            if not role:
+                continue
+            role_strs.append('[{}] {}'.format(i, role.role))
+
+        return role_strs
+
+
     def _choose_role(self, roles):
         """ gets a list of available roles and
         asks the user to select the role they want to assume
@@ -303,11 +320,8 @@ class GimmeAWSCreds(object):
             return None
 
         # Gather the roles available to the user.
-        role_strs = []
-        for i, role in enumerate(roles):
-            if not role:
-                continue
-            role_strs.append('[{}] {}'.format(i, role.role))
+        # role_strs = self._display_role(roles)
+        role_strs = AwsClient._display_role(roles)
 
         if role_strs:
             print("Pick a role:")
@@ -364,6 +378,7 @@ class GimmeAWSCreds(object):
             exit(1)
 
         okta = OktaClient(conf_dict['okta_org_url'], config.verify_ssl_certs)
+        aws_signin = AwsClient(config.verify_ssl_certs)
 
         if config.username is not None:
             okta.set_username(config.username)
@@ -383,13 +398,13 @@ class GimmeAWSCreds(object):
             print("Authentication Success! Getting AWS Accounts")
             aws_results = self._get_aws_account_info(conf_dict['okta_org_url'], config.api_key, auth_result['username'])
 
-        elif conf_dict.get('gimme_creds_server') == 'directlink':
+        elif conf_dict.get('gimme_creds_server') == 'appurl':
             # bypass lambda & API call
-            # Apps url is required when calling with directlink
-            if conf_dict.get('app_link'):
-                config.app_link = conf_dict['app_link']
-            if config.app_link is None:
-                print('OKTA_APP_URL environment variable not found!')
+            # Apps url is required when calling with appurl
+            if conf_dict.get('app_url'):
+                config.app_url = conf_dict['app_url']
+            if config.app_url is None:
+                print('app_url is not defined in your config !')
                 exit(1)
 
             # Authenticate with Okta
@@ -402,8 +417,7 @@ class GimmeAWSCreds(object):
             newAppEntry['id'] = "fakeid"  # not used anyway
             newAppEntry['name'] = "fakelabel" #not used anyway
             newAppEntry['links'] = {}
-            newAppEntry['links']['appLink'] = config.app_link
-            # newAppEntry['links']['appLogo'] = app['logoUrl'] # not used anyway
+            newAppEntry['links']['appLink'] = config.app_url
             aws_results.append(newAppEntry)
 			
         # Use the gimme_creds_lambda service
@@ -430,7 +444,9 @@ class GimmeAWSCreds(object):
 
         aws_app = self._get_selected_app(conf_dict.get('aws_appname'), aws_results)
         saml_data = okta.get_saml_response(aws_app['links']['appLink'])
-        roles = self._enumerate_saml_roles(saml_data['SAMLResponse'])
+#        roles = self._enumerate_saml_roles(saml_data['SAMLResponse'])
+        aws_signin_page = aws_signin.get_signinpage(saml_data['SAMLResponse'])
+        roles = aws_signin._enumerate_saml_roles(aws_signin_page, saml_data['SAMLResponse'])
         aws_role = self._get_selected_role(conf_dict.get('aws_rolename'), roles)
         aws_partition = self._get_partition_from_saml_acs(saml_data['TargetUrl'])
 
