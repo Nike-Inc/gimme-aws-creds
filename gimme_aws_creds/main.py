@@ -96,6 +96,7 @@ class GimmeAWSCreds(object):
         config.set(profile, 'aws_access_key_id', access_key)
         config.set(profile, 'aws_secret_access_key', secret_key)
         config.set(profile, 'aws_session_token', token)
+        config.set(profile, 'aws_security_token', token)
 
         # Write the updated config file
         with open(self.AWS_CONFIG, 'w+') as configfile:
@@ -441,5 +442,6 @@ class GimmeAWSCreds(object):
                 print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'], file=sys.stderr)
                 print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'], file=sys.stderr)
                 print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'], file=sys.stderr)
+                print("export AWS_SECURITY_TOKEN=" + aws_creds['SessionToken'], file=sys.stderr)
 
         config.clean_up()
