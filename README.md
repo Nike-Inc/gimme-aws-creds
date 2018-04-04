@@ -16,7 +16,7 @@ With gimme-aws-creds all you need to know is your username, password, Okta url a
 Python 3
 
 ### Optional
-[Gimme-creds-lambda](https://github.com/Nike-Inc/gimme-aws-creds/tree/master/lambda) can be used as a proxy to the Okta APIs needed by gimme-aws-creds.  This removes the requirement of an Okta API key.  Gimme-aws-creds authneticates to gimme-creds-lambda using OpenID Connect and the lambda handles all interactions with the Okta APIs.  Alternately, you can set the `OKTA_API_KEY` environment variable and the `gimme_creds_server` configuration value to 'internal' to call the Okta APIs directly from gimme-aws-creds.
+[Gimme-creds-lambda](https://github.com/Nike-Inc/gimme-aws-creds/tree/master/lambda) can be used as a proxy to the Okta APIs needed by gimme-aws-creds.  This removes the requirement of an Okta API key.  Gimme-aws-creds authenticates to gimme-creds-lambda using OpenID Connect and the lambda handles all interactions with the Okta APIs.  Alternately, you can set the `OKTA_API_KEY` environment variable and the `gimme_creds_server` configuration value to 'internal' to call the Okta APIs directly from gimme-aws-creds.
 
 
 ## Installation
@@ -52,21 +52,25 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - okta_org_url - This is your Okta organization url, which is typically something like `https://companyname.okta.com`.
 - okta_auth_server - [Okta API Authorization Server](https://help.okta.com/en/prev/Content/Topics/Security/API_Access.htm) used for OpenID Connect authentication for gimme-creds-lambda
 - client_id - OAuth client ID for gimme-creds-lambda
-- gimme_creds_server - URL for gimme-creds-lambda or 'internal' for direct interaction with the Okta APIs (`OKTA_API_KEY` environment variable required)
+- gimme_creds_server 
+	- URL for gimme-creds-lambda 
+	- 'internal' for direct interaction with the Okta APIs (`OKTA_API_KEY` environment variable required)
+	- 'appurl' to set an aws application link url. This setting removes the need of an OKTA API key.
 - write_aws_creds - y or n - If yes, the AWS credentials will be written to `~/.aws/credentials` otherwise it will be written to stdout.
 - cred_profile - If writing to the AWS cred file, this sets the name of the AWS credential profile.  The reserved word 'role' will use the name component of the role arn as the profile name.  i.e. arn:aws:iam::123456789012:role/okta-1234-role becomes section [okta-1234-role] in the aws credentials file
 - aws_appname - This is optional. The Okta AWS App name, which has the role you want to assume.
 - aws_rolename - This is optional. The ARN of the role you want temporary AWS credentials for.  The reserved word 'all' can be used to get and store credentials for every role the user is permissioned for.
+- app_url - If using 'appurl' setting for gimme_creds_server, this sets the url to the aws application configured in Okta. It is typically something like https://something.okta[preview].com/home/amazon_aws/app_instance_id/something
 
 ## Usage
 
-**If you are not using gimme-creds-lambda, make sure you the OKTA_API_KEY environment variable.**
+**If you are not using gimme-creds-lambda nor using appurl settings, make sure you set the OKTA_API_KEY environment variable.**
 
 After running --configure, just run gimme-aws-creds. You will be prompted for the necessary information.
 
 ```bash
 $ ./gimme-aws-creds
-Email address: user@domain.com
+Username: user@domain.com
 Password for user@domain.com:
 Authentication Success! Calling Gimme-Creds Server...
 Pick an app:

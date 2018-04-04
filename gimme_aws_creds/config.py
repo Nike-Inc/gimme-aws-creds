@@ -35,6 +35,7 @@ class Config(object):
         self.api_key = None
         self.conf_profile = 'DEFAULT'
         self.verify_ssl_certs = True
+        self.app_url = None
 
         if os.environ.get("OKTA_USERNAME") is not None:
             self.username = os.environ.get("OKTA_USERNAME")
@@ -106,7 +107,7 @@ class Config(object):
            Either updates existing config file or creates new one.
            Config Options:
                 okta_org_url = Okta URL
-                gimme_creds_server = URL of the gimme-creds-server or 'internal' for local processing
+                gimme_creds_server = URL of the gimme-creds-server or 'internal' for local processing or 'appurl' when app url available
                 client_id = OAuth Client id for the gimme-creds-server
                 okta_auth_server = Server ID for the OAuth authorization server used by gimme-creds-server
                 write_aws_creds = Option to write creds to ~/.aws/credentials
@@ -123,12 +124,13 @@ class Config(object):
             'okta_org_url': '',
             'okta_auth_server': '',
             'client_id': '',
-            'gimme_creds_server': 'internal',
+            'gimme_creds_server': 'appurl',
             'aws_appname': '',
             'aws_rolename': '',
             'write_aws_creds': '',
             'cred_profile': 'role',
-            'okta_username': ''
+            'okta_username': '',
+			'app_url': ''
         }
 
         # See if a config file already exists.
@@ -147,12 +149,15 @@ class Config(object):
         config_dict['okta_org_url'] = self._get_org_url_entry(defaults['okta_org_url'])
         config_dict['gimme_creds_server'] = self._get_gimme_creds_server_entry(defaults['gimme_creds_server'])
 
-        if config_dict['gimme_creds_server'] != 'internal':
+        if config_dict['gimme_creds_server'] == 'appurl':
+            config_dict['app_url'] = self._get_appurl_entry(defaults['app_url'])
+        elif config_dict['gimme_creds_server'] != 'internal':
             config_dict['client_id'] = self._get_client_id_entry(defaults['client_id'])
             config_dict['okta_auth_server'] = self._get_auth_server_entry(defaults['okta_auth_server'])
 
         config_dict['write_aws_creds'] = self._get_write_aws_creds(defaults['write_aws_creds'])
-        config_dict['aws_appname'] = self._get_aws_appname(defaults['aws_appname'])
+        if config_dict['gimme_creds_server'] != 'appurl':
+            config_dict['aws_appname'] = self._get_aws_appname(defaults['aws_appname'])
         config_dict['aws_rolename'] = self._get_aws_rolename(defaults['aws_rolename'])
         config_dict['okta_username'] = self._get_okta_username(defaults['okta_username'])
 
@@ -182,10 +187,10 @@ class Config(object):
             # Validate that okta_org_url is a well formed okta URL
             url_parse_results = urlparse(okta_org_url)
 
-            if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" in okta_org_url:
+            if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" or "okta-emea.com" in okta_org_url:
                 okta_org_url_valid = True
             else:
-                print("Okta organization URL must be HTTPS URL for okta.com or oktapreview.com domain")
+                print("Okta organization URL must be HTTPS URL for okta.com or oktapreview.com or okta-emea.com domain")
 
         self._okta_org_url = okta_org_url
 
@@ -208,6 +213,25 @@ class Config(object):
         self._client_id = client_id
 
         return client_id
+		
+    def _get_appurl_entry(self, default_entry):
+        """ Get and validate app_url """
+        print("Enter the application link. This is https://something.okta[preview].com/home/amazon_aws/<app_id>/something")
+        okta_org_url_valid = False
+        app_url = default_entry
+
+        while okta_org_url_valid is False:
+            app_url = self._get_user_input("Application url", default_entry)
+            url_parse_results = urlparse(app_url)
+
+            if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" or "okta-emea.com" in app_url:
+                okta_org_url_valid = True
+            else:
+                print("Okta organization URL must be HTTPS URL for okta.com or oktapreview.com or okta-emea.com domain")
+
+        self._app_url = app_url
+
+        return app_url		
 
     def _get_gimme_creds_server_entry(self, default_entry):
         """ Get gimme_creds_server """
@@ -219,6 +243,8 @@ class Config(object):
             gimme_creds_server = self._get_user_input(
                 "URL for gimme-creds-server", default_entry)
             if gimme_creds_server == "internal":
+                gimme_creds_server_valid = True
+            elif gimme_creds_server == "appurl":
                 gimme_creds_server_valid = True
             else:
                 url_parse_results = urlparse(gimme_creds_server)
