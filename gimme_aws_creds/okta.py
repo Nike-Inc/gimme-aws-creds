@@ -465,14 +465,19 @@ class OktaClient(object):
         asks the user to select the factor they want to use """
 
         print("Multi-factor Authentication required.")
-        print("Pick a factor:")
-        # print out the factors and let the user select
-        for i, factor in enumerate(factors):
-            factor_name = self._build_factor_name(factor)
-            if factor_name is not "":
-                print('[', i, ']', factor_name)
 
-        selection = input("Selection: ")
+        if len(factors) == 1:
+            factor_name = self._build_factor_name(factors[0])
+            print(factor_name, 'selected')
+            selection = 0
+        else:
+            print("Pick a factor:")
+            # print out the factors and let the user select
+            for i, factor in enumerate(factors):
+                factor_name = self._build_factor_name(factor)
+                if factor_name is not "":
+                    print('[', i, ']', factor_name)
+            selection = input("Selection: ")
 
         # make sure the choice is valid
         if int(selection) > len(factors):
