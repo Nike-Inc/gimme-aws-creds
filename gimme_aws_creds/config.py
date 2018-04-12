@@ -36,6 +36,7 @@ class Config(object):
         self.conf_profile = 'DEFAULT'
         self.verify_ssl_certs = True
         self.app_url = None
+        self.resolve = True
 
         if os.environ.get("OKTA_USERNAME") is not None:
             self.username = os.environ.get("OKTA_USERNAME")
@@ -64,6 +65,11 @@ class Config(object):
             help='If set, the specified configuration profile will be used instead of the default.'
         )
         parser.add_argument(
+            '--noresolve', '-f',
+            action='store_true',
+            help='If set, do not perfom alias resolution.'
+        )
+        parser.add_argument(
             '--insecure', '-k',
             action='store_true',
             help='Allow connections to SSL sites without cert verification.'
@@ -82,6 +88,8 @@ class Config(object):
             self.verify_ssl_certs = True
         if args.username is not None:
             self.username = args.username
+        if args.noresolve is True:
+            self.resolve = False
         self.conf_profile = args.profile or 'DEFAULT'
 
     def get_config_dict(self):

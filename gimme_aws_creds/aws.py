@@ -33,7 +33,7 @@ import xml.etree.ElementTree as ET
 
 import gimme_aws_creds.common as commondef
 
-class AwsClient(object):
+class AwsResolver(object):
     """
        The Aws Client Class performes post request on AWS sign-in page
        to fetch friendly names/alias for account and IAM roles
@@ -70,8 +70,9 @@ class AwsClient(object):
         return response.text
 
 
-    @staticmethod
-    def _enumerate_saml_roles(signin_page, assertion):
+    def _enumerate_saml_roles(self, assertion):
+        signin_page = self.get_signinpage(assertion)
+        
         """ using the assertion to fetch aws sign-in page, parse it and return aws sts creds """
         role_pairs = []
         root = ET.fromstring(base64.b64decode(assertion))
@@ -111,8 +112,7 @@ class AwsClient(object):
             result.append(commondef.RoleSet(idp=idp, role=role, friendly_account_name=friendly_account_name, friendly_role_name=friendly_role_name))
         return result
 
-    @staticmethod
-    def _display_role(roles):
+    def _display_role(self, roles):
         """ gets a list of available roles and
         asks the user to select the role they want to assume
         """
