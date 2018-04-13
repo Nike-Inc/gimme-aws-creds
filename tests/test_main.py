@@ -2,13 +2,14 @@ import unittest
 
 from mock import patch
 
-from gimme_aws_creds.main import GimmeAWSCreds, RoleSet
+from gimme_aws_creds.main import GimmeAWSCreds
+from gimme_aws_creds.common import RoleSet
 
 
 class TestMain(unittest.TestCase):
     APP_INFO = [
-        RoleSet(idp='idp', role='test1'),
-        RoleSet(idp='idp', role='test2')
+        RoleSet(idp='idp', role='test1', friendly_account_name='', friendly_role_name=''),
+        RoleSet(idp='idp', role='test2', friendly_account_name='', friendly_role_name='')
     ]
 
     AWS_INFO = [
