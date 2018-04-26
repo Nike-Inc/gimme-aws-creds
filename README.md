@@ -52,8 +52,8 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - okta_org_url - This is your Okta organization url, which is typically something like `https://companyname.okta.com`.
 - okta_auth_server - [Okta API Authorization Server](https://help.okta.com/en/prev/Content/Topics/Security/API_Access.htm) used for OpenID Connect authentication for gimme-creds-lambda
 - client_id - OAuth client ID for gimme-creds-lambda
-- gimme_creds_server 
-	- URL for gimme-creds-lambda 
+- gimme_creds_server
+	- URL for gimme-creds-lambda
 	- 'internal' for direct interaction with the Okta APIs (`OKTA_API_KEY` environment variable required)
 	- 'appurl' to set an aws application link url. This setting removes the need of an OKTA API key.
 - write_aws_creds - y or n - If yes, the AWS credentials will be written to `~/.aws/credentials` otherwise it will be written to stdout.
@@ -61,6 +61,11 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - aws_appname - This is optional. The Okta AWS App name, which has the role you want to assume.
 - aws_rolename - This is optional. The ARN of the role you want temporary AWS credentials for.  The reserved word 'all' can be used to get and store credentials for every role the user is permissioned for.
 - app_url - If using 'appurl' setting for gimme_creds_server, this sets the url to the aws application configured in Okta. It is typically something like https://something.okta[preview].com/home/amazon_aws/app_instance_id/something
+- preferred_mfa_type - automatically select a particular  device when prompted for MFA:
+  - push - Okta Verify App push
+  - token:software:totp - OTP using the Okta Verify App
+  - call - OTP via Voice call 
+  - sms - OTP via SMS message
 
 ## Usage
 

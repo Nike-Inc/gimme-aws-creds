@@ -50,11 +50,13 @@ class OktaClient(object):
             requests.packages.urllib3.disable_warnings()
 
         self._username = None
+        self._preferred_mfa_type = None
 
         self._use_oauth_access_token = False
         self._use_oauth_id_token = False
         self._oauth_access_token = None
         self._oauth_id_token = None
+
 
         # Allow up to 5 retries on requests to Okta in case we have network issues
         self._http_client = requests.Session()
@@ -64,6 +66,9 @@ class OktaClient(object):
 
     def set_username(self, username):
         self._username = username
+
+    def set_preferred_mfa_type(self, preferred_mfa_type):
+        self._preferred_mfa_type = preferred_mfa_type
 
     def use_oauth_access_token(self, val=True):
         self._use_oauth_access_token = val
@@ -486,6 +491,10 @@ class OktaClient(object):
 
         print("Multi-factor Authentication required.")
 
+        # filter the factor list down to just the types specified in preferred_mfa_type
+        if self._preferred_mfa_type is not None:
+            factors = list(filter(lambda item: item['factorType'] == self._preferred_mfa_type, factors))
+
         if len(factors) == 1:
             factor_name = self._build_factor_name(factors[0])
             print(factor_name, 'selected')
@@ -514,7 +523,7 @@ class OktaClient(object):
         elif factor['factorType'] == 'sms':
             return factor['factorType'] + ": " + factor['profile']['phoneNumber']
         elif factor['factorType'] == 'call':
-            return "voice: " + factor['profile']['phoneNumber']
+            return factor['factorType'] + ": " + factor['profile']['phoneNumber']
         elif factor['factorType'] == 'token:software:totp':
             return factor['factorType'] + ": " + factor['profile']['credentialId']
         elif factor['factorType'] == 'token':

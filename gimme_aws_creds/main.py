@@ -240,7 +240,7 @@ class GimmeAWSCreds(object):
             return None
 
         if len(aws_info) == 1:
-            return aws_info[0];	# auto select when only 1 choice 
+            return aws_info[0];	# auto select when only 1 choice
 
         app_strs = []
         for i, app in enumerate(aws_info):
@@ -265,7 +265,7 @@ class GimmeAWSCreds(object):
     def _get_selected_app(self, aws_appname, aws_info):
         """ select the application from the config file if it exists in the
         results from Okta.  If not, present the user with a menu."""
-		
+
         if aws_appname:
             for _, app in enumerate(aws_info):
                 if app["name"] == aws_appname:
@@ -274,7 +274,7 @@ class GimmeAWSCreds(object):
                     # auto select this app
                     return app
             print("ERROR: AWS account [{}] not found!".format(aws_appname))
-			
+
         # Present the user with a list of apps to choose from
         return self._choose_app(aws_info)
 
@@ -371,6 +371,9 @@ class GimmeAWSCreds(object):
             if conf_dict.get('okta_username'):
                 okta.set_username(conf_dict['okta_username'])
 
+        if conf_dict.get('preferred_mfa_type'):
+            okta.set_preferred_mfa_type(conf_dict['preferred_mfa_type'])
+
         # Call the Okta APIs and proces data locally
         if conf_dict.get('gimme_creds_server') == 'internal':
             # Okta API key is required when calling Okta APIs internally
@@ -404,7 +407,7 @@ class GimmeAWSCreds(object):
             newAppEntry['links'] = {}
             newAppEntry['links']['appLink'] = config.app_url
             aws_results.append(newAppEntry)
-			
+
         # Use the gimme_creds_lambda service
         else:
             if not conf_dict.get('client_id'):
