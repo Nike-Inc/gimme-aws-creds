@@ -61,10 +61,11 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - aws_appname - This is optional. The Okta AWS App name, which has the role you want to assume.
 - aws_rolename - This is optional. The ARN of the role you want temporary AWS credentials for.  The reserved word 'all' can be used to get and store credentials for every role the user is permissioned for.
 - app_url - If using 'appurl' setting for gimme_creds_server, this sets the url to the aws application configured in Okta. It is typically something like https://something.okta[preview].com/home/amazon_aws/app_instance_id/something
+- okta_username - use this username to authenticate
 - preferred_mfa_type - automatically select a particular  device when prompted for MFA:
   - push - Okta Verify App push
   - token:software:totp - OTP using the Okta Verify App
-  - call - OTP via Voice call 
+  - call - OTP via Voice call
   - sms - OTP via SMS message
 
 ## Usage
