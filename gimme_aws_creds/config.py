@@ -115,6 +115,7 @@ class Config(object):
                 aws_appname = (optional) Okta AWS App Name
                 aws_rolename =  (optional) Okta Role ARN
                 okta_username = Okta username
+                preferred_mfa_type = Select this MFA device type automatically
         """
         config = configparser.ConfigParser()
         if self.configure:
@@ -130,7 +131,8 @@ class Config(object):
             'write_aws_creds': '',
             'cred_profile': 'role',
             'okta_username': '',
-			'app_url': ''
+            'preferred_mfa_type': '',
+			      'app_url': ''
         }
 
         # See if a config file already exists.
@@ -160,6 +162,7 @@ class Config(object):
             config_dict['aws_appname'] = self._get_aws_appname(defaults['aws_appname'])
         config_dict['aws_rolename'] = self._get_aws_rolename(defaults['aws_rolename'])
         config_dict['okta_username'] = self._get_okta_username(defaults['okta_username'])
+        config_dict['preferred_mfa_type'] = self._get_preferred_mfa_type(defaults['preferred_mfa_type'])
 
         # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
@@ -213,7 +216,7 @@ class Config(object):
         self._client_id = client_id
 
         return client_id
-		
+
     def _get_appurl_entry(self, default_entry):
         """ Get and validate app_url """
         print("Enter the application link. This is https://something.okta[preview].com/home/amazon_aws/<app_id>/something")
@@ -231,7 +234,7 @@ class Config(object):
 
         self._app_url = app_url
 
-        return app_url		
+        return app_url
 
     def _get_gimme_creds_server_entry(self, default_entry):
         """ Get gimme_creds_server """
@@ -317,10 +320,18 @@ class Config(object):
 
     def _get_okta_username(self, default_entry):
         """Get and validate okta username. [Optional]"""
-        print("If you'd like to set your okta username in the config file, specify the username\n."
+        print("If you'd like to set your okta username in the config file, specify the username.\n"
               "This is optional.")
         okta_username = self._get_user_input(
             "Okta User Name", default_entry)
+        return okta_username
+
+    def _get_preferred_mfa_type(self, default_entry):
+        """Get the user's preferred MFA device [Optional]"""
+        print("If you'd like to set a preferred device type to use for MFA, enter it here.\n"
+              "This is optional. valid devices types:[sms, call, push, token, token:software:totp]")
+        okta_username = self._get_user_input(
+            "Preferred MFA Device Type", default_entry)
         return okta_username
 
     @staticmethod

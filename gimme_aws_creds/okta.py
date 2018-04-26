@@ -50,11 +50,13 @@ class OktaClient(object):
             requests.packages.urllib3.disable_warnings()
 
         self._username = None
+        self._preferred_mfa_type = None
 
         self._use_oauth_access_token = False
         self._use_oauth_id_token = False
         self._oauth_access_token = None
         self._oauth_id_token = None
+
 
         # Allow up to 5 retries on requests to Okta in case we have network issues
         self._http_client = requests.Session()
@@ -64,6 +66,9 @@ class OktaClient(object):
 
     def set_username(self, username):
         self._username = username
+
+    def set_preferred_mfa_type(self, preferred_mfa_type):
+        self._preferred_mfa_type = preferred_mfa_type
 
     def use_oauth_access_token(self, val=True):
         self._use_oauth_access_token = val
@@ -316,6 +321,24 @@ class OktaClient(object):
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
+    def _login_send_call(self, state_token, factor):
+        """ Send Voice call for second factor authentication"""
+        response = self._http_client.post(
+            factor['_links']['verify']['href'],
+            json={'stateToken': state_token},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+
+        print("You should soon receive a phone call at " + factor['profile']['phoneNumber'])
+        response_data = response.json()
+
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+
+
     def _login_send_push(self, state_token, factor):
         """ Send 'push' for the Okta Verify mobile app """
         response = self._http_client.post(
@@ -338,6 +361,8 @@ class OktaClient(object):
         factor = self._choose_factor(login_data['_embedded']['factors'])
         if factor['factorType'] == 'sms':
             return self._login_send_sms(state_token, factor)
+        elif factor['factorType'] == 'call':
+            return self._login_send_call(state_token, factor)
         elif factor['factorType'] == 'token:software:totp':
             return self._login_input_mfa_challenge(state_token, factor['_links']['verify']['href'])
         elif factor['factorType'] == 'token':
@@ -466,6 +491,10 @@ class OktaClient(object):
 
         print("Multi-factor Authentication required.")
 
+        # filter the factor list down to just the types specified in preferred_mfa_type
+        if self._preferred_mfa_type is not None:
+            factors = list(filter(lambda item: item['factorType'] == self._preferred_mfa_type, factors))
+
         if len(factors) == 1:
             factor_name = self._build_factor_name(factors[0])
             print(factor_name, 'selected')
@@ -492,6 +521,8 @@ class OktaClient(object):
         if factor['factorType'] == 'push':
             return "Okta Verify App: " + factor['profile']['deviceType'] + ": " + factor['profile']['name']
         elif factor['factorType'] == 'sms':
+            return factor['factorType'] + ": " + factor['profile']['phoneNumber']
+        elif factor['factorType'] == 'call':
             return factor['factorType'] + ": " + factor['profile']['phoneNumber']
         elif factor['factorType'] == 'token:software:totp':
             return factor['factorType'] + ": " + factor['profile']['credentialId']
