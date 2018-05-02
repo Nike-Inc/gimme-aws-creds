@@ -371,8 +371,11 @@ class GimmeAWSCreds(object):
             if conf_dict.get('okta_username'):
                 okta.set_username(conf_dict['okta_username'])
 
-        if conf_dict.get('preferred_mfa_type'):
-            okta.set_preferred_mfa_type(conf_dict['preferred_mfa_type'])
+        # AWS Default session duration ....
+        if conf_dict.get('aws_default_duration'):
+            config.aws_default_duration = int(conf_dict['aws_default_duration'])
+        else:
+            config.aws_default_duration = 3600
 
         # Call the Okta APIs and proces data locally
         if conf_dict.get('gimme_creds_server') == 'internal':
@@ -441,7 +444,7 @@ class GimmeAWSCreds(object):
             if aws_role != 'all' and aws_role not in role.role:
                 continue
 
-            aws_creds = self._get_sts_creds(aws_partition, saml_data['SAMLResponse'], role.idp, role.role)
+            aws_creds = self._get_sts_creds(aws_partition, saml_data['SAMLResponse'], role.idp, role.role, config.aws_default_duration)
             deriv_profname = re.sub('arn:aws:iam:.*/', '', role.role)
 
             # check if write_aws_creds is true if so
