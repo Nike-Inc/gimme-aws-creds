@@ -117,6 +117,8 @@ class Config(object):
                 aws_rolename =  (optional) Okta Role ARN
                 okta_username = Okta username
                 aws_default_duration = Default AWS session duration (3600)
+                preferred_mfa_type = Select this MFA device type automatically
+
         """
         config = configparser.ConfigParser()
         if self.configure:
@@ -132,8 +134,10 @@ class Config(object):
             'write_aws_creds': '',
             'cred_profile': 'role',
             'okta_username': '',
-            'app_url': '',
-            'aws_default_duration': '3600'
+            'aws_default_duration': '3600',
+            'preferred_mfa_type': '',
+            'app_url': ''
+
         }
 
         # See if a config file already exists.
@@ -164,6 +168,7 @@ class Config(object):
         config_dict['aws_rolename'] = self._get_aws_rolename(defaults['aws_rolename'])
         config_dict['okta_username'] = self._get_okta_username(defaults['okta_username'])
         config_dict['aws_default_duration'] = self._get_aws_default_duration(defaults['aws_default_duration'])
+        config_dict['preferred_mfa_type'] = self._get_preferred_mfa_type(defaults['preferred_mfa_type'])
 
         # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
@@ -334,6 +339,14 @@ class Config(object):
         aws_default_duration = self._get_user_input(
             "AWS Default Session Duration", default_entry)
         return aws_default_duration
+
+    def _get_preferred_mfa_type(self, default_entry):
+        """Get the user's preferred MFA device [Optional]"""
+        print("If you'd like to set a preferred device type to use for MFA, enter it here.\n"
+              "This is optional. valid devices types:[sms, call, push, token, token:software:totp]")
+        okta_username = self._get_user_input(
+            "Preferred MFA Device Type", default_entry)
+        return okta_username
 
     @staticmethod
     def _get_user_input(message, default=None):

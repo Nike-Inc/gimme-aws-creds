@@ -371,6 +371,9 @@ class GimmeAWSCreds(object):
             if conf_dict.get('okta_username'):
                 okta.set_username(conf_dict['okta_username'])
 
+        if conf_dict.get('preferred_mfa_type'):
+            okta.set_preferred_mfa_type(conf_dict['preferred_mfa_type'])
+
         # AWS Default session duration ....
         if conf_dict.get('aws_default_duration'):
             config.aws_default_duration = int(conf_dict['aws_default_duration'])
