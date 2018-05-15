@@ -38,7 +38,7 @@ class DefaultResolver(object):
     def __init__(self, verify_ssl_certs=True):
         return
 
-    def _enumerate_saml_roles(self, assertion):
+    def _enumerate_saml_roles(self, assertion, saml_target_url):
         """ using the assertion to fetch aws sign-in page, parse it and return aws sts creds """
         role_pairs = []
         root = ET.fromstring(base64.b64decode(assertion))

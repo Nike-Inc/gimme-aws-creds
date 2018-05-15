@@ -43,7 +43,6 @@ class AwsResolver(object):
         """
         :param verify_ssl_certs: Enable/disable SSL verification
         """
-        self._aws_signin_url = 'https://signin.aws.amazon.com/saml'
         self._verify_ssl_certs = verify_ssl_certs
 
         if verify_ssl_certs is False:
@@ -55,7 +54,7 @@ class AwsResolver(object):
                         method_whitelist=['POST'])
         self._http_client.mount('https://', HTTPAdapter(max_retries=retries))
 
-    def get_signinpage(self, saml_token):
+    def get_signinpage(self, saml_token, saml_target_url):
         """ Post SAML token to aws sign in page and get back html result"""
         payload = {
             'SAMLResponse': saml_token,
@@ -63,15 +62,15 @@ class AwsResolver(object):
         }
         
         response = self._http_client.post(
-            self._aws_signin_url,
+            saml_target_url,
             data=payload,
             verify=self._verify_ssl_certs
         )
         return response.text
 
 
-    def _enumerate_saml_roles(self, assertion):
-        signin_page = self.get_signinpage(assertion)
+    def _enumerate_saml_roles(self, assertion, saml_target_url):
+        signin_page = self.get_signinpage(assertion, saml_target_url)
         
         """ using the assertion to fetch aws sign-in page, parse it and return aws sts creds """
         role_pairs = []

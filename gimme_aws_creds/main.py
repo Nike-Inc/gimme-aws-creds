@@ -61,9 +61,9 @@ class GimmeAWSCreds(object):
          --profile PROFILE, -p PROFILE
                         If set, the specified configuration profile will
                         be used instead of the default profile.
-         -f, --noresolve
-                        Default is to resolve account alias
-                        If set, account alias won't be resolved. Only saml data is used. 
+         -r, --resolve
+                        Default does not resolve account alias
+                        If set, account alias will be resolved. 
 
         Config Options:
            okta_org_url = Okta URL
@@ -341,6 +341,9 @@ class GimmeAWSCreds(object):
         okta = OktaClient(conf_dict['okta_org_url'], config.verify_ssl_certs)
         if config.resolve == True:
             self.resolver = AwsResolver(config.verify_ssl_certs)
+        else:
+            if conf_dict.get('resolve_aws_alias') and str(conf_dict['resolve_aws_alias']) == 'True':
+                self.resolver = AwsResolver(config.verify_ssl_certs)
 
         if config.username is not None:
             okta.set_username(config.username)
@@ -407,7 +410,7 @@ class GimmeAWSCreds(object):
         aws_app = self._get_selected_app(conf_dict.get('aws_appname'), aws_results)
         saml_data = okta.get_saml_response(aws_app['links']['appLink'])
         # aws_signin_page = aws_signin.get_signinpage(saml_data['SAMLResponse'])
-        roles = self.resolver._enumerate_saml_roles(saml_data['SAMLResponse'])
+        roles = self.resolver._enumerate_saml_roles(saml_data['SAMLResponse'], saml_data['TargetUrl'])
         aws_role = self._get_selected_role(conf_dict.get('aws_rolename'), roles)
         aws_partition = self._get_partition_from_saml_acs(saml_data['TargetUrl'])
 

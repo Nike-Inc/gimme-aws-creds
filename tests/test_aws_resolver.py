@@ -2087,7 +2087,7 @@ a#lost_device{font-size:14px;font-weight:400;font-style:normal;color:#444;line-h
     def test_enumerate_saml_roles(self):
         """Test parsing the roles from SAML assrtion & AwsSigninPage"""
         responses.add(responses.POST, 'https://signin.aws.amazon.com/saml', status=200, body=self.aws_signinpage)
-        result = self.resolver._enumerate_saml_roles(self.saml)
+        result = self.resolver._enumerate_saml_roles(self.saml, 'https://signin.aws.amazon.com/saml')
         assert_equals(result[0], self.roles[0])
         assert_equals(result[1], self.roles[1])
         assert_equals(result[2], self.roles[2])

@@ -36,7 +36,7 @@ class Config(object):
         self.conf_profile = 'DEFAULT'
         self.verify_ssl_certs = True
         self.app_url = None
-        self.resolve = True
+        self.resolve = False
 
         if os.environ.get("OKTA_USERNAME") is not None:
             self.username = os.environ.get("OKTA_USERNAME")
@@ -65,9 +65,9 @@ class Config(object):
             help='If set, the specified configuration profile will be used instead of the default.'
         )
         parser.add_argument(
-            '--noresolve', '-f',
+            '--resolve', '-r',
             action='store_true',
-            help='If set, do not perfom alias resolution.'
+            help='If set, perfom alias resolution.'
         )
         parser.add_argument(
             '--insecure', '-k',
@@ -88,8 +88,8 @@ class Config(object):
             self.verify_ssl_certs = True
         if args.username is not None:
             self.username = args.username
-        if args.noresolve is True:
-            self.resolve = False
+        if args.resolve is True:
+            self.resolve = True
         self.conf_profile = args.profile or 'DEFAULT'
 
     def get_config_dict(self):
@@ -138,7 +138,8 @@ class Config(object):
             'write_aws_creds': '',
             'cred_profile': 'role',
             'okta_username': '',
-			'app_url': ''
+			'app_url': '',
+            'resolve_aws_alias': 'n'
         }
 
         # See if a config file already exists.
@@ -166,6 +167,7 @@ class Config(object):
         config_dict['write_aws_creds'] = self._get_write_aws_creds(defaults['write_aws_creds'])
         if config_dict['gimme_creds_server'] != 'appurl':
             config_dict['aws_appname'] = self._get_aws_appname(defaults['aws_appname'])
+        config_dict['resolve_aws_alias'] = self._get_resolve_aws_alias(defaults['resolve_aws_alias'])
         config_dict['aws_rolename'] = self._get_aws_rolename(defaults['aws_rolename'])
         config_dict['okta_username'] = self._get_okta_username(defaults['okta_username'])
 
@@ -284,6 +286,27 @@ class Config(object):
                 print("Write AWS Credentials must be either y or n.")
 
         return write_aws_creds
+
+    def _get_resolve_aws_alias(self, default_entry):
+        """ Option to resolve account id to alias """
+        print("Do you want to resolve aws account id to aws alias ?"
+              "\nPlease answer y or n.")
+        resolve_aws_alias = None
+        while resolve_aws_alias is not True and resolve_aws_alias is not False:
+            default_entry = 'y' if default_entry is True else 'n'
+            answer = self._get_user_input(
+                "Resolve AWS alias", default_entry)
+            answer = answer.lower()
+
+            if answer == 'y':
+                resolve_aws_alias = True
+            elif answer == 'n':
+                resolve_aws_alias = False
+            else:
+                print("Resolve AWS alias must be either y or n.")
+
+        return resolve_aws_alias
+
 
     def _get_cred_profile(self, default_entry):
         """sets the aws credential profile name"""
