@@ -140,8 +140,8 @@ class Config(object):
             'cred_profile': 'role',
             'okta_username': '',
 			'app_url': '',
-            'resolve_aws_alias': 'n'
-            'preferred_mfa_type': '',
+            'resolve_aws_alias': 'n',
+            'preferred_mfa_type': ''
         }
 
         # See if a config file already exists.

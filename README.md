@@ -67,6 +67,7 @@ A configuration wizard will prompt you to enter the necessary configuration para
   - token:software:totp - OTP using the Okta Verify App
   - call - OTP via Voice call
   - sms - OTP via SMS message
+- resolve_aws_alias - y or n. If yes, gimme-aws-creds will try to resolve AWS account ids with respective alias names (default: n). This option can also be set interactively in the command line using `-r` or `--resolve parameter`
 
 ## Usage
 
