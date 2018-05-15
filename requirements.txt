@@ -1,6 +1,6 @@
-okta==0.0.4
-boto3==1.4.4
-beautifulsoup4==4.5.3
-configparser==3.5.0
-keyring==10.4.0
-requests==2.13.0
+okta>=0.0.4,<1.0.0
+boto3>=1.4.4,<2.0.0
+beautifulsoup4>=4.5.3,<5.0.0
+configparser>=3.5.0,<4.0.0
+keyring>=10.4.0,<11.0.0
+requests>=2.13.0,<3.0.0
