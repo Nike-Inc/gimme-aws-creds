@@ -60,6 +60,7 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - cred_profile - If writing to the AWS cred file, this sets the name of the AWS credential profile.  The reserved word 'role' will use the name component of the role arn as the profile name.  i.e. arn:aws:iam::123456789012:role/okta-1234-role becomes section [okta-1234-role] in the aws credentials file
 - aws_appname - This is optional. The Okta AWS App name, which has the role you want to assume.
 - aws_rolename - This is optional. The ARN of the role you want temporary AWS credentials for.  The reserved word 'all' can be used to get and store credentials for every role the user is permissioned for.
+- aws_default_duration = This is optional. Lifetime for temporary credentials, in seconds. Defaults to 1 hour (3600)
 - app_url - If using 'appurl' setting for gimme_creds_server, this sets the url to the aws application configured in Okta. It is typically something like https://something.okta[preview].com/home/amazon_aws/app_instance_id/something
 - okta_username - use this username to authenticate
 - preferred_mfa_type - automatically select a particular  device when prompted for MFA:
