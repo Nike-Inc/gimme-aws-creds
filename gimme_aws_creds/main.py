@@ -24,6 +24,7 @@ from collections import namedtuple
 
 # extras
 import boto3
+from botocore.exceptions import ClientError
 from okta.framework.ApiClient import ApiClient
 from okta.framework.OktaError import OktaError
 
@@ -200,7 +201,7 @@ class GimmeAWSCreds(object):
 
             # Loop through other pages
             while 'next' in result.links:
-                result = app_client.get(result.links['next']['url'])
+                result = users_client.get(result.links['next']['url'])
                 final_result = final_result + result.json()
             print("done\n")
         except OktaError as e:
@@ -240,7 +241,7 @@ class GimmeAWSCreds(object):
             return None
 
         if len(aws_info) == 1:
-            return aws_info[0];	# auto select when only 1 choice
+            return aws_info[0]	# auto select when only 1 choice
 
         app_strs = []
         for i, app in enumerate(aws_info):
@@ -447,7 +448,13 @@ class GimmeAWSCreds(object):
             if aws_role != 'all' and aws_role not in role.role:
                 continue
 
-            aws_creds = self._get_sts_creds(aws_partition, saml_data['SAMLResponse'], role.idp, role.role, config.aws_default_duration)
+            try:
+                aws_creds = self._get_sts_creds(aws_partition, saml_data['SAMLResponse'], role.idp, role.role, config.aws_default_duration)
+            except ClientError as ex:
+                if ex.response['Error']['Message'] == 'The requested DurationSeconds exceeds the MaxSessionDuration set for this role.':
+                    print("The requested session duration was too long for this role.  Falling back to 1 hour.")
+                    aws_creds = self._get_sts_creds(aws_partition, saml_data['SAMLResponse'], role.idp, role.role, 3600)
+            
             deriv_profname = re.sub('arn:aws:iam:.*/', '', role.role)
 
             # check if write_aws_creds is true if so
