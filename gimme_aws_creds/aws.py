@@ -106,8 +106,8 @@ class AwsResolver(object):
             idp, role, friendly_account_name, friendly_role_name = None, None, None, None
             role = role_item.label['for']
             idp = table[role]
-            friendly_account_name = role_item.parent.parent.parent.find("div").find("div").text
-            friendly_role_name = role_item.label.text
+            friendly_account_name = role_item.parent.parent.find("div").find("div").get_text()
+            friendly_role_name = role_item.label.get_text()
             result.append(commondef.RoleSet(idp=idp, role=role, friendly_account_name=friendly_account_name, friendly_role_name=friendly_role_name))
         return result
 
