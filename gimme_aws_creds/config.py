@@ -144,7 +144,7 @@ class Config(object):
             'okta_username': '',
 			'app_url': '',
             'resolve_aws_alias': 'n',
-            'preferred_mfa_type': ''
+            'preferred_mfa_type': '',
             'aws_default_duration': '3600'
         }
 
