@@ -17,15 +17,16 @@ import uuid
 from codecs import decode
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
-from . import version
 
 import keyring
 import requests
-from bs4 import BeautifulSoup
 from keyring.backends.fail import Keyring as FailKeyring
 from keyring.errors import PasswordDeleteError
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+from requests_html import HTML
+from urllib3.util.retry import Retry
+
+from . import version
 
 
 class OktaClient(object):
@@ -404,25 +405,30 @@ class OktaClient(object):
     def get_saml_response(self, url):
         """ return the base64 SAML value object from the SAML Response"""
         response = self._http_client.get(url, verify=self._verify_ssl_certs)
+        html_obj = HTML(html=response.text)
 
         saml_response = None
         relay_state = None
         form_action = None
 
-        saml_soup = BeautifulSoup(response.text, "html.parser")
-        if saml_soup.find('form') is not None:
-            form_action = saml_soup.find('form').get('action')
-        for inputtag in saml_soup.find_all('input'):
-            if inputtag.get('name') == 'SAMLResponse':
-                saml_response = inputtag.get('value')
-            elif inputtag.get('name') == 'RelayState':
-                relay_state = inputtag.get('value')
+        print(url)
+        form = html_obj.find('form', first=True)
+        if form:
+            form_action = form.attrs.get('action')
+
+        for intput_tag in html_obj.find('input'):
+            name = intput_tag.attrs.get('name')
+            if name == 'SAMLResponse':
+                saml_response = intput_tag.attrs.get('value')
+            elif name == 'RelayState':
+                relay_state = intput_tag.attrs.get('value')
 
         if saml_response is None:
+            title = html_obj.find('title', first=True).text
             # We didn't get a SAML response.  Were we redirected to an MFA login page?
-            if hasattr(saml_soup.title, 'string') and re.match(".* - Extra Verification$", saml_soup.title.string):
+            if isinstance(title, str) and re.match(".* - Extra Verification$", title):
                 # extract the stateToken from the Javascript code in the page and step up to MFA
-                state_token = decode(re.search(r"var stateToken = '(.*)';", response.text).group(1), "unicode-escape")
+                state_token = decode(re.search(r"var stateToken = '(.*)';", html_obj.text).group(1), "unicode-escape")
                 api_response = self.stepup_auth(url, state_token)
                 saml_response = self.get_saml_response(url + '?sessionToken=' + api_response['sessionToken'])
 
