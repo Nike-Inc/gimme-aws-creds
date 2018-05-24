@@ -27,12 +27,13 @@ import boto3
 from botocore.exceptions import ClientError
 from okta.framework.ApiClient import ApiClient
 from okta.framework.OktaError import OktaError
+from requests_html import HTMLSession
 
 # local imports
 from gimme_aws_creds.config import Config
 from gimme_aws_creds.okta import OktaClient
 
-RoleSet = namedtuple('RoleSet', 'idp, role')
+RoleSet = namedtuple('RoleSet', 'idp, role, name')
 
 
 class GimmeAWSCreds(object):
@@ -102,8 +103,7 @@ class GimmeAWSCreds(object):
         with open(self.AWS_CONFIG, 'w+') as configfile:
             config.write(configfile)
 
-    @staticmethod
-    def _enumerate_saml_roles(assertion):
+    def _enumerate_saml_roles(self, assertion):
         """ using the assertion and arns return aws sts creds """
         role_pairs = []
         root = ET.fromstring(base64.b64decode(assertion))
@@ -111,6 +111,13 @@ class GimmeAWSCreds(object):
             if saml2_attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role':
                 for saml2_attribute_value in saml2_attribute.iter('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
                     role_pairs.append(saml2_attribute_value.text)
+
+        accounts = self._enumerate_accounts(assertion)
+
+        def find_account_name(role_):
+            for name_, roles_ in accounts.items():
+                if role_ in roles_:
+                    return name_
 
         # Normalize pieces of string; order may vary per AWS sample
         result = []
@@ -123,11 +130,40 @@ class GimmeAWSCreds(object):
                     role = field
             if not idp or not role:
                 print('Parsing error on {}'.format(role_pair))
-                exit()
+                sys.exit()
             else:
-                result.append(RoleSet(idp=idp, role=role))
+                name = find_account_name(role)
+                result.append(RoleSet(idp=idp, role=role, name=name))
 
         return result
+
+    @staticmethod
+    def _enumerate_accounts(assertion):
+        session = HTMLSession()
+        result = session.post(
+            'https://signin.aws.amazon.com/saml',
+            data={'SAMLResponse': assertion}
+        )
+        fieldset = result.html.find('fieldset', first=True)
+
+        if not fieldset:
+            return {}
+
+        accounts = dict()
+
+        for div in fieldset.find('div'):
+            if not div.attrs.get('id') and \
+                    div.attrs.get('class') == ('saml-account',):
+
+                account_name = \
+                    div.search('<div class="saml-account-name">Account: {} (')[0]
+
+                accounts[account_name] = list()
+
+                for i in div.find('input'):
+                    accounts[account_name].append(i.attrs['value'])
+
+        return accounts
 
     @staticmethod
     def _get_partition_from_saml_acs(saml_acs_url):
@@ -170,7 +206,7 @@ class GimmeAWSCreds(object):
         # Throw an error if we didn't get any accounts back
         if not response.json():
             print("No AWS accounts found.")
-            exit()
+            sys.exit()
 
         return response.json()
 
@@ -189,10 +225,10 @@ class GimmeAWSCreds(object):
         except OktaError as e:
             if e.error_code == 'E0000007':
                 print("Error: " + username + " was not found!")
-                exit(1)
+                sys.exit(1)
             else:
                 print("Error: " + e.error_summary)
-                exit(1)
+                sys.exit(1)
 
         try:
             # Get first page of results
@@ -207,10 +243,10 @@ class GimmeAWSCreds(object):
         except OktaError as e:
             if e.error_code == 'E0000007':
                 print("Error: No applications found for " + username)
-                exit(1)
+                sys.exit(1)
             else:
                 print("Error: " + e.error_summary)
-                exit(1)
+                sys.exit(1)
 
         # Loop through the list of apps and filter it down to just the info we need
         app_list = []
@@ -228,7 +264,7 @@ class GimmeAWSCreds(object):
         # Throw an error if we didn't get any accounts back
         if not app_list:
             print("No AWS accounts found.")
-            exit()
+            sys.exit()
 
         return app_list
 
@@ -259,7 +295,7 @@ class GimmeAWSCreds(object):
 
         if selection is None:
             print("You made an invalid selection")
-            exit(1)
+            sys.exit(1)
 
         return aws_info[int(selection)]
 
@@ -308,7 +344,10 @@ class GimmeAWSCreds(object):
         for i, role in enumerate(roles):
             if not role:
                 continue
-            role_strs.append('[{}] {}'.format(i, role.role))
+            if role.name:
+                role_strs.append('[{}] {} ({})'.format(i, role.role, role.name))
+            else:
+                role_strs.append('[{}] {}'.format(i, role.role))
 
         if role_strs:
             print("Pick a role:")
@@ -321,7 +360,7 @@ class GimmeAWSCreds(object):
 
         if selection is None:
             print("You made an invalid selection")
-            exit(1)
+            sys.exit(1)
 
         return roles[int(selection)].role
 
@@ -351,18 +390,18 @@ class GimmeAWSCreds(object):
         # Create/Update config when configure arg set
         if config.configure is True:
             config.update_config_file()
-            exit()
+            sys.exit()
 
         # get the config dict
         conf_dict = config.get_config_dict()
 
         if not conf_dict.get('okta_org_url'):
             print('No Okta organization URL in configuration.  Try running --config again.')
-            exit(1)
+            sys.exit(1)
 
         if not conf_dict.get('gimme_creds_server'):
             print('No Gimme-Creds server URL in configuration.  Try running --config again.')
-            exit(1)
+            sys.exit(1)
 
         okta = OktaClient(conf_dict['okta_org_url'], config.verify_ssl_certs)
 
@@ -386,7 +425,7 @@ class GimmeAWSCreds(object):
             # Okta API key is required when calling Okta APIs internally
             if config.api_key is None:
                 print('OKTA_API_KEY environment variable not found!')
-                exit(1)
+                sys.exit(1)
             # Authenticate with Okta
             auth_result = okta.auth_session()
 
@@ -400,7 +439,7 @@ class GimmeAWSCreds(object):
                 config.app_url = conf_dict['app_url']
             if config.app_url is None:
                 print('app_url is not defined in your config !')
-                exit(1)
+                sys.exit(1)
 
             # Authenticate with Okta
             auth_result = okta.auth_session()
