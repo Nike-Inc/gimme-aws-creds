@@ -10,10 +10,10 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
-# For enumerating saml roles
 import base64
-# standard imports
+from collections import defaultdict
 import configparser
+import operator
 import os
 from os.path import expanduser
 import re
@@ -21,15 +21,12 @@ import sys
 import xml.etree.ElementTree as ET
 from collections import namedtuple
 
-
-# extras
 import boto3
 from botocore.exceptions import ClientError
 from okta.framework.ApiClient import ApiClient
 from okta.framework.OktaError import OktaError
 from requests_html import HTMLSession
 
-# local imports
 from gimme_aws_creds.config import Config
 from gimme_aws_creds.okta import OktaClient
 
@@ -120,7 +117,7 @@ class GimmeAWSCreds(object):
                     return name_
 
         # Normalize pieces of string; order may vary per AWS sample
-        result = []
+        results = []
         for role_pair in role_pairs:
             idp, role = None, None
             for field in role_pair.split(','):
@@ -133,9 +130,10 @@ class GimmeAWSCreds(object):
                 sys.exit()
             else:
                 name = find_account_name(role)
-                result.append(RoleSet(idp=idp, role=role, name=name))
+                results.append(RoleSet(idp=idp, role=role, name=name))
 
-        return result
+        results.sort(key=operator.attrgetter('name'))
+        return results
 
     @staticmethod
     def _enumerate_accounts(assertion):
@@ -156,7 +154,7 @@ class GimmeAWSCreds(object):
                     div.attrs.get('class') == ('saml-account',):
 
                 account_name = \
-                    div.search('<div class="saml-account-name">Account: {} (')[0]
+                    div.search('<div class="saml-account-name">{} (')[0]
 
                 accounts[account_name] = list()
 
@@ -341,18 +339,24 @@ class GimmeAWSCreds(object):
 
         # Gather the roles available to the user.
         role_strs = []
+        role_output = defaultdict(list)
         for i, role in enumerate(roles):
             if not role:
                 continue
-            if role.name:
-                role_strs.append('[{}] {} ({})'.format(i, role.role, role.name))
-            else:
-                role_strs.append('[{}] {}'.format(i, role.role))
 
-        if role_strs:
+            role_output[role.name].append(
+                '    [{}] {}'.format(i, role.role) if role.name else
+                '[{}] {}'.format(i, role.role)
+            )
+
+        # if role_strs:
+        if role_output:
             print("Pick a role:")
-            for role in role_strs:
-                print(role)
+            for account, roles_ in role_output.items():
+                if account:
+                    print(account)
+                for r in roles_:
+                    print(r)
         else:
             return None
 
