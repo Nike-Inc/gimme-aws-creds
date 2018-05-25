@@ -525,7 +525,7 @@ class OktaClient(object):
         elif factor['factorType'] == 'call':
             return factor['factorType'] + ": " + factor['profile']['phoneNumber']
         elif factor['factorType'] == 'token:software:totp':
-            return factor['factorType'] + ": " + factor['profile']['credentialId']
+            return factor['factorType'] + "( " + factor['provider'] + " ) : " + factor['profile']['credentialId']
         elif factor['factorType'] == 'token':
             return factor['factorType'] + ": " + factor['profile']['credentialId']
         else:

@@ -32,8 +32,10 @@ from okta.framework.OktaError import OktaError
 from gimme_aws_creds.config import Config
 from gimme_aws_creds.okta import OktaClient
 
-RoleSet = namedtuple('RoleSet', 'idp, role')
+from gimme_aws_creds.aws import AwsResolver
+from gimme_aws_creds.default import DefaultResolver
 
+import gimme_aws_creds.common as commondef
 
 class GimmeAWSCreds(object):
     """
@@ -60,6 +62,9 @@ class GimmeAWSCreds(object):
          --profile PROFILE, -p PROFILE
                         If set, the specified configuration profile will
                         be used instead of the default profile.
+         -r, --resolve
+                        Default does not resolve account alias
+                        If set, account alias will be resolved. 
 
         Config Options:
            okta_org_url = Okta URL
@@ -74,6 +79,7 @@ class GimmeAWSCreds(object):
     """
     FILE_ROOT = expanduser("~")
     AWS_CONFIG = FILE_ROOT + '/.aws/credentials'
+    resolver = DefaultResolver()
 
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
     def _write_aws_creds(self, profile, access_key, secret_key, token):
@@ -101,33 +107,6 @@ class GimmeAWSCreds(object):
         # Write the updated config file
         with open(self.AWS_CONFIG, 'w+') as configfile:
             config.write(configfile)
-
-    @staticmethod
-    def _enumerate_saml_roles(assertion):
-        """ using the assertion and arns return aws sts creds """
-        role_pairs = []
-        root = ET.fromstring(base64.b64decode(assertion))
-        for saml2_attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
-            if saml2_attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role':
-                for saml2_attribute_value in saml2_attribute.iter('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
-                    role_pairs.append(saml2_attribute_value.text)
-
-        # Normalize pieces of string; order may vary per AWS sample
-        result = []
-        for role_pair in role_pairs:
-            idp, role = None, None
-            for field in role_pair.split(','):
-                if 'saml-provider' in field:
-                    idp = field
-                elif 'role' in field:
-                    role = field
-            if not idp or not role:
-                print('Parsing error on {}'.format(role_pair))
-                exit()
-            else:
-                result.append(RoleSet(idp=idp, role=role))
-
-        return result
 
     @staticmethod
     def _get_partition_from_saml_acs(saml_acs_url):
@@ -304,11 +283,7 @@ class GimmeAWSCreds(object):
             return None
 
         # Gather the roles available to the user.
-        role_strs = []
-        for i, role in enumerate(roles):
-            if not role:
-                continue
-            role_strs.append('[{}] {}'.format(i, role.role))
+        role_strs = self.resolver._display_role(roles)
 
         if role_strs:
             print("Pick a role:")
@@ -365,6 +340,11 @@ class GimmeAWSCreds(object):
             exit(1)
 
         okta = OktaClient(conf_dict['okta_org_url'], config.verify_ssl_certs)
+        if config.resolve == True:
+            self.resolver = AwsResolver(config.verify_ssl_certs)
+        else:
+            if conf_dict.get('resolve_aws_alias') and str(conf_dict['resolve_aws_alias']) == 'True':
+                self.resolver = AwsResolver(config.verify_ssl_certs)
 
         if config.username is not None:
             okta.set_username(config.username)
@@ -439,7 +419,8 @@ class GimmeAWSCreds(object):
 
         aws_app = self._get_selected_app(conf_dict.get('aws_appname'), aws_results)
         saml_data = okta.get_saml_response(aws_app['links']['appLink'])
-        roles = self._enumerate_saml_roles(saml_data['SAMLResponse'])
+        # aws_signin_page = aws_signin.get_signinpage(saml_data['SAMLResponse'])
+        roles = self.resolver._enumerate_saml_roles(saml_data['SAMLResponse'], saml_data['TargetUrl'])
         aws_role = self._get_selected_role(conf_dict.get('aws_rolename'), roles)
         aws_partition = self._get_partition_from_saml_acs(saml_data['TargetUrl'])
 

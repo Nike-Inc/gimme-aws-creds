@@ -710,7 +710,7 @@ class TestOktaClient(unittest.TestCase):
     def test_build_factor_name_totp(self):
         """ Test building a display name for TOTP"""
         result = self.client._build_factor_name(self.totp_factor)
-        assert_equals(result, "token:software:totp: jane.doe@example.com")
+        assert_equals(result, "token:software:totp( OKTA ) : jane.doe@example.com")
 
     def test_build_factor_name_unknown(self):
         """ Handle an unknown MFA factor"""
