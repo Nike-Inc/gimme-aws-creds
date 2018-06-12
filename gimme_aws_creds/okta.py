@@ -51,6 +51,7 @@ class OktaClient(object):
 
         self._username = None
         self._preferred_mfa_type = None
+        self._mfa_code = None
 
         self._use_oauth_access_token = False
         self._use_oauth_id_token = False
@@ -70,6 +71,9 @@ class OktaClient(object):
     def set_preferred_mfa_type(self, preferred_mfa_type):
         self._preferred_mfa_type = preferred_mfa_type
 
+    def set_mfa_code(self, mfa_code):
+        self._mfa_code = mfa_code
+
     def use_oauth_access_token(self, val=True):
         self._use_oauth_access_token = val
 
@@ -80,9 +84,9 @@ class OktaClient(object):
         """ Login to Okta using the Step-up authentication flow"""
         flow_state = self._get_initial_flow_state(embed_link, state_token)
 
-        while flow_state['apiResponse']['status'] != 'SUCCESS':
+        while flow_state.get('apiResponse').get('status') != 'SUCCESS':
             flow_state = self._next_login_step(
-                flow_state['stateToken'], flow_state['apiResponse'])
+                flow_state.get('stateToken'), flow_state.get('apiResponse'))
 
         return flow_state['apiResponse']
 
@@ -110,9 +114,9 @@ class OktaClient(object):
         """ Login to Okta using the authentication API"""
         flow_state = self._login_username_password(None, self._okta_org_url + '/api/v1/authn')
 
-        while flow_state['apiResponse']['status'] != 'SUCCESS':
+        while flow_state.get('apiResponse').get('status') != 'SUCCESS':
             flow_state = self._next_login_step(
-                flow_state['stateToken'], flow_state['apiResponse'])
+                flow_state.get('stateToken'), flow_state.get('apiResponse'))
 
         return flow_state['apiResponse']
 
@@ -253,9 +257,12 @@ class OktaClient(object):
 
         if status == 'UNAUTHENTICATED':
             return self._login_username_password(state_token, login_data['_links']['next']['href'])
+        elif status == 'LOCKED_OUT':
+            print("Your Okta access has been locked out due to failed login attempts.")
+            exit(2)
         elif status == 'MFA_ENROLL':
             print("You must enroll in MFA before using this tool.")
-            sys.exit(2)
+            exit(2)
         elif status == 'MFA_REQUIRED':
             return self._login_multi_factor(state_token, login_data)
         elif status == 'MFA_CHALLENGE':
@@ -372,7 +379,9 @@ class OktaClient(object):
 
     def _login_input_mfa_challenge(self, state_token, next_url):
         """ Submit verification code for SMS or TOTP authentication methods"""
-        pass_code = input("Enter verification code: ")
+        pass_code = self._mfa_code;
+        if pass_code is None:
+            pass_code = input("Enter verification code: ")
         response = self._http_client.post(
             next_url,
             json={'stateToken': state_token, 'passCode': pass_code},
@@ -380,10 +389,13 @@ class OktaClient(object):
             verify=self._verify_ssl_certs
         )
         response_data = response.json()
-        if 'stateToken' in response_data:
-            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
-        if 'sessionToken' in response_data:
-            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+        if 'status' in response_data and response_data['status'] == 'SUCCESS':
+            if 'stateToken' in response_data:
+                return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+            if 'sessionToken' in response_data:
+                return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+        else:
+            return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
 
     def _check_push_result(self, state_token, login_data):
         """ Check Okta API to see if the push request has been responded to"""

@@ -49,22 +49,24 @@ class GimmeAWSCreds(object):
        --configure was ran.
 
        Usage:
-         -h, --help     show this help message and exit
-         --username USERNAME, -u USERNAME
-                        The username to use when logging into Okta. The
-                        username can also be set via the OKTA_USERNAME env
-                        variable. If not provided you will be prompted to
-                        enter a username.
-         -k, --insecure Allow connections to SSL sites without cert verification
-         -c, --configure
-                        If set, will prompt user for configuration
-                        parameters and then exit.
-         --profile PROFILE, -p PROFILE
-                        If set, the specified configuration profile will
-                        be used instead of the default profile.
-         -r, --resolve
-                        Default does not resolve account alias
-                        If set, account alias will be resolved. 
+          -h, --help            show this help message and exit
+          --username USERNAME, -u USERNAME
+                                The username to use when logging into Okta. The
+                                username can also be set via the OKTA_USERNAME env
+                                variable. If not provided you will be prompted to
+                                enter a username.
+          --configure, -c       If set, will prompt user for configuration parameters
+                                and then exit.
+          --profile PROFILE, -p PROFILE
+                                If set, the specified configuration profile will be
+                                used instead of the default.
+          --resolve, -r         If set, perfom alias resolution.
+          --insecure, -k        Allow connections to SSL sites without cert
+                                verification.
+          --mfa-code MFA_CODE   The MFA verification code to be used with SMS or TOTP
+                                authentication methods. If not provided you will be
+                                prompted to enter an MFA verification code.
+          --version             gimme-aws-creds version
 
         Config Options:
            okta_org_url = Okta URL
@@ -355,6 +357,9 @@ class GimmeAWSCreds(object):
         if conf_dict.get('preferred_mfa_type'):
             okta.set_preferred_mfa_type(conf_dict['preferred_mfa_type'])
 
+        if config.mfa_code is not None:
+            okta.set_mfa_code(config.mfa_code)
+
         # AWS Default session duration ....
         if conf_dict.get('aws_default_duration'):
             config.aws_default_duration = int(conf_dict['aws_default_duration'])
@@ -435,7 +440,7 @@ class GimmeAWSCreds(object):
                 if ex.response['Error']['Message'] == 'The requested DurationSeconds exceeds the MaxSessionDuration set for this role.':
                     print("The requested session duration was too long for this role.  Falling back to 1 hour.")
                     aws_creds = self._get_sts_creds(aws_partition, saml_data['SAMLResponse'], role.idp, role.role, 3600)
-            
+
             deriv_profname = re.sub('arn:aws:iam:.*/', '', role.role)
 
             # check if write_aws_creds is true if so
