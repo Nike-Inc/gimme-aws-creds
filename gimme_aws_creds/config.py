@@ -37,6 +37,7 @@ class Config(object):
         self.verify_ssl_certs = True
         self.app_url = None
         self.resolve = False
+        self.mfa_code = None
         self.aws_default_duration = 3600
 
         if os.environ.get("OKTA_USERNAME") is not None:
@@ -76,6 +77,11 @@ class Config(object):
             help='Allow connections to SSL sites without cert verification.'
         )
         parser.add_argument(
+            '--mfa-code',
+            help="The MFA verification code to be used with SMS or TOTP authentication methods. "
+            "If not provided you will be prompted to enter an MFA verification code."
+        )
+        parser.add_argument(
             '--version', action='version',
             version='%(prog)s {}'.format(version),
             help='gimme-aws-creds version')
@@ -89,6 +95,8 @@ class Config(object):
             self.verify_ssl_certs = True
         if args.username is not None:
             self.username = args.username
+        if args.mfa_code is not None:
+            self.mfa_code = args.mfa_code
         if args.resolve is True:
             self.resolve = True
         self.conf_profile = args.profile or 'DEFAULT'
