@@ -102,6 +102,13 @@ class AwsResolver(object):
         roles = soup.find_all("div", attrs={"class": "saml-role"})
         # Normalize pieces of string;
         result = []
+
+        if not roles:
+            role = next(iter(table))
+            idp = table[role]
+            result.append(commondef.RoleSet(idp=idp, role=role, friendly_account_name='SingleAccountName', friendly_role_name='SingleRole'))
+            return result
+
         for role_item in roles:
             idp, role, friendly_account_name, friendly_role_name = None, None, None, None
             role = role_item.label['for']
