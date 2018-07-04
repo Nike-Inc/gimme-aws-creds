@@ -103,6 +103,7 @@ class AwsResolver(object):
         # Normalize pieces of string;
         result = []
 
+        # Return role if no Roles are present
         if not roles:
             role = next(iter(table))
             idp = table[role]
