@@ -284,6 +284,12 @@ class GimmeAWSCreds(object):
         if not roles:
             return None
 
+        # Check if only one role exists and return that role
+        if len(roles) == 1:
+            single_role = roles[0].role
+            print(f"Detected single role: {single_role}")
+            return single_role
+
         # Gather the roles available to the user.
         role_strs = self.resolver._display_role(roles)
 
