@@ -378,7 +378,6 @@ class OktaClient(object):
         )
         print("Challenge with U2F key ...")
         response_data = response.json()
-        print("nonce fetched ...")
 
         if 'stateToken' in response_data:
             return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
