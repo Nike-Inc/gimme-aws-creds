@@ -18,6 +18,7 @@ from codecs import decode
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 from . import version
+import base64
 
 import keyring
 import requests
@@ -27,6 +28,8 @@ from keyring.errors import PasswordDeleteError
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
+from pyu2f import model
+from pyu2f.convenience import authenticator
 
 class OktaClient(object):
     """
@@ -266,6 +269,8 @@ class OktaClient(object):
         elif status == 'MFA_REQUIRED':
             return self._login_multi_factor(state_token, login_data)
         elif status == 'MFA_CHALLENGE':
+            if login_data['_embedded']['factor']['factorType'] == 'u2f':
+                return self._check_u2f_result(state_token, login_data)
             if 'factorResult' in login_data and login_data['factorResult'] == 'WAITING':
                 return self._check_push_result(state_token, login_data)
             else:
@@ -363,6 +368,23 @@ class OktaClient(object):
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
+    def _login_input_u2f_challenge(self, state_token, factor):
+        """ Retrieve nonce """
+        response = self._http_client.post(
+            factor['_links']['verify']['href'],
+            json={'stateToken': state_token},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+        print("Challenge with U2F key ...")
+        response_data = response.json()
+        print("nonce fetched ...")
+
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+
     def _login_multi_factor(self, state_token, login_data):
         """ handle multi-factor authentication with Okta"""
         factor = self._choose_factor(login_data['_embedded']['factors'])
@@ -376,6 +398,8 @@ class OktaClient(object):
             return self._login_input_mfa_challenge(state_token, factor['_links']['verify']['href'])
         elif factor['factorType'] == 'push':
             return self._login_send_push(state_token, factor)
+        elif factor['factorType'] == 'u2f':
+            return self._login_input_u2f_challenge(state_token, factor)
 
     def _login_input_mfa_challenge(self, state_token, next_url):
         """ Submit verification code for SMS or TOTP authentication methods"""
@@ -403,6 +427,35 @@ class OktaClient(object):
         response = self._http_client.post(
             login_data['_links']['next']['href'],
             json={'stateToken': state_token},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+
+        response_data = response.json()
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+
+    def _check_u2f_result(self, state_token, login_data):
+        """ Check wait push u2f button and post response """
+        nonce = login_data['_embedded']['factor']['_embedded']['challenge']['nonce'];
+        credentialId = login_data['_embedded']['factor']['profile']['credentialId'];
+        appId = login_data['_embedded']['factor']['profile']['appId'];
+        version = login_data['_embedded']['factor']['profile']['version'];
+
+        """ Call to U2F I/O """
+        registred_key = model.RegisteredKey(base64.urlsafe_b64decode(credentialId));
+        challenge_data = [{'key': registred_key, 'challenge': base64.urlsafe_b64decode(nonce)}];
+        api = authenticator.CreateCompositeAuthenticator(appId);
+        response = api.Authenticate(appId, challenge_data);
+
+        signatureData = response['signatureData']
+        clientData = response['clientData']
+
+        response = self._http_client.post(
+            login_data['_links']['next']['href'],
+            json={'stateToken': state_token, 'clientData': clientData, 'signatureData': signatureData},
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
@@ -540,6 +593,8 @@ class OktaClient(object):
             return factor['factorType'] + "( " + factor['provider'] + " ) : " + factor['profile']['credentialId']
         elif factor['factorType'] == 'token':
             return factor['factorType'] + ": " + factor['profile']['credentialId']
+        elif factor['factorType'] == 'u2f':
+            return factor['factorType'] + ": " + factor['factorType']
         else:
             print("Unknown MFA type: " + factor['factorType'])
             return ""
