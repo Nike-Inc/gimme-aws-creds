@@ -14,7 +14,7 @@ import re
 import sys
 import time
 import uuid
-import logging
+
 from codecs import decode
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
@@ -359,15 +359,9 @@ class OktaClient(object):
 
     def _login_saml(self, state_token, url, saml_token):
         """ login to Okta with a saml token"""
-
         login_json = {
             'SAMLResponse': saml_token
         }
-        #logging.basicConfig()
-        #logging.getLogger().setLevel(logging.DEBUG)
-        #requests_log = logging.getLogger("requests.packages.urllib3")
-        #requests_log.setLevel(logging.DEBUG)
-        #requests_log.propagate = True
 
         response = self._http_client.post(
             url,
@@ -379,18 +373,6 @@ class OktaClient(object):
 
         response_data = self.get_hs_stateToken(response)
 
-        #print(response)
-        #logging.debug("Request: %s %s %s %s", response.request.method, response.request.url, response.request.headers, response.request.body)
-        #logging.debug("Request: %s", response.headers)
-        #print(state_token)
-        #response_data = response.json()
-        #if 'errorCode' in response_data:
-        #    print("LOGIN ERROR: {} | Error Code: {}".format(response_data['errorSummary'], response_data['errorCode']))
-        #    exit(2)
-
-        #func_result = {'apiResponse': response_data}
-        #if 'stateToken' in response_data:
-        #    func_result['stateToken'] = response_data['stateToken']
         func_result = {'apiResponse': response_data}
         if 'stateToken' in response_data:
             func_result['stateToken'] = response_data['stateToken']
