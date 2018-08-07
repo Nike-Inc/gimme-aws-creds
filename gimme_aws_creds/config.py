@@ -36,6 +36,7 @@ class Config(object):
         self.conf_profile = 'DEFAULT'
         self.verify_ssl_certs = True
         self.app_url = None
+        self.app_relay_state = None
         self.resolve = False
         self.mfa_code = None
         self.aws_default_duration = 3600
@@ -151,6 +152,7 @@ class Config(object):
             'cred_profile': 'role',
             'okta_username': '',
 			'app_url': '',
+            'app_relay_state': '',
             'resolve_aws_alias': 'n',
             'preferred_mfa_type': '',
             'aws_default_duration': '3600'
@@ -186,6 +188,7 @@ class Config(object):
         config_dict['okta_username'] = self._get_okta_username(defaults['okta_username'])
         config_dict['aws_default_duration'] = self._get_aws_default_duration(defaults['aws_default_duration'])
         config_dict['preferred_mfa_type'] = self._get_preferred_mfa_type(defaults['preferred_mfa_type'])
+        config_dict['app_relay_state'] = self._get_apprelaystate_entry(defaults['app_relay_state'])
 
         # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
@@ -258,6 +261,25 @@ class Config(object):
         self._app_url = app_url
 
         return app_url
+
+    def _get_apprelaystate_entry(self, default_entry):
+        """ Get and validate app_relay_state """
+        print("Enter the application relaystate if applicable.")
+        okta_org_url_valid = False
+        app_relay_state = default_entry
+
+        while okta_org_url_valid is False:
+            app_relay_state = self._get_user_input("Application relay state", default_entry)
+            url_parse_results = urlparse(app_relay_state)
+
+            if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" or "okta-emea.com" in app_relay_state:
+                okta_org_url_valid = True
+            else:
+                print("Okta organization URL must be HTTPS URL for okta.com or oktapreview.com or okta-emea.com domain")
+
+        self._app_relay_state = app_relay_state
+
+        return app_relay_state
 
     def _get_gimme_creds_server_entry(self, default_entry):
         """ Get gimme_creds_server """
