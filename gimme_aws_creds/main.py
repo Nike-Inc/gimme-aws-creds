@@ -119,6 +119,12 @@ class GimmeAWSCreds(object):
             return 'aws-cn'
         elif saml_acs_url == 'https://signin.amazonaws-us-gov.com/saml':
             return 'aws-us-gov'
+        elif '.okta-emea.com' in saml_acs_url:
+            return 'okta-idp'
+        elif '.okta.com' in saml_acs_url:
+            return 'okta-idp'
+        elif '.oktapreview.com' in saml_acs_url:
+            return 'okta-idp'
         else:
             print("{} is an unknown ACS URL".format(saml_acs_url))
             sys.exit(1)
@@ -430,10 +436,20 @@ class GimmeAWSCreds(object):
 
         aws_app = self._get_selected_app(conf_dict.get('aws_appname'), aws_results)
         saml_data = okta.get_saml_response(aws_app['links']['appLink'])
+
+        # hook for h&s model (we should have at this step saml token for inbound target IDP)
+        # we need to athenticate again & perform a stepup authN if necessary
+        aws_partition = self._get_partition_from_saml_acs(saml_data['TargetUrl'])
+        if aws_partition == 'okta-idp':
+            # inbound
+            auth_result = okta.auth_saml(saml_data)
+            saml_data = okta.get_saml_response(conf_dict.get('app_relay_state'))
+            #saml_data = okta.get_saml_response('https://engie.okta-emea.com/home/amazon_aws/0oani4u2hsqPvsK1V0i6/272')
+            aws_partition = self._get_partition_from_saml_acs(saml_data['TargetUrl'])
+
         # aws_signin_page = aws_signin.get_signinpage(saml_data['SAMLResponse'])
         roles = self.resolver._enumerate_saml_roles(saml_data['SAMLResponse'], saml_data['TargetUrl'])
         aws_role = self._get_selected_role(conf_dict.get('aws_rolename'), roles)
-        aws_partition = self._get_partition_from_saml_acs(saml_data['TargetUrl'])
 
         for _, role in enumerate(roles):
             # Skip irrelevant roles

@@ -14,6 +14,7 @@ import re
 import sys
 import time
 import uuid
+
 from codecs import decode
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
@@ -123,9 +124,45 @@ class OktaClient(object):
 
         return flow_state['apiResponse']
 
+    def auth_inbound(self, saml_data):
+        """ Login to Okta using saml data"""
+        flow_state = self._login_saml(None, saml_data['TargetUrl'], saml_data['SAMLResponse'])
+
+        while flow_state.get('apiResponse').get('status') != 'SUCCESS':
+            flow_state = self._next_login_step(
+                flow_state.get('stateToken'), flow_state.get('apiResponse'))
+
+        return flow_state['apiResponse']
+
     def auth_session(self, **kwargs):
         """ Authenticate the user and return the Okta Session ID and username"""
         login_response = self.auth()
+
+        session_url = self._okta_org_url + '/login/sessionCookieRedirect'
+
+        if 'redirect_uri' not in kwargs:
+            redirect_uri = 'http://localhost:8080/login'
+        else:
+            redirect_uri = kwargs['redirect_uri']
+
+        params = {
+            'token': login_response['sessionToken'],
+            'redirectUrl': redirect_uri
+        }
+
+        response = self._http_client.get(
+            session_url,
+            params=params,
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs,
+            allow_redirects=False
+        )
+
+        return {"username": login_response['_embedded']['user']['profile']['login'], "session": response.cookies['sid']}
+
+    def auth_saml(self, saml_data, **kwargs):
+        """ Authenticate the user with a saml token and return the Okta Session ID and username"""
+        login_response = self.auth_inbound(saml_data)
 
         session_url = self._okta_org_url + '/login/sessionCookieRedirect'
 
@@ -234,6 +271,14 @@ class OktaClient(object):
             'Content-Type': 'application/json'}
         return headers
 
+    @staticmethod
+    def _get_headers_urlencoded():
+        """sets the default headers"""
+        headers = {
+            'User-Agent': "gimme-aws-creds {}".format(version),
+            'Content-Type': 'application/x-www-form-urlencoded'}
+        return headers
+
     def _get_initial_flow_state(self, embed_link, state_token=None):
         """ Starts the authentication flow with Okta"""
         if state_token is None:
@@ -309,6 +354,28 @@ class OktaClient(object):
                     pass
 
             exit(2)
+
+        func_result = {'apiResponse': response_data}
+        if 'stateToken' in response_data:
+            func_result['stateToken'] = response_data['stateToken']
+
+        return func_result
+
+    def _login_saml(self, state_token, url, saml_token):
+        """ login to Okta with a saml token"""
+        login_json = {
+            'SAMLResponse': saml_token
+        }
+
+        response = self._http_client.post(
+            url,
+            data=login_json,
+            headers=self._get_headers_urlencoded(),
+            verify=self._verify_ssl_certs,
+            allow_redirects=True
+        )
+
+        response_data = self.get_hs_stateToken(response)
 
         func_result = {'apiResponse': response_data}
         if 'stateToken' in response_data:
@@ -464,6 +531,23 @@ class OktaClient(object):
             return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+
+
+    def get_hs_stateToken(self, response):
+        # to test with user without MFA
+        state_token = None
+        saml_soup = BeautifulSoup(response.text, "html.parser")
+        # extract the stateToken from the Javascript code in the page and step up to MFA
+        if hasattr(saml_soup.title, 'string') and re.match(".* - Extra Verification$", saml_soup.title.string):
+            # extract the stateToken from the Javascript code in the page and step up to MFA
+            state_token = decode(re.search(r"var stateToken = '(.*)';", response.text).group(1), "unicode-escape")
+            api_response = self.stepup_auth(None, state_token)
+            return api_response
+
+        #state_token = decode(re.search(r"var stateToken = '(.*)';", response.text).group(1), "unicode-escape")
+        #api_response = self.stepup_auth(None, state_token)
+        #print(api_response['sessionToken'])
+        return api_response; #TODO
 
     def get_saml_response(self, url):
         """ return the base64 SAML value object from the SAML Response"""
