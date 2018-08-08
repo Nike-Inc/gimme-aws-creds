@@ -514,12 +514,24 @@ class OktaClient(object):
         credentialId = self._correct_padding(login_data['_embedded']['factor']['profile']['credentialId']);
         appId = login_data['_embedded']['factor']['profile']['appId'];
         version = login_data['_embedded']['factor']['profile']['version'];
+        response = {}
 
         """ Call to U2F I/O """
         registred_key = model.RegisteredKey(base64.urlsafe_b64decode(credentialId));
         challenge_data = [{'key': registred_key, 'challenge': base64.urlsafe_b64decode(nonce)}];
-        api = authenticator.CreateCompositeAuthenticator(appId);
-        response = api.Authenticate(appId, challenge_data);
+        nbTry = 3 # plugged U2F may not match the one enrolled, give 3 retries
+        while nbTry>0:
+            try:
+                api = authenticator.CreateCompositeAuthenticator(appId);
+                response = api.Authenticate(appId, challenge_data);
+                nbTry=0
+            except:
+                nbTry-=1
+                if nbTry > 0:
+                    print('No U2F device found or did not match enrolled key. \n')
+                    input('Insert U2F key and press a key...')
+                else:
+                    response = {'signatureData': 'fake', 'clientData': 'fake'}
 
         signatureData = response['signatureData']
         clientData = response['clientData']
@@ -532,10 +544,14 @@ class OktaClient(object):
         )
 
         response_data = response.json()
-        if 'stateToken' in response_data:
-            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
-        if 'sessionToken' in response_data:
-            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+        if 'status' in response_data and response_data['status'] == 'SUCCESS':
+            if 'stateToken' in response_data:
+                return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+            if 'sessionToken' in response_data:
+                return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+        else:
+            return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
+
 
 
     def get_hs_stateToken(self, response):
