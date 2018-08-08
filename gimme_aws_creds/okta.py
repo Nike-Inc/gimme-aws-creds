@@ -503,10 +503,15 @@ class OktaClient(object):
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
+    def _correct_padding(self, data):
+        if len(data) % 4:
+            data +=	'=' * (4- len(data) % 4)
+        return data
+		
     def _check_u2f_result(self, state_token, login_data):
         """ Check wait push u2f button and post response """
-        nonce = login_data['_embedded']['factor']['_embedded']['challenge']['nonce'];
-        credentialId = login_data['_embedded']['factor']['profile']['credentialId'];
+        nonce = self._correct_padding(login_data['_embedded']['factor']['_embedded']['challenge']['nonce']);
+        credentialId = self._correct_padding(login_data['_embedded']['factor']['profile']['credentialId']);
         appId = login_data['_embedded']['factor']['profile']['appId'];
         version = login_data['_embedded']['factor']['profile']['version'];
 
