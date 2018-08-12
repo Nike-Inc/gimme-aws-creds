@@ -14,6 +14,9 @@ import re
 import sys
 import time
 import uuid
+import random
+import base64
+import hashlib
 from codecs import decode
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
@@ -38,7 +41,7 @@ class OktaClient(object):
     KEYRING_SERVICE = 'gimme-aws-creds'
     KEYRING_ENABLED = not isinstance(keyring.get_keyring(), FailKeyring)
 
-    def __init__(self, okta_org_url, verify_ssl_certs=True):
+    def __init__(self, okta_org_url, verify_ssl_certs=True, device_token=None):
         """
         :param okta_org_url: Base URL string for Okta IDP.
         :param verify_ssl_certs: Enable/disable SSL verification
@@ -58,9 +61,16 @@ class OktaClient(object):
         self._oauth_access_token = None
         self._oauth_id_token = None
 
+        jar = requests.cookies.RequestsCookieJar()
+
+        if device_token is not None:
+            match = re.search('^https://(.*)', okta_org_url)
+            jar.set('DT', device_token, domain=match.group(1), path='/')
 
         # Allow up to 5 retries on requests to Okta in case we have network issues
         self._http_client = requests.Session()
+        self._http_client.cookies = jar
+
         retries = Retry(total=5, backoff_factor=1,
                         method_whitelist=['GET', 'POST'])
         self._http_client.mount('https://', HTTPAdapter(max_retries=retries))
@@ -107,7 +117,6 @@ class OktaClient(object):
             data=saml_response,
             verify=self._verify_ssl_certs
         )
-
         return login_result.text
 
     def auth(self):
@@ -143,8 +152,7 @@ class OktaClient(object):
             verify=self._verify_ssl_certs,
             allow_redirects=False
         )
-
-        return {"username": login_response['_embedded']['user']['profile']['login'], "session": response.cookies['sid']}
+        return {"username": login_response['_embedded']['user']['profile']['login'], "session": response.cookies['sid'], "device_token": self._http_client.cookies['DT']}
 
     def auth_oauth(self, client_id, **kwargs):
         """ Login to Okta and retrieve access token, ID token or both """
@@ -250,7 +258,7 @@ class OktaClient(object):
     def _next_login_step(self, state_token, login_data):
         """ decide what the next step in the login process is"""
         if 'errorCode' in login_data:
-            print("LOGIN ERROR: {} | Error Code: {}".format(login_data['errorSummary'], login_data['errorCode']))
+            print("LOGIN ERROR: {} | Error Code: {}".format(login_data['errorSummary'], login_data['errorCode']), file=sys.stderr)
             exit(2)
 
         status = login_data['status']
@@ -258,10 +266,10 @@ class OktaClient(object):
         if status == 'UNAUTHENTICATED':
             return self._login_username_password(state_token, login_data['_links']['next']['href'])
         elif status == 'LOCKED_OUT':
-            print("Your Okta access has been locked out due to failed login attempts.")
+            print("Your Okta access has been locked out due to failed login attempts.", file=sys.stderr)
             exit(2)
         elif status == 'MFA_ENROLL':
-            print("You must enroll in MFA before using this tool.")
+            print("You must enroll in MFA before using this tool.", file=sys.stderr)
             exit(2)
         elif status == 'MFA_REQUIRED':
             return self._login_multi_factor(state_token, login_data)
@@ -295,7 +303,7 @@ class OktaClient(object):
 
         response_data = response.json()
         if 'errorCode' in response_data:
-            print("LOGIN ERROR: {} | Error Code: {}".format(response_data['errorSummary'], response_data['errorCode']))
+            print("LOGIN ERROR: {} | Error Code: {}".format(response_data['errorSummary'], response_data['errorCode']), file=sys.stderr)
 
             if self.KEYRING_ENABLED:
                 try:
@@ -320,7 +328,7 @@ class OktaClient(object):
             verify=self._verify_ssl_certs
         )
 
-        print("A verification code has been sent to " + factor['profile']['phoneNumber'])
+        print("A verification code has been sent to " + factor['profile']['phoneNumber'], file=sys.stderr)
         response_data = response.json()
 
         if 'stateToken' in response_data:
@@ -337,7 +345,7 @@ class OktaClient(object):
             verify=self._verify_ssl_certs
         )
 
-        print("You should soon receive a phone call at " + factor['profile']['phoneNumber'])
+        print("You should soon receive a phone call at " + factor['profile']['phoneNumber'], file=sys.stderr)
         response_data = response.json()
 
         if 'stateToken' in response_data:
@@ -355,7 +363,7 @@ class OktaClient(object):
             verify=self._verify_ssl_certs
         )
 
-        print("Okta Verify push sent...")
+        print("Okta Verify push sent...", file=sys.stderr)
         response_data = response.json()
 
         if 'stateToken' in response_data:
@@ -388,6 +396,7 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
+
         response_data = response.json()
         if 'status' in response_data and response_data['status'] == 'SUCCESS':
             if 'stateToken' in response_data:
@@ -501,7 +510,7 @@ class OktaClient(object):
         """ gets a list of available authentication factors and
         asks the user to select the factor they want to use """
 
-        print("Multi-factor Authentication required.")
+        print("Multi-factor Authentication required.", file=sys.stderr)
 
         # filter the factor list down to just the types specified in preferred_mfa_type
         if self._preferred_mfa_type is not None:
@@ -509,20 +518,20 @@ class OktaClient(object):
 
         if len(factors) == 1:
             factor_name = self._build_factor_name(factors[0])
-            print(factor_name, 'selected')
+            print(factor_name, 'selected', file=sys.stderr)
             selection = 0
         else:
-            print("Pick a factor:")
+            print("Pick a factor:", file=sys.stderr)
             # print out the factors and let the user select
             for i, factor in enumerate(factors):
                 factor_name = self._build_factor_name(factor)
                 if factor_name is not "":
-                    print('[', i, ']', factor_name)
+                    print('[', i, ']', factor_name, file=sys.stderr)
             selection = input("Selection: ")
 
         # make sure the choice is valid
         if int(selection) > len(factors):
-            print("You made an invalid selection")
+            print("You made an invalid selection", file=sys.stderr)
             exit(1)
 
         return factors[int(selection)]
@@ -541,8 +550,7 @@ class OktaClient(object):
         elif factor['factorType'] == 'token':
             return factor['factorType'] + ": " + factor['profile']['credentialId']
         else:
-            print("Unknown MFA type: " + factor['factorType'])
-            return ""
+            return ("Unknown MFA type: " + factor['factorType'])
 
     def _get_username_password_creds(self):
         """Get's creds for Okta login from the user."""
@@ -561,9 +569,9 @@ class OktaClient(object):
             try:
                 # If the OS supports a keyring, offer to save the password
                 password = keyring.get_password(self.KEYRING_SERVICE, username)
-                print("Using password from keyring for {}".format(username))
+                print("Using password from keyring for {}".format(username), file=sys.stderr)
             except RuntimeError:
-                print("Unable to get password from keyring.")
+                print("Unable to get password from keyring.", file=sys.stderr)
         if not password:
             # Set prompt to include the user name, since username could be set
             # via OKTA_USERNAME env and user might not remember.
@@ -578,12 +586,12 @@ class OktaClient(object):
                 if input("Do you want to save this password in the keyring? (y/n)") == 'y':
                     try:
                         keyring.set_password(self.KEYRING_SERVICE, username, password)
-                        print("Password for {} saved in keyring.".format(username))
+                        print("Password for {} saved in keyring.".format(username), file=sys.stderr)
                     except RuntimeError as err:
-                        print("Failed to save password in keyring: ", err)
+                        print("Failed to save password in keyring: ", err, file=sys.stderr)
 
         if not password:
-            print('Password was not provided. Exiting.')
+            print('Password was not provided. Exiting.', file=sys.stderr)
             exit(1)
 
         return {'username': username, 'password': password}

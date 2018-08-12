@@ -57,7 +57,7 @@ class DefaultResolver(object):
                 elif 'role' in field:
                     role = field
             if not idp or not role:
-                print('Parsing error on {}'.format(role_pair))
+                print('Parsing error on {}'.format(role_pair), file=sys.stderr)
                 exit()
             else:
                 result.append(commondef.RoleSet(idp=idp, role=role, friendly_account_name="", friendly_role_name=""))

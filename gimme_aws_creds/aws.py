@@ -90,7 +90,7 @@ class AwsResolver(object):
                 elif 'role' in field:
                     role = field
             if not idp or not role:
-                print('Parsing error on {}'.format(role_pair))
+                print('Parsing error on {}'.format(role_pair), file=sys.stderr)
                 exit()
             else:
                 table[role] = idp
