@@ -287,7 +287,7 @@ class GimmeAWSCreds(object):
         # Check if only one role exists and return that role
         if len(roles) == 1:
             single_role = roles[0].role
-            print(f"Detected single role: {single_role}")
+            print("Detected single role: {}".format(single_role))
             return single_role
 
         # Gather the roles available to the user.
@@ -347,7 +347,14 @@ class GimmeAWSCreds(object):
             print('No Gimme-Creds server URL in configuration.  Try running --config again.')
             exit(1)
 
-        okta = OktaClient(conf_dict['okta_org_url'], config.verify_ssl_certs)
+        if config.register_device is True:
+            conf_dict['device_token'] = None
+        else:
+            if not conf_dict.get('device_token'):
+                print('No device token in configuration.  Try running --register_device again.')
+                exit(1)            
+
+        okta = OktaClient(conf_dict['okta_org_url'], config.verify_ssl_certs, conf_dict['device_token'])
         if config.resolve == True:
             self.resolver = AwsResolver(config.verify_ssl_certs)
         else:
@@ -371,69 +378,71 @@ class GimmeAWSCreds(object):
             config.aws_default_duration = int(conf_dict['aws_default_duration'])
         else:
             config.aws_default_duration = 3600
-
-        # Call the Okta APIs and proces data locally
-        if conf_dict.get('gimme_creds_server') == 'internal':
-            # Okta API key is required when calling Okta APIs internally
-            if config.api_key is None:
-                print('OKTA_API_KEY environment variable not found!')
-                exit(1)
-            # Authenticate with Okta
+        
+        # Capture the Device Token and write it to the config file
+        if config.register_device is True:
             auth_result = okta.auth_session()
-
-            print("Authentication Success! Getting AWS Accounts")
-            aws_results = self._get_aws_account_info(conf_dict['okta_org_url'], config.api_key, auth_result['username'])
-
-        elif conf_dict.get('gimme_creds_server') == 'appurl':
-            # bypass lambda & API call
-            # Apps url is required when calling with appurl
-            if conf_dict.get('app_url'):
-                config.app_url = conf_dict['app_url']
-            if config.app_url is None:
-                print('app_url is not defined in your config !')
-                exit(1)
-
-            # Authenticate with Okta
-            auth_result = okta.auth_session()
-            print("Authentication Success! Getting AWS Accounts")
-
-            # build app list
-            aws_results = []
-            newAppEntry = {}
-            newAppEntry['id'] = "fakeid"  # not used anyway
-            newAppEntry['name'] = "fakelabel" #not used anyway
-            newAppEntry['links'] = {}
-            newAppEntry['links']['appLink'] = config.app_url
-            aws_results.append(newAppEntry)
-
-        # Use the gimme_creds_lambda service
+            conf_dict['device_token'] = auth_result['device_token']
+            config.write_config_file(conf_dict)
+            print('Device token saved!')
+            sys.exit()
         else:
-            if not conf_dict.get('client_id'):
-                print('No OAuth Client ID in configuration.  Try running --config again.')
-            if not conf_dict.get('okta_auth_server'):
-                print('No OAuth Authorization server in configuration.  Try running --config again.')
+            
+            # Call the Okta APIs and proces data locally
+            if conf_dict.get('gimme_creds_server') == 'internal':
+                # Okta API key is required when calling Okta APIs internally
+                if config.api_key is None:
+                    print('OKTA_API_KEY environment variable not found!')
+                    exit(1)
+                auth_result = okta.auth_session()
+                aws_results = self._get_aws_account_info(conf_dict['okta_org_url'], config.api_key, auth_result['username'])
 
-            # Authenticate with Okta and get an OAuth access token
-            okta.auth_oauth(
-                conf_dict['client_id'],
-                authorization_server=conf_dict['okta_auth_server'],
-                access_token=True,
-                id_token=False,
-                scopes=['openid']
-            )
+            elif conf_dict.get('gimme_creds_server') == 'appurl':
+                auth_result = okta.auth_session()
+                # bypass lambda & API call
+                # Apps url is required when calling with appurl
+                if conf_dict.get('app_url'):
+                    config.app_url = conf_dict['app_url']
+                if config.app_url is None:
+                    print('app_url is not defined in your config !')
+                    exit(1)
 
-            # Add Access Tokens to Okta-protected requests
-            okta.use_oauth_access_token(True)
+                # build app list
+                aws_results = []
+                newAppEntry = {}
+                newAppEntry['id'] = "fakeid"  # not used anyway
+                newAppEntry['name'] = "fakelabel" #not used anyway
+                newAppEntry['links'] = {}
+                newAppEntry['links']['appLink'] = config.app_url
+                aws_results.append(newAppEntry)
 
-            print("Authentication Success! Calling Gimme-Creds Server...")
-            aws_results = self._call_gimme_creds_server(okta, conf_dict['gimme_creds_server'])
+            # Use the gimme_creds_lambda service
+            else:
+                if not conf_dict.get('client_id'):
+                    print('No OAuth Client ID in configuration.  Try running --config again.')
+                if not conf_dict.get('okta_auth_server'):
+                    print('No OAuth Authorization server in configuration.  Try running --config again.')
 
-        aws_app = self._get_selected_app(conf_dict.get('aws_appname'), aws_results)
-        saml_data = okta.get_saml_response(aws_app['links']['appLink'])
-        # aws_signin_page = aws_signin.get_signinpage(saml_data['SAMLResponse'])
-        roles = self.resolver._enumerate_saml_roles(saml_data['SAMLResponse'], saml_data['TargetUrl'])
-        aws_role = self._get_selected_role(conf_dict.get('aws_rolename'), roles)
-        aws_partition = self._get_partition_from_saml_acs(saml_data['TargetUrl'])
+                # Authenticate with Okta and get an OAuth access token
+                okta.auth_oauth(
+                    conf_dict['client_id'],
+                    authorization_server=conf_dict['okta_auth_server'],
+                    access_token=True,
+                    id_token=False,
+                    scopes=['openid']
+                )
+
+                # Add Access Tokens to Okta-protected requests
+                okta.use_oauth_access_token(True)
+
+                print("Authentication Success! Calling Gimme-Creds Server...")
+                aws_results = self._call_gimme_creds_server(okta, conf_dict['gimme_creds_server'])
+
+            aws_app = self._get_selected_app(conf_dict.get('aws_appname'), aws_results)
+            saml_data = okta.get_saml_response(aws_app['links']['appLink'])
+            roles = self.resolver._enumerate_saml_roles(saml_data['SAMLResponse'], saml_data['TargetUrl'])
+            aws_role = self._get_selected_role(conf_dict.get('aws_rolename'), roles)
+            aws_partition = self._get_partition_from_saml_acs(saml_data['TargetUrl'])
 
         for _, role in enumerate(roles):
             # Skip irrelevant roles

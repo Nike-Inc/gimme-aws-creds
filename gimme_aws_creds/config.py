@@ -31,6 +31,7 @@ class Config(object):
 
     def __init__(self):
         self.configure = False
+        self.register_device = False
         self.username = None
         self.api_key = None
         self.conf_profile = 'DEFAULT'
@@ -39,6 +40,7 @@ class Config(object):
         self.resolve = False
         self.mfa_code = None
         self.aws_default_duration = 3600
+        self.device_token = None
 
         if os.environ.get("OKTA_USERNAME") is not None:
             self.username = os.environ.get("OKTA_USERNAME")
@@ -61,6 +63,11 @@ class Config(object):
             '--configure', '-c',
             action='store_true',
             help="If set, will prompt user for configuration parameters and then exit."
+        )
+        parser.add_argument(
+            '--register_device',
+            action='store_true',
+            help='Download a device token from Okta and add it to the configuration file.'
         )
         parser.add_argument(
             '--profile', '-p',
@@ -88,6 +95,7 @@ class Config(object):
         args = parser.parse_args()
 
         self.configure = args.configure
+        self.register_device = args.register_device
         if args.insecure is True:
             print("Warning: SSL certificate validation is disabled!")
             self.verify_ssl_certs = False
@@ -153,7 +161,8 @@ class Config(object):
 			'app_url': '',
             'resolve_aws_alias': 'n',
             'preferred_mfa_type': '',
-            'aws_default_duration': '3600'
+            'aws_default_duration': '3600',
+            'device_token': ''
         }
 
         # See if a config file already exists.
@@ -194,7 +203,10 @@ class Config(object):
         else:
             config_dict['cred_profile'] = defaults['cred_profile']
 
-        # Set default config
+        self.write_config_file(config_dict)
+    
+    def write_config_file(self, config_dict):
+        config = configparser.ConfigParser()
         config[self.conf_profile] = config_dict
 
         # write out the conf file
