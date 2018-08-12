@@ -550,8 +550,7 @@ class OktaClient(object):
         elif factor['factorType'] == 'token':
             return factor['factorType'] + ": " + factor['profile']['credentialId']
         else:
-            print("Unknown MFA type: " + factor['factorType'], file=sys.stderr)
-            return ""
+            return ("Unknown MFA type: " + factor['factorType'])
 
     def _get_username_password_creds(self):
         """Get's creds for Okta login from the user."""
