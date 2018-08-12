@@ -1,2 +1,2 @@
 __all__ = ['config', 'okta', 'main']
-version = '1.0.13'
+version = '1.1.0'
