@@ -456,7 +456,8 @@ class GimmeAWSCreds(object):
                     print("The requested session duration was too long for this role.  Falling back to 1 hour.", file=sys.stderr)
                     aws_creds = self._get_sts_creds(aws_partition, saml_data['SAMLResponse'], role.idp, role.role, 3600)
 
-            deriv_profname = re.sub('arn:aws:iam:.*/', '', role.role)
+            #TODO: Make this regex work for GovCloud ARNs too
+            deriv_profname = re.sub('arn:(aws|aws-cn):iam:.*/', '', role.role)
 
             # check if write_aws_creds is true if so
             # get the profile name and write out the file
