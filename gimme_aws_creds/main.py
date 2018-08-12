@@ -150,7 +150,7 @@ class GimmeAWSCreds(object):
 
         # Throw an error if we didn't get any accounts back
         if not response.json():
-            print("No AWS accounts found.")
+            print("No AWS accounts found.", file=sys.stderr)
             exit()
 
         return response.json()
@@ -169,10 +169,10 @@ class GimmeAWSCreds(object):
             user = result.json()
         except OktaError as e:
             if e.error_code == 'E0000007':
-                print("Error: " + username + " was not found!")
+                print("Error: " + username + " was not found!", file=sys.stderr)
                 exit(1)
             else:
-                print("Error: " + e.error_summary)
+                print("Error: " + e.error_summary, file=sys.stderr)
                 exit(1)
 
         try:
@@ -184,13 +184,13 @@ class GimmeAWSCreds(object):
             while 'next' in result.links:
                 result = users_client.get(result.links['next']['url'])
                 final_result = final_result + result.json()
-            print("done\n")
+            print("done\n", file=sys.stderr)
         except OktaError as e:
             if e.error_code == 'E0000007':
-                print("Error: No applications found for " + username)
+                print("Error: No applications found for " + username, file=sys.stderr)
                 exit(1)
             else:
-                print("Error: " + e.error_summary)
+                print("Error: " + e.error_summary, file=sys.stderr)
                 exit(1)
 
         # Loop through the list of apps and filter it down to just the info we need
@@ -208,7 +208,7 @@ class GimmeAWSCreds(object):
 
         # Throw an error if we didn't get any accounts back
         if not app_list:
-            print("No AWS accounts found.")
+            print("No AWS accounts found.", file=sys.stderr)
             exit()
 
         return app_list
@@ -229,17 +229,17 @@ class GimmeAWSCreds(object):
             app_strs.append('[{}] {}'.format(i, app["name"]))
 
         if app_strs:
-            print("Pick an app:")
+            print("Pick an app:", file=sys.stderr)
             # print out the apps and let the user select
             for app in app_strs:
-                print(app)
+                print(app, file=sys.stderr)
         else:
             return None
 
         selection = self._get_user_int_selection(0, len(aws_info)-1)
 
         if selection is None:
-            print("You made an invalid selection")
+            print("You made an invalid selection", file=sys.stderr)
             exit(1)
 
         return aws_info[int(selection)]
@@ -255,7 +255,7 @@ class GimmeAWSCreds(object):
                 elif app["name"] == "fakelabel":
                     # auto select this app
                     return app
-            print("ERROR: AWS account [{}] not found!".format(aws_appname))
+            print("ERROR: AWS account [{}] not found!".format(aws_appname), file=sys.stderr)
 
         # Present the user with a list of apps to choose from
         return self._choose_app(aws_info)
@@ -272,7 +272,7 @@ class GimmeAWSCreds(object):
             for _, role in enumerate(aws_roles):
                 if aws_rolename == role.role:
                     return aws_rolename
-            print("ERROR: AWS role [{}] not found!".format(aws_rolename))
+            print("ERROR: AWS role [{}] not found!".format(aws_rolename), file=sys.stderr)
 
         # Present the user with a list of roles to choose from
         return self._choose_role(aws_roles)
@@ -287,23 +287,23 @@ class GimmeAWSCreds(object):
         # Check if only one role exists and return that role
         if len(roles) == 1:
             single_role = roles[0].role
-            print("Detected single role: {}".format(single_role))
+            print("Detected single role: {}".format(single_role), file=sys.stderr)
             return single_role
 
         # Gather the roles available to the user.
         role_strs = self.resolver._display_role(roles)
 
         if role_strs:
-            print("Pick a role:")
+            print("Pick a role:", file=sys.stderr)
             for role in role_strs:
-                print(role)
+                print(role, file=sys.stderr)
         else:
             return None
 
         selection = self._get_user_int_selection(0, len(roles)-1)
 
         if selection is None:
-            print("You made an invalid selection")
+            print("You made an invalid selection", file=sys.stderr)
             exit(1)
 
         return roles[int(selection)].role
@@ -316,7 +316,7 @@ class GimmeAWSCreds(object):
                 selection = int(input("Selection: "))
                 break
             except ValueError:
-                print('Invalid selection, must be an integer value.')
+                print('Invalid selection, must be an integer value.', file=sys.stderr)
 
         if selection is None:
             return None
@@ -340,18 +340,18 @@ class GimmeAWSCreds(object):
         conf_dict = config.get_config_dict()
 
         if not conf_dict.get('okta_org_url'):
-            print('No Okta organization URL in configuration.  Try running --config again.')
+            print('No Okta organization URL in configuration.  Try running --config again.', file=sys.stderr)
             exit(1)
 
         if not conf_dict.get('gimme_creds_server'):
-            print('No Gimme-Creds server URL in configuration.  Try running --config again.')
+            print('No Gimme-Creds server URL in configuration.  Try running --config again.', file=sys.stderr)
             exit(1)
 
         if config.register_device is True:
             conf_dict['device_token'] = None
         else:
             if not conf_dict.get('device_token'):
-                print('No device token in configuration.  Try running --register_device again.')
+                print('No device token in configuration.  Try running --register_device again.', file=sys.stderr)
                 exit(1)            
 
         okta = OktaClient(conf_dict['okta_org_url'], config.verify_ssl_certs, conf_dict['device_token'])
@@ -384,7 +384,7 @@ class GimmeAWSCreds(object):
             auth_result = okta.auth_session()
             conf_dict['device_token'] = auth_result['device_token']
             config.write_config_file(conf_dict)
-            print('Device token saved!')
+            print('Device token saved!', file=sys.stderr)
             sys.exit()
         else:
             
@@ -392,7 +392,7 @@ class GimmeAWSCreds(object):
             if conf_dict.get('gimme_creds_server') == 'internal':
                 # Okta API key is required when calling Okta APIs internally
                 if config.api_key is None:
-                    print('OKTA_API_KEY environment variable not found!')
+                    print('OKTA_API_KEY environment variable not found!', file=sys.stderr)
                     exit(1)
                 auth_result = okta.auth_session()
                 aws_results = self._get_aws_account_info(conf_dict['okta_org_url'], config.api_key, auth_result['username'])
@@ -404,7 +404,7 @@ class GimmeAWSCreds(object):
                 if conf_dict.get('app_url'):
                     config.app_url = conf_dict['app_url']
                 if config.app_url is None:
-                    print('app_url is not defined in your config !')
+                    print('app_url is not defined in your config !', file=sys.stderr)
                     exit(1)
 
                 # build app list
@@ -419,9 +419,9 @@ class GimmeAWSCreds(object):
             # Use the gimme_creds_lambda service
             else:
                 if not conf_dict.get('client_id'):
-                    print('No OAuth Client ID in configuration.  Try running --config again.')
+                    print('No OAuth Client ID in configuration.  Try running --config again.', file=sys.stderr)
                 if not conf_dict.get('okta_auth_server'):
-                    print('No OAuth Authorization server in configuration.  Try running --config again.')
+                    print('No OAuth Authorization server in configuration.  Try running --config again.', file=sys.stderr)
 
                 # Authenticate with Okta and get an OAuth access token
                 okta.auth_oauth(
@@ -435,7 +435,7 @@ class GimmeAWSCreds(object):
                 # Add Access Tokens to Okta-protected requests
                 okta.use_oauth_access_token(True)
 
-                print("Authentication Success! Calling Gimme-Creds Server...")
+                print("Authentication Success! Calling Gimme-Creds Server...", file=sys.stderr)
                 aws_results = self._call_gimme_creds_server(okta, conf_dict['gimme_creds_server'])
 
             aws_app = self._get_selected_app(conf_dict.get('aws_appname'), aws_results)
@@ -453,7 +453,7 @@ class GimmeAWSCreds(object):
                 aws_creds = self._get_sts_creds(aws_partition, saml_data['SAMLResponse'], role.idp, role.role, config.aws_default_duration)
             except ClientError as ex:
                 if ex.response['Error']['Message'] == 'The requested DurationSeconds exceeds the MaxSessionDuration set for this role.':
-                    print("The requested session duration was too long for this role.  Falling back to 1 hour.")
+                    print("The requested session duration was too long for this role.  Falling back to 1 hour.", file=sys.stderr)
                     aws_creds = self._get_sts_creds(aws_partition, saml_data['SAMLResponse'], role.idp, role.role, 3600)
 
             deriv_profname = re.sub('arn:aws:iam:.*/', '', role.role)
@@ -473,7 +473,7 @@ class GimmeAWSCreds(object):
                     profile_name = conf_dict['cred_profile']
 
                 # Write out the AWS Config file
-                print('writing role {} to {}'.format(role.role, self.AWS_CONFIG))
+                print('writing role {} to {}'.format(role.role, self.AWS_CONFIG), file=sys.stderr)
                 self._write_aws_creds(
                     profile_name,
                     aws_creds['AccessKeyId'],
@@ -483,9 +483,9 @@ class GimmeAWSCreds(object):
             else:
                 #Print out temporary AWS credentials.  Credentials are printed to stderr to simplify
                 #redirection for use in automated scripts
-                print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'], file=sys.stderr)
-                print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'], file=sys.stderr)
-                print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'], file=sys.stderr)
-                print("export AWS_SECURITY_TOKEN=" + aws_creds['SessionToken'], file=sys.stderr)
+                print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'])
+                print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'])
+                print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'])
+                print("export AWS_SECURITY_TOKEN=" + aws_creds['SessionToken'])
 
         config.clean_up()
