@@ -9,6 +9,7 @@ script:
 - nosetests --verbosity=2 tests/
 deploy:
   provider: pypi
+  distributions: "sdist bdist_wheel"
   user:
     secure: 6y/5ZnnYsoLYn1QZ5ZoFrOBVphluunrEZUcNdNhFWj0TJwgX/s2W+l4lB2N7EtANKbiGjQfWFa1vBBZ//lWNnJtDnBstX9Lu/mHHXBe+2i6/eMm+C5tK3zifRKxawVHP3nUcC5mn/ITTCU3FNkT4RVPWZQbV8zoPMdsvk6dO/oOTZta+Ttt666iI52vGYZ3r2qfRSTi7GBCBBE2rwndRdRpzGtR3cGso02kpmEVM6FQxF8MOTTCPHKSAp6baKqHM0I7cJVz7X8kcZ5+0emJrCNCQAX1WJgoIU6gUIwMt2+3xW31C6r8a/rujvMVKstr+rwNJ3nD0MqFyN6Obha7YLFlsKqzuCNJKcx5v+2zpZMgZaovYgCQVLuwzRjPuQ7a2hnwYrF2HOIlrgtMlEJiFLUfDne6E5FykpOUkooVoyw+HrXLfivu+3vq0UbsAc5rL9a1iZCJFn2MxDV3G9MbPQIQkHzP5mayfVjf2kr07Be6ynjS0YffYcOFcJubB680MrnOMX4Qc9akCI1HTlN73K4G0alqI5PskfQ12s2Djbdl3v67v7XUQDzTC/TsFOGzfNoV4DC95snsVzmiEW1TTSLW7N7LBCNaoLdeEu5LyAPOchQhzOEQod+9FGGf39+lB2+ezEM01eF5liU+cGBWRXj8j5iRYprLkab461aGNjco=
   password:
