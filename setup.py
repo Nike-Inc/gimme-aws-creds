@@ -17,4 +17,9 @@ setup(
     packages=find_packages(exclude=('tests', 'docs')),
     test_suite="tests",
     scripts=['bin/gimme-aws-creds', 'bin/gimme-aws-creds.py'],
+    classifiers=[
+        'Natural Language :: English',
+        'Programming Language :: Python :: 3 :: Only',
+        'License :: OSI Approved :: Apache Software License'
+    ]
 )
