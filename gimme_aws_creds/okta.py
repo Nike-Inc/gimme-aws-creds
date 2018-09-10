@@ -389,7 +389,8 @@ class OktaClient(object):
         """ Submit verification code for SMS or TOTP authentication methods"""
         pass_code = self._mfa_code;
         if pass_code is None:
-            pass_code = input("Enter verification code: ")
+            print("Enter verification code: ", end='', file=sys.stderr)
+            pass_code = input()
         response = self._http_client.post(
             next_url,
             json={'stateToken': state_token, 'passCode': pass_code},
@@ -527,7 +528,8 @@ class OktaClient(object):
                 factor_name = self._build_factor_name(factor)
                 if factor_name is not "":
                     print('[', i, ']', factor_name, file=sys.stderr)
-            selection = input("Selection: ")
+            print("Selection: ", end='', file=sys.stderr)
+            selection = input()
 
         # make sure the choice is valid
         if int(selection) > len(factors):
@@ -560,7 +562,8 @@ class OktaClient(object):
             username = self._username
         # Otherwise just ask the user
         else:
-            username = input("Username: ")
+            print("Username: ", end='', file=sys.stderr)
+            username = input()
             self._username = username
 
         # noinspection PyBroadException
@@ -583,7 +586,8 @@ class OktaClient(object):
 
             if self.KEYRING_ENABLED:
                 # If the OS supports a keyring, offer to save the password
-                if input("Do you want to save this password in the keyring? (y/n)") == 'y':
+                print("Do you want to sace this password in the keyring? (y/n) ", end='', file=sys.stderr)
+                if input() == 'y':
                     try:
                         keyring.set_password(self.KEYRING_SERVICE, username, password)
                         print("Password for {} saved in keyring.".format(username), file=sys.stderr)
