@@ -41,6 +41,23 @@ Install the gimme-aws-creds package if you have already cloned the source:
 python3 setup.py install
 ```
 
+__OR__
+
+Build the docker image locally:
+```bash
+docker build -t gimme-aws-creds .
+```
+To make it easier you can also create an alias for the gimme-aws-creds command with docker:
+```bash
+# make sure you have the "~/.okta_aws_login_config" locally first!
+touch ~/.okta_aws_login_config && \
+alias gimme-aws-creds="docker run -it --rm \
+  -v ~/.aws/credentials:/root/.aws/credentials \
+  -v ~/.okta_aws_login_config:/root/.okta_aws_login_config \
+  gimme-aws-creds"
+```
+With this config, you will be able to run further commands seamlessly!
+
 ## Configuration
 
 To set-up the configuration run:
@@ -132,7 +149,7 @@ $ nosetests --verbosity=2 tests/
 This project is maintained by [Ann Wallace](https://github.com/anners), [Eric Pierce](https://github.com/epierce), and [Justin Wiley](https://github.com/sectornine50).
 
 ## Thanks and Credit
-I came across [okta_aws_login](https://github.com/nimbusscale/okta_aws_login) written by Joe Keegan, when I was searching for a CLI tool that generates AWS tokens via Okta. Unfortunately it hasn't been updated since 2015 and didn't seem to work with the current Okta version. But there was still some great code I was able to reuse under the MIT license for gimme-aws-creds. I have noted in the comments where I used his code, to make sure he receives proper credit.  
+I came across [okta_aws_login](https://github.com/nimbusscale/okta_aws_login) written by Joe Keegan, when I was searching for a CLI tool that generates AWS tokens via Okta. Unfortunately it hasn't been updated since 2015 and didn't seem to work with the current Okta version. But there was still some great code I was able to reuse under the MIT license for gimme-aws-creds. I have noted in the comments where I used his code, to make sure he receives proper credit.
 
 ## Etc.
 

@@ -1,4 +1,7 @@
 language: python
+sudo: required
+services:
+- docker
 python:
 - '3.5'
 - '3.6'
@@ -6,7 +9,7 @@ install:
 - pip install -r requirements_dev.txt
 - python3 setup.py install
 script:
-- nosetests --verbosity=2 tests/
+- make test
 deploy:
   provider: pypi
   distributions: "sdist bdist_wheel"
