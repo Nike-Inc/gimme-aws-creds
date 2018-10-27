@@ -27,7 +27,7 @@ class Config(object):
        under the MIT license.
     """
     FILE_ROOT = expanduser("~")
-    OKTA_CONFIG = FILE_ROOT + '/.okta_aws_login_config'
+    OKTA_CONFIG = os.environ.get("OKTA_CONFIG", os.path.join(FILE_ROOT, '.okta_aws_login_config'))
 
     def __init__(self):
         self.configure = False
