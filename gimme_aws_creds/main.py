@@ -313,7 +313,8 @@ class GimmeAWSCreds(object):
         selection = None
         for _ in range(0, max_retries):
             try:
-                selection = int(input("Selection: "))
+                print("Selection: ", end="", file=sys.stderr)
+                selection = int(input())
                 break
             except ValueError:
                 print('Invalid selection, must be an integer value.', file=sys.stderr)
