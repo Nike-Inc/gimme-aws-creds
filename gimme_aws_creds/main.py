@@ -80,7 +80,7 @@ class GimmeAWSCreds(object):
            okta_username = (optional) Okta User Name
     """
     FILE_ROOT = expanduser("~")
-    AWS_CONFIG = FILE_ROOT + '/.aws/credentials'
+    AWS_CONFIG = os.environ.get('AWS_SHARED_CREDENTIALS_FILE', os.path.join(FILE_ROOT, '.aws/credentials'))
     resolver = DefaultResolver()
 
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
