@@ -447,7 +447,7 @@ class GimmeAWSCreds(object):
 
         for _, role in enumerate(roles):
             # Skip irrelevant roles
-            if aws_role != 'all' and aws_role not in role.role:
+            if aws_role != 'all' and aws_role != role.role:
                 continue
 
             try:
