@@ -15,6 +15,7 @@ import os
 import sys
 from os.path import expanduser
 from urllib.parse import urlparse
+
 from . import version
 
 
@@ -39,6 +40,7 @@ class Config(object):
         self.app_url = None
         self.resolve = False
         self.mfa_code = None
+        self.remember_device = False
         self.aws_default_duration = 3600
         self.device_token = None
 
@@ -90,6 +92,12 @@ class Config(object):
             "If not provided you will be prompted to enter an MFA verification code."
         )
         parser.add_argument(
+            '--remember-device', '-m',
+            action='store_true',
+            help="The MFA device will be remembered by Okta service for a limited time, "
+                 "otherwise, you will be prompted for it every time."
+        )
+        parser.add_argument(
             '--version', action='version',
             version='%(prog)s {}'.format(version),
             help='gimme-aws-creds version')
@@ -116,6 +124,8 @@ class Config(object):
             self.username = args.username
         if args.mfa_code is not None:
             self.mfa_code = args.mfa_code
+        if args.remember_device:
+            self.remember_device = True
         if args.resolve is True:
             self.resolve = True
         self.conf_profile = args.profile or 'DEFAULT'
@@ -169,9 +179,10 @@ class Config(object):
             'write_aws_creds': '',
             'cred_profile': 'role',
             'okta_username': '',
-			'app_url': '',
+            'app_url': '',
             'resolve_aws_alias': 'n',
             'preferred_mfa_type': '',
+            'remember_device': 'n',
             'aws_default_duration': '3600',
             'device_token': ''
         }
@@ -206,6 +217,7 @@ class Config(object):
         config_dict['okta_username'] = self._get_okta_username(defaults['okta_username'])
         config_dict['aws_default_duration'] = self._get_aws_default_duration(defaults['aws_default_duration'])
         config_dict['preferred_mfa_type'] = self._get_preferred_mfa_type(defaults['preferred_mfa_type'])
+        config_dict['remember_device'] = self._get_remember_device(defaults['remember_device'])
 
         # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
@@ -409,6 +421,26 @@ class Config(object):
         okta_username = self._get_user_input(
             "Preferred MFA Device Type", default_entry)
         return okta_username
+
+    def _get_remember_device(self, default_entry):
+        """Option to remember the MFA device"""
+        print("Do you want the MFA device be remembered?\n"
+              "Please answer y or n.")
+        remember_device = None
+        while remember_device is not True and remember_device is not False:
+            default_entry = 'y' if default_entry is True else 'n'
+            answer = self._get_user_input(
+                "Remember device", default_entry)
+            answer = answer.lower()
+
+            if answer == 'y':
+                remember_device = True
+            elif answer == 'n':
+                remember_device = False
+            else:
+                print("Remember the MFA device must be either y or n.")
+
+        return remember_device
 
     @staticmethod
     def _get_user_input(message, default=None):

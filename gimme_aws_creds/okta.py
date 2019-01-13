@@ -55,6 +55,7 @@ class OktaClient(object):
         self._username = None
         self._preferred_mfa_type = None
         self._mfa_code = None
+        self._remember_device = None
 
         self._use_oauth_access_token = False
         self._use_oauth_id_token = False
@@ -83,6 +84,9 @@ class OktaClient(object):
 
     def set_mfa_code(self, mfa_code):
         self._mfa_code = mfa_code
+
+    def set_remember_device(self, remember_device):
+        self._remember_device = remember_device
 
     def use_oauth_access_token(self, val=True):
         self._use_oauth_access_token = val
@@ -323,6 +327,7 @@ class OktaClient(object):
         """ Send SMS message for second factor authentication"""
         response = self._http_client.post(
             factor['_links']['verify']['href'],
+            params={'rememberDevice': self._remember_device},
             json={'stateToken': state_token},
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
@@ -340,6 +345,7 @@ class OktaClient(object):
         """ Send Voice call for second factor authentication"""
         response = self._http_client.post(
             factor['_links']['verify']['href'],
+            params={'rememberDevice': self._remember_device},
             json={'stateToken': state_token},
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
@@ -353,11 +359,11 @@ class OktaClient(object):
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
-
     def _login_send_push(self, state_token, factor):
         """ Send 'push' for the Okta Verify mobile app """
         response = self._http_client.post(
             factor['_links']['verify']['href'],
+            params={'rememberDevice': self._remember_device},
             json={'stateToken': state_token},
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
@@ -393,6 +399,7 @@ class OktaClient(object):
             pass_code = input()
         response = self._http_client.post(
             next_url,
+            params={'rememberDevice': self._remember_device},
             json={'stateToken': state_token, 'passCode': pass_code},
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
