@@ -65,6 +65,7 @@ class Config(object):
             help="If set, will prompt user for configuration parameters and then exit."
         )
         parser.add_argument(
+            '--register-device',
             '--register_device',
             action='store_true',
             help='Download a device token from Okta and add it to the configuration file.'
@@ -204,7 +205,7 @@ class Config(object):
             config_dict['cred_profile'] = defaults['cred_profile']
 
         self.write_config_file(config_dict)
-    
+
     def write_config_file(self, config_dict):
         config = configparser.ConfigParser()
         config[self.conf_profile] = config_dict

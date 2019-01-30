@@ -102,3 +102,6 @@ ENV/
 *.swp
 *.swo
 *~
+
+# VSCODE
+.vscode
