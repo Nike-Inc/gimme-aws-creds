@@ -208,6 +208,7 @@ class Config(object):
 
     def write_config_file(self, config_dict):
         config = configparser.ConfigParser()
+        config.read(self.OKTA_CONFIG)
         config[self.conf_profile] = config_dict
 
         # write out the conf file
