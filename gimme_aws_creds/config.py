@@ -93,6 +93,9 @@ class Config(object):
             '--version', action='version',
             version='%(prog)s {}'.format(version),
             help='gimme-aws-creds version')
+        parser.add_argument(
+            '--list-profiles', action='store_true',
+            help='List all the profiles under .okta_aws_login_config')
         args = parser.parse_args()
 
         self.configure = args.configure
@@ -102,6 +105,13 @@ class Config(object):
             self.verify_ssl_certs = False
         else:
             self.verify_ssl_certs = True
+
+        if args.list_profiles:
+            if os.path.isfile(self.OKTA_CONFIG):
+                with open(self.OKTA_CONFIG, 'r') as okta_config:
+                    print(okta_config.read())
+                    exit(0)
+
         if args.username is not None:
             self.username = args.username
         if args.mfa_code is not None:
