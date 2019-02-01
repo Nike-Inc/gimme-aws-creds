@@ -137,6 +137,9 @@ If all goes well you will get your temporary AWS access, secret key and token, t
 
 You can always run `gimme-aws-creds --help` for all the available options.
 
+### Viewing Profiles
+Run `gimme-aws-creds --list-profiles` will go to your okta config file and print out all profiles created and their settings. 
+
 ## Running Tests
 
 You can run all the unit tests using nosetests. Most of the tests are mocked.
