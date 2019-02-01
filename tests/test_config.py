@@ -22,10 +22,8 @@ class TestConfig(unittest.TestCase):
         self.config.clean_up()
 
     @patch('argparse.ArgumentParser.parse_args',
-           return_value=argparse.Namespace(username='ann', configure=False, profile=None, insecure=False, resolve=None, mfa_code=None, register_device=False))
+           return_value=argparse.Namespace(username='ann', configure=False, profile=None, insecure=False, resolve=None, mfa_code=None, register_device=False, list_profiles=False))
     def test_get_args_username(self, mock_arg):
         """Test to make sure username gets returned"""
         self.config.get_args()
         assert_equals(self.config.username, 'ann')
-
-
