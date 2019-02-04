@@ -19,6 +19,7 @@ jobs:
     - stage: PyPI Deploy
       if: (tag =~ ^v) AND (branch = master)
       python: '3.6'
+      script: skip
       deploy:
         provider: pypi
         distributions: "sdist bdist_wheel"
