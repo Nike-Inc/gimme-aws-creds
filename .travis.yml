@@ -1,5 +1,8 @@
 language: python
 sudo: required
+
+services:
+  - docker
   
 python:
   - '3.5'
@@ -9,22 +12,17 @@ install:
   - pip install -r requirements_dev.txt
   - python3 setup.py install
   
+script: make test
+
+stages:
+  - test
+  - name: deploy
+    if: (tag =~ ^v) AND (branch = master)
+  
 jobs:
-  include:
-    - stage: test
-      name: "Test Python 3.5"
-      services: docker
-      python: '3.5'
-      script: make test
-    - name: "Test Python 3.6"
-      services: docker
-      python: '3.6'
-      script: make test
-      
+  include:      
     - stage: deploy
       name: "Deploy to PyPI"
-      services: docker
-      if: (tag =~ ^v) AND (branch = master)
       python: '3.6'
       provider: pypi
       distributions: "sdist bdist_wheel"
