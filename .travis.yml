@@ -14,11 +14,6 @@ install:
   
 script: make test
 
-stages:
-  - test
-  - name: deploy
-    if: tag =~ /^v\d+\.\d+\.\d+$/ AND branch = master
-
 jobs:
   include:
     - stage: deploy
