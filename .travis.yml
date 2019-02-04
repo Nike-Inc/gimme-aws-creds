@@ -17,6 +17,7 @@ script: make test
 jobs:
   include:
     - stage: PyPI Deploy
+      if: tag =~ /^v\d+\.\d+\.\d+$/ AND branch = master
       python: '3.6'
       script: skip
       deploy:
