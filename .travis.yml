@@ -1,8 +1,5 @@
 language: python
 sudo: required
-
-services:
-  - docker
   
 python:
   - '3.5'
@@ -14,16 +11,19 @@ install:
   
 jobs:
   include:
-    - stage: "Tests"
+    - stage: test
       name: "Test Python 3.5"
+      services: docker
       python: '3.5'
       script: make test
     - name: "Test Python 3.6"
+      services: docker
       python: '3.6'
       script: make test
       
     - stage: deploy
       name: "Deploy to PyPI"
+      services: docker
       if: (tag =~ ^v) AND (branch = master)
       python: '3.6'
       provider: pypi
