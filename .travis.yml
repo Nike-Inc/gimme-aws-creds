@@ -16,12 +16,8 @@ script: make test
 
 jobs:
   include:
-    - stage: Fake Deploy
-      if: branch = travis-jobs
-      python: '3.6'
-      script: echo "Success!"
     - stage: PyPI Deploy
-      if: (tag =~ ^v) AND (branch = master)
+      if: tag =~ /^v\d+\.\d+\.\d+$/ AND branch = master
       python: '3.6'
       script: skip
       deploy:
