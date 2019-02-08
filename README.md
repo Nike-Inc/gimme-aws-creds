@@ -137,6 +137,13 @@ If all goes well you will get your temporary AWS access, secret key and token, t
 
 You can always run `gimme-aws-creds --help` for all the available options.
 
+Alternatively, you can overwrite values in the config section with environment variables for instances where say you may want to change the duration of your token. 
+A list of values of to change with environment variables are: `'OKTA_AUTH_SERVER', 'CLIENT_ID','OKTA_USERNAME', 'AWS_DEFAULT_DURATION'`. 
+
+Example: `CLIENT_ID='foobar' AWS_DEFAULT_DURATION=12345 gimme-aws-creds`
+
+For changing variables outside of this, you'd need to create a separate profile altogether with `gimme-aws-creds --configure --profile profileName`
+
 ### Viewing Profiles
 Run `gimme-aws-creds --list-profiles` will go to your okta config file and print out all profiles created and their settings. 
 
