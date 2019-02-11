@@ -82,6 +82,8 @@ class GimmeAWSCreds(object):
     FILE_ROOT = expanduser("~")
     AWS_CONFIG = os.environ.get('AWS_SHARED_CREDENTIALS_FILE', os.path.join(FILE_ROOT, '.aws/credentials'))
     resolver = DefaultResolver()
+    envvar_list = ['OKTA_AUTH_SERVER', 'CLIENT_ID',
+                   'OKTA_USERNAME', 'AWS_DEFAULT_DURATION']
 
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
     def _write_aws_creds(self, profile, access_key, secret_key, token):
@@ -328,6 +330,12 @@ class GimmeAWSCreds(object):
 
         return selection
 
+    def _overwrite_with_envvars(self, configuration_dict):
+        for value in self.envvar_list:
+            if (os.environ.get(value)):
+                configuration_dict[value.lower()] = os.environ.get(value)
+        return configuration_dict
+
     def run(self):
         """ Pulling it all together to make the CLI """
         config = Config()
@@ -339,6 +347,7 @@ class GimmeAWSCreds(object):
 
         # get the config dict
         conf_dict = config.get_config_dict()
+        conf_dict = self._overwrite_with_envvars(conf_dict)
 
         if not conf_dict.get('okta_org_url'):
             print('No Okta organization URL in configuration.  Try running --config again.', file=sys.stderr)
