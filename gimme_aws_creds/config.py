@@ -372,7 +372,7 @@ class Config(object):
 
     def _get_aws_rolename(self, default_entry):
         """ Get the AWS Role ARN"""
-        print("Enter the ARN for the AWS role you want credentials for. 'ALL' will retrieve all roles."
+        print("Enter the ARN for the AWS role you want credentials for. 'all' will retrieve all roles."
               "\nThis is optional, you can select the role when you run the CLI.")
         aws_rolename = self._get_user_input("AWS Role ARN", default_entry)
         return aws_rolename
