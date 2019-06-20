@@ -14,13 +14,9 @@ import re
 import sys
 import time
 import uuid
-import random
-import base64
-import hashlib
 from codecs import decode
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
-from . import version
 
 import keyring
 import requests
@@ -29,6 +25,8 @@ from keyring.backends.fail import Keyring as FailKeyring
 from keyring.errors import PasswordDeleteError
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
+
+from . import version
 
 
 class OktaClient(object):

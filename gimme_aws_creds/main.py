@@ -11,16 +11,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
 # For enumerating saml roles
-import base64
 # standard imports
 import configparser
 import os
-from os.path import expanduser
 import re
 import sys
-import xml.etree.ElementTree as ET
-from collections import namedtuple
-
+from os.path import expanduser
 
 # extras
 import boto3
@@ -28,14 +24,12 @@ from botocore.exceptions import ClientError
 from okta.framework.ApiClient import ApiClient
 from okta.framework.OktaError import OktaError
 
+from gimme_aws_creds.aws import AwsResolver
 # local imports
 from gimme_aws_creds.config import Config
+from gimme_aws_creds.default import DefaultResolver
 from gimme_aws_creds.okta import OktaClient
 
-from gimme_aws_creds.aws import AwsResolver
-from gimme_aws_creds.default import DefaultResolver
-
-import gimme_aws_creds.common as commondef
 
 class GimmeAWSCreds(object):
     """
@@ -369,7 +363,7 @@ class GimmeAWSCreds(object):
                 exit(1)
 
         okta = OktaClient(conf_dict['okta_org_url'], config.verify_ssl_certs, conf_dict['device_token'])
-        if config.resolve == True:
+        if config.resolve is True:
             self.resolver = AwsResolver(config.verify_ssl_certs)
         else:
             if conf_dict.get('resolve_aws_alias') and str(conf_dict['resolve_aws_alias']) == 'True':
@@ -388,7 +382,7 @@ class GimmeAWSCreds(object):
             okta.set_mfa_code(config.mfa_code)
 
         okta.set_remember_device(config.remember_device
-                                 or conf_dict['remember_device'])
+                                 or conf_dict.get('remember_device', False))
 
         # AWS Default session duration ....
         if conf_dict.get('aws_default_duration'):
