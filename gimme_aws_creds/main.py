@@ -66,6 +66,10 @@ class GimmeAWSCreds(object):
           --mfa-code MFA_CODE   The MFA verification code to be used with SMS or TOTP
                                 authentication methods. If not provided you will be
                                 prompted to enter an MFA verification code.
+          --remember-device, -m
+                                The MFA device will be remembered by Okta service for
+                                a limited time, otherwise, you will be prompted for it
+                                every time.
           --version             gimme-aws-creds version
 
         Config Options:
@@ -362,7 +366,7 @@ class GimmeAWSCreds(object):
         else:
             if not conf_dict.get('device_token'):
                 print('No device token in configuration.  Try running --register_device again.', file=sys.stderr)
-                exit(1)            
+                exit(1)
 
         okta = OktaClient(conf_dict['okta_org_url'], config.verify_ssl_certs, conf_dict['device_token'])
         if config.resolve == True:
@@ -383,12 +387,15 @@ class GimmeAWSCreds(object):
         if config.mfa_code is not None:
             okta.set_mfa_code(config.mfa_code)
 
+        okta.set_remember_device(config.remember_device
+                                 or conf_dict['remember_device'])
+
         # AWS Default session duration ....
         if conf_dict.get('aws_default_duration'):
             config.aws_default_duration = int(conf_dict['aws_default_duration'])
         else:
             config.aws_default_duration = 3600
-        
+
         # Capture the Device Token and write it to the config file
         if config.register_device is True:
             auth_result = okta.auth_session()
@@ -397,7 +404,7 @@ class GimmeAWSCreds(object):
             print('Device token saved!', file=sys.stderr)
             sys.exit()
         else:
-            
+
             # Call the Okta APIs and proces data locally
             if conf_dict.get('gimme_creds_server') == 'internal':
                 # Okta API key is required when calling Okta APIs internally
