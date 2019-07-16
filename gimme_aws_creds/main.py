@@ -81,7 +81,8 @@ class GimmeAWSCreds(object):
     AWS_CONFIG = os.environ.get('AWS_SHARED_CREDENTIALS_FILE', os.path.join(FILE_ROOT, '.aws/credentials'))
     resolver = DefaultResolver()
     envvar_list = ['OKTA_AUTH_SERVER', 'CLIENT_ID',
-                   'OKTA_USERNAME', 'AWS_DEFAULT_DURATION']
+                   'OKTA_USERNAME', 'AWS_DEFAULT_DURATION',
+                   'CRED_PROFILE']
 
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
     def _write_aws_creds(self, profile, access_key, secret_key, token):
