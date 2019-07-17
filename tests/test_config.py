@@ -5,8 +5,8 @@ import unittest
 from mock import patch
 from nose.tools import assert_equals
 
+from gimme_aws_creds import ui
 from gimme_aws_creds.config import Config
-from gimme_aws_creds import version
 
 
 class TestConfig(unittest.TestCase):
@@ -15,7 +15,7 @@ class TestConfig(unittest.TestCase):
 
     def setUp(self):
         """Set up for the unit tests"""
-        self.config = Config()
+        self.config = Config(ui=ui.cli)
 
     def tearDown(self):
         """Run Clean Up"""
@@ -25,14 +25,18 @@ class TestConfig(unittest.TestCase):
         "argparse.ArgumentParser.parse_args",
         return_value=argparse.Namespace(
             username="ann",
-            configure=False,
             profile=None,
             insecure=False,
             resolve=None,
             mfa_code=None,
-            register_device=False,
-            list_profiles=False,
             remember_device=False,
+            output_format=None,
+            roles=None,
+            action_register_device=False,
+            action_configure=False,
+            action_list_profiles=False,
+            action_list_roles=False,
+            action_store_json_creds=False,
         ),
     )
     def test_get_args_username(self, mock_arg):
