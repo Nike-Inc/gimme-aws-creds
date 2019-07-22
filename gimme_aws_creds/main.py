@@ -461,6 +461,8 @@ class GimmeAWSCreds(object):
             self.config.aws_default_duration = int(self.conf_dict['aws_default_duration'])
         else:
             self.config.aws_default_duration = 3600
+
+        self.resolver = self.get_resolver()
         return config
 
     @property
