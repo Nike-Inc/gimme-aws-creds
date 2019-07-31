@@ -749,7 +749,7 @@ class GimmeAWSCreds(object):
             self.ui.result("export AWS_ACCESS_KEY_ID=" + data['credentials']['aws_access_key_id'])
             self.ui.result("export AWS_SECRET_ACCESS_KEY=" + data['credentials']['aws_secret_access_key'])
             self.ui.result("export AWS_SESSION_TOKEN=" + data['credentials']['aws_session_token'])
-            self.ui.result("export AWS_SECURITY_TOKEN=" + data['credentials']['Sessiaws_security_tokenonToken'])
+            self.ui.result("export AWS_SECURITY_TOKEN=" + data['credentials']['aws_security_token'])
 
         self.config.clean_up()
 
