@@ -29,8 +29,9 @@ from keyring.errors import PasswordDeleteError
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-from pyu2f import model
-from pyu2f.convenience import authenticator
+# from pyu2f import model
+# from pyu2f.convenience import authenticator
+from gimme_aws_creds.webauthn import WebAuthnClient
 
 class OktaClient(object):
     """
@@ -315,7 +316,9 @@ class OktaClient(object):
             return self._login_multi_factor(state_token, login_data)
         elif status == 'MFA_CHALLENGE':
             if login_data['_embedded']['factor']['factorType'] == 'u2f':
-                return self._check_u2f_result(state_token, login_data)
+                return self._check_webauthn_result(state_token, login_data)
+            if login_data['_embedded']['factor']['factorType'] == 'webauthn':
+                return self._check_webauthn_result(state_token, login_data)
             if 'factorResult' in login_data and login_data['factorResult'] == 'WAITING':
                 return self._check_push_result(state_token, login_data)
             else:
@@ -435,7 +438,7 @@ class OktaClient(object):
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
-    def _login_input_u2f_challenge(self, state_token, factor):
+    def _login_input_webauthn_challenge(self, state_token, factor):
         """ Retrieve nonce """
         response = self._http_client.post(
             factor['_links']['verify']['href'],
@@ -445,6 +448,7 @@ class OktaClient(object):
         )
         print("Challenge with U2F key ...")
         response_data = response.json()
+        print(response_data)
 
         if 'stateToken' in response_data:
             return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
@@ -465,7 +469,9 @@ class OktaClient(object):
         elif factor['factorType'] == 'push':
             return self._login_send_push(state_token, factor)
         elif factor['factorType'] == 'u2f':
-            return self._login_input_u2f_challenge(state_token, factor)
+            return self._login_input_webauthn_challenge(state_token, factor)
+        elif factor['factorType'] == 'webauthn':
+            return self._login_input_webauthn_challenge(state_token, factor)
 
     def _login_input_mfa_challenge(self, state_token, next_url):
         """ Submit verification code for SMS or TOTP authentication methods"""
@@ -509,36 +515,58 @@ class OktaClient(object):
         return data
 		
     def _check_u2f_result(self, state_token, login_data):
-        """ Check wait push u2f button and post response """
+        # should be deprecated soon as OKTA move forward webauthN
+        # just for backward compatibility
         nonce = self._correct_padding(login_data['_embedded']['factor']['_embedded']['challenge']['nonce']);
         credentialId = self._correct_padding(login_data['_embedded']['factor']['profile']['credentialId']);
         appId = login_data['_embedded']['factor']['profile']['appId'];
         version = login_data['_embedded']['factor']['profile']['version'];
         response = {}
+        # TODO
+
+
+    def _check_webauthn_result(self, state_token, login_data):
+        """ wait for webauthN challenge """
+
+        nonce = login_data['_embedded']['factor']['_embedded']['challenge']['challenge'];
+        credentialId = self._correct_padding(login_data['_embedded']['factor']['profile']['credentialId']);
+
+
+        # nonce = self._correct_padding(login_data['_embedded']['factor']['_embedded']['challenge']['nonce']);
+        # appId = login_data['_embedded']['factor']['profile']['appId'];
+        # version = login_data['_embedded']['factor']['profile']['version'];
+        response = {}
 
         """ Call to U2F I/O """
-        registred_key = model.RegisteredKey(base64.urlsafe_b64decode(credentialId));
-        challenge_data = [{'key': registred_key, 'challenge': base64.urlsafe_b64decode(nonce)}];
-        nbTry = 3 # plugged U2F may not match the one enrolled, give 3 retries
-        while nbTry>0:
-            try:
-                api = authenticator.CreateCompositeAuthenticator(appId);
-                response = api.Authenticate(appId, challenge_data);
-                nbTry=0
-            except:
-                nbTry-=1
-                if nbTry > 0:
-                    print('No U2F device found or did not match enrolled key. \n')
-                    input('Insert U2F key and press a key...')
-                else:
-                    response = {'signatureData': 'fake', 'clientData': 'fake'}
+        verif = WebAuthnClient(self._okta_org_url, nonce, credentialId);
+        verif.localte_device()
+        clientData, assertion = verif.verify()
 
-        signatureData = response['signatureData']
-        clientData = response['clientData']
+        #registred_key = model.RegisteredKey(base64.urlsafe_b64decode(credentialId));
+        #challenge_data = [{'key': registred_key, 'challenge': base64.urlsafe_b64decode(nonce)}];
+
+        # nbTry = 3 # plugged U2F may not match the one enrolled, give 3 retries
+        #while nbTry>0:
+        #    try:
+        #        api = authenticator.CreateCompositeAuthenticator(appId);
+        #        response = api.Authenticate(appId, challenge_data);
+        #        nbTry=0
+        #    except:
+        #        nbTry-=1
+        #        if nbTry > 0:
+        #            print('No U2F device found or did not match enrolled key. \n')
+        #            input('Insert U2F key and press a key...')
+        #        else:
+        #            response = {'signatureData': 'fake', 'clientData': 'fake'}
+        #signatureData = response['signatureData']
+        #clientData = response['clientData']
+        clientData = str(base64.urlsafe_b64encode(verif._client_data), "utf-8")
+        signatureData = base64.b64encode(verif._assertions[0].signature).decode('utf-8')
+        authData = base64.b64encode(verif._assertions[0].auth_data).decode('utf-8')
 
         response = self._http_client.post(
-            login_data['_links']['next']['href'],
-            json={'stateToken': state_token, 'clientData': clientData, 'signatureData': signatureData},
+            login_data['_links']['next']['href'] + "?rememberDevice=false",
+            json={'stateToken': state_token, 'clientData':clientData, 'signatureData': signatureData, 'authenticatorData': authData},
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
@@ -551,8 +579,6 @@ class OktaClient(object):
                 return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
         else:
             return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
-
-
 
     def get_hs_stateToken(self, response):
         # to test with user without MFA
@@ -699,6 +725,8 @@ class OktaClient(object):
             return factor['factorType'] + ": " + factor['profile']['credentialId']
         elif factor['factorType'] == 'u2f':
             return factor['factorType'] + ": " + factor['factorType']
+        elif factor['factorType'] == 'webauthn':
+            return factor['factorType'] + ": " + factor['factorType']        
         else:
             print("Unknown MFA type: " + factor['factorType'])
             return ""
