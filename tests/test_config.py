@@ -28,6 +28,7 @@ class TestConfig(unittest.TestCase):
             configure=False,
             profile=None,
             insecure=False,
+            arn_only=False,
             resolve=None,
             mfa_code=None,
             register_device=False,
