@@ -37,6 +37,7 @@ class Config(object):
         self.api_key = None
         self.conf_profile = 'DEFAULT'
         self.verify_ssl_certs = True
+        self.arn_only= False
         self.app_url = None
         self.resolve = False
         self.mfa_code = None
@@ -65,6 +66,11 @@ class Config(object):
             '--configure', '-c',
             action='store_true',
             help="If set, will prompt user for configuration parameters and then exit."
+        )
+        parser.add_argument(
+            '--arn-only','-a',
+            action='store_true',
+            help="If set, will only set up your roles in your aws config file"
         )
         parser.add_argument(
             '--register-device',
@@ -128,6 +134,8 @@ class Config(object):
             self.remember_device = True
         if args.resolve is True:
             self.resolve = True
+        if args.arn_only is True:
+            self.arn_only = True
         self.conf_profile = args.profile or 'DEFAULT'
 
     def get_config_dict(self):

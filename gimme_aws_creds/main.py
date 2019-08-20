@@ -44,6 +44,8 @@ class GimmeAWSCreds(object):
 
        Usage:
           -h, --help            show this help message and exit
+          -a, --arn-only        only retrieve the role and set it in ~/.aws/config
+                                under PROFILE
           --username USERNAME, -u USERNAME
                                 The username to use when logging into Okta. The
                                 username can also be set via the OKTA_USERNAME env
@@ -78,7 +80,8 @@ class GimmeAWSCreds(object):
            okta_username = (optional) Okta User Name
     """
     FILE_ROOT = expanduser("~")
-    AWS_CONFIG = os.environ.get('AWS_SHARED_CREDENTIALS_FILE', os.path.join(FILE_ROOT, '.aws/credentials'))
+    AWS_CREDENTIALS_FILE = os.environ.get('AWS_SHARED_CREDENTIALS_FILE', os.path.join(FILE_ROOT, '.aws/credentials'))
+    AWS_CONFIG = os.environ.get('AWS_CONFIG_FILE', os.path.join(FILE_ROOT, '.aws/config'))
     resolver = DefaultResolver()
     envvar_list = ['OKTA_AUTH_SERVER', 'CLIENT_ID',
                    'OKTA_USERNAME', 'AWS_DEFAULT_DURATION',
@@ -88,14 +91,14 @@ class GimmeAWSCreds(object):
     def _write_aws_creds(self, profile, access_key, secret_key, token):
         """ Writes the AWS STS token into the AWS credential file"""
         # Check to see if the aws creds path exists, if not create it
-        creds_dir = os.path.dirname(self.AWS_CONFIG)
+        creds_dir = os.path.dirname(self.AWS_CREDENTIALS_FILE)
         if os.path.exists(creds_dir) is False:
             os.makedirs(creds_dir)
         config = configparser.RawConfigParser()
 
         # Read in the existing config file if it exists
-        if os.path.isfile(self.AWS_CONFIG):
-            config.read(self.AWS_CONFIG)
+        if os.path.isfile(self.AWS_CREDENTIALS_FILE):
+            config.read(self.AWS_CREDENTIALS_FILE)
 
         # Put the credentials into a saml specific section instead of clobbering
         # the default credentials
@@ -108,9 +111,31 @@ class GimmeAWSCreds(object):
         config.set(profile, 'aws_security_token', token)
 
         # Write the updated config file
-        with open(self.AWS_CONFIG, 'w+') as configfile:
+        with open(self.AWS_CREDENTIALS_FILE, 'w+') as configfile:
             config.write(configfile)
 
+    def _write_aws_config(self, profile, role):
+        """ Writes the AWS role to the config file """
+        # Check to see if the aws creds path exists, if not create it
+        conf_dir = os.path.dirname(self.AWS_CONFIG)
+        if os.path.exists(conf_dir) is False:
+            os.makedirs(conf_dir)
+        config = configparser.RawConfigParser()
+
+        # Read in the existing config file if it exists
+        if os.path.isfile(self.AWS_CONFIG):
+            config.read(self.AWS_CONFIG)
+
+        # Put the credentials into a saml specific section instead of clobbering
+        # the default credentials
+        if not config.has_section("profile "+profile):
+            config.add_section("profile "+profile)
+
+        config.set("profile "+profile, 'role_arn', role)
+
+        # Write the updated config file
+        with open(self.AWS_CONFIG, 'w+') as configfile:
+            config.write(configfile)
     @staticmethod
     def _get_partition_from_saml_acs(saml_acs_url):
         """ Determine the AWS partition by looking at the ACS endpoint URL"""
@@ -460,13 +485,14 @@ class GimmeAWSCreds(object):
             # Skip irrelevant roles
             if aws_role != 'all' and aws_role != role.role:
                 continue
-
-            try:
-                aws_creds = self._get_sts_creds(aws_partition, saml_data['SAMLResponse'], role.idp, role.role, config.aws_default_duration)
-            except ClientError as ex:
-                if ex.response['Error']['Message'] == 'The requested DurationSeconds exceeds the MaxSessionDuration set for this role.':
-                    print("The requested session duration was too long for this role.  Falling back to 1 hour.", file=sys.stderr)
-                    aws_creds = self._get_sts_creds(aws_partition, saml_data['SAMLResponse'], role.idp, role.role, 3600)
+            
+            if config.arn_only is False:
+                try:
+                    aws_creds = self._get_sts_creds(aws_partition, saml_data['SAMLResponse'], role.idp, role.role, config.aws_default_duration)
+                except ClientError as ex:
+                    if ex.response['Error']['Message'] == 'The requested DurationSeconds exceeds the MaxSessionDuration set for this role.':
+                        print("The requested session duration was too long for this role.  Falling back to 1 hour.", file=sys.stderr)
+                        aws_creds = self._get_sts_creds(aws_partition, saml_data['SAMLResponse'], role.idp, role.role, 3600)
 
             #TODO: Make this regex work for GovCloud ARNs too
             deriv_profname = re.sub('arn:(aws|aws-cn):iam:.*/', '', role.role)
@@ -486,19 +512,28 @@ class GimmeAWSCreds(object):
                     profile_name = conf_dict['cred_profile']
 
                 # Write out the AWS Config file
-                print('writing role {} to {}'.format(role.role, self.AWS_CONFIG), file=sys.stderr)
-                self._write_aws_creds(
-                    profile_name,
-                    aws_creds['AccessKeyId'],
-                    aws_creds['SecretAccessKey'],
-                    aws_creds['SessionToken']
-                )
+                print('writing role {} to {}'.format(role.role, self.AWS_CREDENTIALS_FILE), file=sys.stderr)
+                if config.arn_only is False:
+                    self._write_aws_creds(
+                        profile_name,
+                        aws_creds['AccessKeyId'],
+                        aws_creds['SecretAccessKey'],
+                        aws_creds['SessionToken']
+                    )
+                else:
+                    self._write_aws_config(
+                        profile_name,
+                        role.role
+                    )
             else:
                 #Print out temporary AWS credentials.  Credentials are printed to stderr to simplify
                 #redirection for use in automated scripts
-                print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'])
-                print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'])
-                print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'])
-                print("export AWS_SECURITY_TOKEN=" + aws_creds['SessionToken'])
+                if config.arn_only is False:
+                    print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'])
+                    print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'])
+                    print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'])
+                    print("export AWS_SECURITY_TOKEN=" + aws_creds['SessionToken'])
+                else:
+                    print(role.role)
 
         config.clean_up()
