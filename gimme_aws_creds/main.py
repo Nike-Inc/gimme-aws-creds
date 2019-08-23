@@ -16,6 +16,7 @@ import configparser
 import os
 import re
 import sys
+import platform
 from os.path import expanduser
 
 # extras
@@ -496,9 +497,15 @@ class GimmeAWSCreds(object):
             else:
                 #Print out temporary AWS credentials.  Credentials are printed to stderr to simplify
                 #redirection for use in automated scripts
-                print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'])
-                print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'])
-                print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'])
-                print("export AWS_SECURITY_TOKEN=" + aws_creds['SessionToken'])
+                if(platform.system=='Windows'):
+                    print("$env:AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'])
+                    print("$env:AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'])
+                    print("$env:AWS_SESSION_TOKEN=" + aws_creds['SessionToken'])
+                    print("$env:AWS_SECURITY_TOKEN=" + aws_creds['SessionToken'])
+                else:
+                    print("export AWS_ACCESS_KEY_ID=" + aws_creds['AccessKeyId'])
+                    print("export AWS_SECRET_ACCESS_KEY=" + aws_creds['SecretAccessKey'])
+                    print("export AWS_SESSION_TOKEN=" + aws_creds['SessionToken'])
+                    print("export AWS_SECURITY_TOKEN=" + aws_creds['SessionToken'])
 
         config.clean_up()
