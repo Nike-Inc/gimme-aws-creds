@@ -124,6 +124,8 @@ export AWS_ACCESS_KEY_ID=AQWERTYUIOP
 export AWS_SECRET_ACCESS_KEY=T!#$JFLOJlsoddop1029405-P
 ```
 
+You can automate the environnement variable creation by running `$(gimme-aws-creds)` on linux or `iex (gimme-aws-creds)` using Windows Powershell
+
 You can run a specific configuration profile with the `--profile` parameter:
 
 ```bash
