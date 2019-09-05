@@ -180,12 +180,8 @@ class Config(object):
             'write_aws_creds': '',
             'cred_profile': 'role',
             'okta_username': '',
-<<<<<<< HEAD
 			'app_url': '',
             'app_relay_state': '',
-=======
-            'app_url': '',
->>>>>>> master
             'resolve_aws_alias': 'n',
             'preferred_mfa_type': '',
             'remember_device': 'n',
@@ -223,11 +219,8 @@ class Config(object):
         config_dict['okta_username'] = self._get_okta_username(defaults['okta_username'])
         config_dict['aws_default_duration'] = self._get_aws_default_duration(defaults['aws_default_duration'])
         config_dict['preferred_mfa_type'] = self._get_preferred_mfa_type(defaults['preferred_mfa_type'])
-<<<<<<< HEAD
         config_dict['app_relay_state'] = self._get_apprelaystate_entry(defaults['app_relay_state'])
-=======
         config_dict['remember_device'] = self._get_remember_device(defaults['remember_device'])
->>>>>>> master
 
         # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:

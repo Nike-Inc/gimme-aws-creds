@@ -18,11 +18,8 @@ import uuid
 from codecs import decode
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
-<<<<<<< HEAD
 from . import version
 import base64
-=======
->>>>>>> master
 
 import keyring
 import requests
@@ -32,12 +29,7 @@ from keyring.errors import PasswordDeleteError
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-<<<<<<< HEAD
 from gimme_aws_creds.webauthn import WebAuthnClient,FakeAssertion
-=======
-from . import version
-
->>>>>>> master
 
 class OktaClient(object):
     """
