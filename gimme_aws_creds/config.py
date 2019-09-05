@@ -15,6 +15,7 @@ import os
 import sys
 from os.path import expanduser
 from urllib.parse import urlparse
+
 from . import version
 
 
@@ -27,10 +28,11 @@ class Config(object):
        under the MIT license.
     """
     FILE_ROOT = expanduser("~")
-    OKTA_CONFIG = FILE_ROOT + '/.okta_aws_login_config'
+    OKTA_CONFIG = os.environ.get("OKTA_CONFIG", os.path.join(FILE_ROOT, '.okta_aws_login_config'))
 
     def __init__(self):
         self.configure = False
+        self.register_device = False
         self.username = None
         self.api_key = None
         self.conf_profile = 'DEFAULT'
@@ -39,7 +41,9 @@ class Config(object):
         self.app_relay_state = None
         self.resolve = False
         self.mfa_code = None
+        self.remember_device = False
         self.aws_default_duration = 3600
+        self.device_token = None
 
         if os.environ.get("OKTA_USERNAME") is not None:
             self.username = os.environ.get("OKTA_USERNAME")
@@ -64,6 +68,12 @@ class Config(object):
             help="If set, will prompt user for configuration parameters and then exit."
         )
         parser.add_argument(
+            '--register-device',
+            '--register_device',
+            action='store_true',
+            help='Download a device token from Okta and add it to the configuration file.'
+        )
+        parser.add_argument(
             '--profile', '-p',
             help='If set, the specified configuration profile will be used instead of the default.'
         )
@@ -83,21 +93,40 @@ class Config(object):
             "If not provided you will be prompted to enter an MFA verification code."
         )
         parser.add_argument(
+            '--remember-device', '-m',
+            action='store_true',
+            help="The MFA device will be remembered by Okta service for a limited time, "
+                 "otherwise, you will be prompted for it every time."
+        )
+        parser.add_argument(
             '--version', action='version',
             version='%(prog)s {}'.format(version),
             help='gimme-aws-creds version')
+        parser.add_argument(
+            '--list-profiles', action='store_true',
+            help='List all the profiles under .okta_aws_login_config')
         args = parser.parse_args()
 
         self.configure = args.configure
+        self.register_device = args.register_device
         if args.insecure is True:
             print("Warning: SSL certificate validation is disabled!")
             self.verify_ssl_certs = False
         else:
             self.verify_ssl_certs = True
+
+        if args.list_profiles:
+            if os.path.isfile(self.OKTA_CONFIG):
+                with open(self.OKTA_CONFIG, 'r') as okta_config:
+                    print(okta_config.read())
+                    exit(0)
+
         if args.username is not None:
             self.username = args.username
         if args.mfa_code is not None:
             self.mfa_code = args.mfa_code
+        if args.remember_device:
+            self.remember_device = True
         if args.resolve is True:
             self.resolve = True
         self.conf_profile = args.profile or 'DEFAULT'
@@ -151,11 +180,17 @@ class Config(object):
             'write_aws_creds': '',
             'cred_profile': 'role',
             'okta_username': '',
+<<<<<<< HEAD
 			'app_url': '',
             'app_relay_state': '',
+=======
+            'app_url': '',
+>>>>>>> master
             'resolve_aws_alias': 'n',
             'preferred_mfa_type': '',
-            'aws_default_duration': '3600'
+            'remember_device': 'n',
+            'aws_default_duration': '3600',
+            'device_token': ''
         }
 
         # See if a config file already exists.
@@ -188,7 +223,11 @@ class Config(object):
         config_dict['okta_username'] = self._get_okta_username(defaults['okta_username'])
         config_dict['aws_default_duration'] = self._get_aws_default_duration(defaults['aws_default_duration'])
         config_dict['preferred_mfa_type'] = self._get_preferred_mfa_type(defaults['preferred_mfa_type'])
+<<<<<<< HEAD
         config_dict['app_relay_state'] = self._get_apprelaystate_entry(defaults['app_relay_state'])
+=======
+        config_dict['remember_device'] = self._get_remember_device(defaults['remember_device'])
+>>>>>>> master
 
         # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
@@ -197,7 +236,11 @@ class Config(object):
         else:
             config_dict['cred_profile'] = defaults['cred_profile']
 
-        # Set default config
+        self.write_config_file(config_dict)
+
+    def write_config_file(self, config_dict):
+        config = configparser.ConfigParser()
+        config.read(self.OKTA_CONFIG)
         config[self.conf_profile] = config_dict
 
         # write out the conf file
@@ -370,7 +413,7 @@ class Config(object):
 
     def _get_aws_rolename(self, default_entry):
         """ Get the AWS Role ARN"""
-        print("Enter the ARN for the AWS role you want credentials for. 'ALL' will retrieve all roles."
+        print("Enter the ARN for the AWS role you want credentials for. 'all' will retrieve all roles."
               "\nThis is optional, you can select the role when you run the CLI.")
         aws_rolename = self._get_user_input("AWS Role ARN", default_entry)
         return aws_rolename
@@ -407,6 +450,26 @@ class Config(object):
         okta_username = self._get_user_input(
             "Preferred MFA Device Type", default_entry)
         return okta_username
+
+    def _get_remember_device(self, default_entry):
+        """Option to remember the MFA device"""
+        print("Do you want the MFA device be remembered?\n"
+              "Please answer y or n.")
+        remember_device = None
+        while remember_device is not True and remember_device is not False:
+            default_entry = 'y' if default_entry is True else 'n'
+            answer = self._get_user_input(
+                "Remember device", default_entry)
+            answer = answer.lower()
+
+            if answer == 'y':
+                remember_device = True
+            elif answer == 'n':
+                remember_device = False
+            else:
+                print("Remember the MFA device must be either y or n.")
+
+        return remember_device
 
     @staticmethod
     def _get_user_input(message, default=None):

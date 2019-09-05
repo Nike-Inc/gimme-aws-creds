@@ -716,10 +716,8 @@ class TestOktaClient(unittest.TestCase):
         """ Handle an unknown MFA factor"""
         with self.captured_output() as (out, err):
             result = self.client._build_factor_name(self.unknown_factor)
-            assert_equals(result, "")
-        # Ensure the error message is printed to the screen
-        output = out.getvalue().strip()
-        self.assertEqual(output, 'Unknown MFA type: UNKNOWN_FACTOR')
+            assert_equals(result, "Unknown MFA type: UNKNOWN_FACTOR")
+ 
 
     # def test_get_app_by_name(self):
     #     """ Test selecting app by name"""

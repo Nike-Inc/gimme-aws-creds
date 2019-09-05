@@ -1,5 +1,8 @@
 init:
-	pip3 install -r requirements.txt
+	pip3 install -r requirements_dev.txt
 
-test:
+docker-build:
+	docker build -t gimme-aws-creds .
+
+test: docker-build
 	nosetests -vv tests
