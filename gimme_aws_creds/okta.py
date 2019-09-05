@@ -29,9 +29,7 @@ from keyring.errors import PasswordDeleteError
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-# from pyu2f import model
-# from pyu2f.convenience import authenticator
-from gimme_aws_creds.webauthn import WebAuthnClient
+from gimme_aws_creds.webauthn import WebAuthnClient,FakeAssertion
 
 class OktaClient(object):
     """
@@ -446,9 +444,8 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
-        print("Challenge with U2F key ...")
+        print("Challenge with WebAuthN ...", file=sys.stderr)
         response_data = response.json()
-        print(response_data)
 
         if 'stateToken' in response_data:
             return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
@@ -530,39 +527,19 @@ class OktaClient(object):
 
         nonce = login_data['_embedded']['factor']['_embedded']['challenge']['challenge'];
         credentialId = self._correct_padding(login_data['_embedded']['factor']['profile']['credentialId']);
-
-
-        # nonce = self._correct_padding(login_data['_embedded']['factor']['_embedded']['challenge']['nonce']);
-        # appId = login_data['_embedded']['factor']['profile']['appId'];
-        # version = login_data['_embedded']['factor']['profile']['version'];
         response = {}
 
-        """ Call to U2F I/O """
+        """ Authenticator """
         verif = WebAuthnClient(self._okta_org_url, nonce, credentialId);
-        verif.localte_device()
-        clientData, assertion = verif.verify()
+        try:
+            clientData, assertion = verif.verify()
+        except:
+            clientData = b'fake'
+            assertion = FakeAssertion()
 
-        #registred_key = model.RegisteredKey(base64.urlsafe_b64decode(credentialId));
-        #challenge_data = [{'key': registred_key, 'challenge': base64.urlsafe_b64decode(nonce)}];
-
-        # nbTry = 3 # plugged U2F may not match the one enrolled, give 3 retries
-        #while nbTry>0:
-        #    try:
-        #        api = authenticator.CreateCompositeAuthenticator(appId);
-        #        response = api.Authenticate(appId, challenge_data);
-        #        nbTry=0
-        #    except:
-        #        nbTry-=1
-        #        if nbTry > 0:
-        #            print('No U2F device found or did not match enrolled key. \n')
-        #            input('Insert U2F key and press a key...')
-        #        else:
-        #            response = {'signatureData': 'fake', 'clientData': 'fake'}
-        #signatureData = response['signatureData']
-        #clientData = response['clientData']
-        clientData = str(base64.urlsafe_b64encode(verif._client_data), "utf-8")
-        signatureData = base64.b64encode(verif._assertions[0].signature).decode('utf-8')
-        authData = base64.b64encode(verif._assertions[0].auth_data).decode('utf-8')
+        clientData = str(base64.urlsafe_b64encode(clientData), "utf-8")
+        signatureData = base64.b64encode(assertion.signature).decode('utf-8')
+        authData = base64.b64encode(assertion.auth_data).decode('utf-8')
 
         response = self._http_client.post(
             login_data['_links']['next']['href'] + "?rememberDevice=false",

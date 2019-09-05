@@ -19,19 +19,25 @@ from fido2.hid import CtapHidDevice, STATUS
 from fido2.client import Fido2Client, ClientError
 from threading import Event, Thread
 
+class FakeAssertion(object):
+    def __init__(self):
+        self.signature = b'fake'
+        self.auth_data = b'fake'
+
+class NoFIDODeviceFoundError(Exception):
+    pass
+
+class FIDODeviceTimeoutError(Exception):
+    pass
+
 class WebAuthnClient(object):
 
-    def __init__(self, okta_org_url, challenge, credentialid, verify_ssl_certs=True):
+    def __init__(self, okta_org_url, challenge, credentialid):
         """
         :param okta_org_url: Base URL string for Okta IDP.
         :param verify_ssl_certs: Enable/disable SSL verification
         """
         self._okta_org_url = okta_org_url
-        self._verify_ssl_certs = verify_ssl_certs
-
-        if verify_ssl_certs is False:
-            requests.packages.urllib3.disable_warnings()
-
         self._clients = None
         self._has_prompted = False
         self._challenge = challenge
@@ -44,18 +50,18 @@ class WebAuthnClient(object):
             'id': base64.urlsafe_b64decode(credentialid)
         }]
 
-    def localte_device(self):
+    def locate_device(self):
         # Locate a device
         devs = list(CtapHidDevice.list_devices())
         if not devs:
-            print('No FIDO device found')
+            print('No FIDO device found', file=sys.stderr)
+            raise NoFIDODeviceFoundError
 
         self._clients = [Fido2Client(d, self._okta_org_url) for d in devs]
-        print(len(self._clients))
 
     def on_keepalive(self, status):
         if status == STATUS.UPNEEDED and not self._has_prompted:
-            print('\nTouch your authenticator device now...\n')
+            print('\nTouch your authenticator device now...\n', file=sys.stderr)
             self._has_prompted = True
 
     def work(self, client):
@@ -64,20 +70,24 @@ class WebAuthnClient(object):
                 self._rp['id'], self._challenge, self._allow_list, timeout=self._cancel, on_keepalive=self.on_keepalive
             )
         except ClientError as e:
-            if e.code != ClientError.ERR.TIMEOUT:
+            if e.code == ClientError.ERR.DEVICE_INELIGIBLE:
+                print('Security key is ineligible', file=sys.stderr) #TODO extract key info
+                return
+            elif e.code != ClientError.ERR.TIMEOUT:
                 raise
             else:
                 return
         self._cancel.set()
-        print('New credential created!')
-        print('CIENT DATA:', self._client_data)
-        print()
-        print('ASSERTION DATA:', self._assertions[0])
-        print('ASSERTION DATA:', self._assertions[0].auth_data)
-        print('ASSERTION DATA:', base64.b64encode(self._assertions[0].auth_data.rp_id_hash).decode('utf-8'))
-        
 
     def verify(self):
+        # If authenticator is not found, prompt
+        try:
+            self.locate_device()
+        except NoFIDODeviceFoundError:
+            print('Please insert your security key and press enter...', file=sys.stderr)
+            input()
+            self.locate_device()
+
         threads = []
         for client in self._clients:
             t = Thread(target=self.work, args=(client,))
@@ -88,10 +98,7 @@ class WebAuthnClient(object):
             t.join()
 
         if not self._cancel.is_set():
-            print('Operation timed out!')
+            print('Operation timed out or no valid Security Key found !', file=sys.stderr)
+            raise FIDODeviceTimeoutError
 
         return self._client_data, self._assertions[0]
-
-
-
-
