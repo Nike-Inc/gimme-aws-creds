@@ -129,6 +129,11 @@ class GimmeAWSCreds(object):
         else:
             print("{} is an unknown ACS URL".format(saml_acs_url))
             sys.exit(1)
+    
+    @staticmethod
+    def _get_target_idp_orgname(saml_acs_url):
+        match = re.search('(https://.*\.com)/.*', saml_acs_url)
+        return match.group(1)
 
     @staticmethod
     def _get_sts_creds(partition, assertion, idp, role, duration=3600):
@@ -463,7 +468,10 @@ class GimmeAWSCreds(object):
             # we need to athenticate again & perform a stepup authN if necessary
             aws_partition = self._get_partition_from_saml_acs(saml_data['TargetUrl'])
             if aws_partition == 'okta-idp':
-                # inbound
+                # inbound SAML authentication
+                # extract new orgname and build a new okta AuthN instance
+                targetorg = self._get_target_idp_orgname(saml_data['TargetUrl'])
+                okta = OktaClient(targetorg, config.verify_ssl_certs, conf_dict['device_token'])
                 auth_result = okta.auth_saml(saml_data)
                 saml_data = okta.get_saml_response(conf_dict.get('app_relay_state'))
                 aws_partition = self._get_partition_from_saml_acs(saml_data['TargetUrl'])
