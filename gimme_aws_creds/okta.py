@@ -538,11 +538,11 @@ class OktaClient(object):
         try:
             clientData, signature = verif.verify()
         except:
-            signature = None
+            signature = b'fake'
+            clientData = b'fake'
 
         clientData = str(base64.urlsafe_b64encode(clientData), "utf-8")
         signatureData = str(base64.urlsafe_b64encode(signature), 'utf-8')
-        print("signature:", clientData, signatureData)
 
         response = self._http_client.post(
             login_data['_links']['next']['href'] + "?rememberDevice=false",
