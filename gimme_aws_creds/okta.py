@@ -30,6 +30,7 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
 from gimme_aws_creds.webauthn import WebAuthnClient,FakeAssertion
+from gimme_aws_creds.u2f import FactorU2F
 
 class OktaClient(object):
     """
@@ -323,7 +324,7 @@ class OktaClient(object):
             return self._login_multi_factor(state_token, login_data)
         elif status == 'MFA_CHALLENGE':
             if login_data['_embedded']['factor']['factorType'] == 'u2f':
-                return self._check_webauthn_result(state_token, login_data)
+                return self._check_u2f_result(state_token, login_data)
             if login_data['_embedded']['factor']['factorType'] == 'webauthn':
                 return self._check_webauthn_result(state_token, login_data)
             if 'factorResult' in login_data and login_data['factorResult'] == 'WAITING':
@@ -528,12 +529,36 @@ class OktaClient(object):
     def _check_u2f_result(self, state_token, login_data):
         # should be deprecated soon as OKTA move forward webauthN
         # just for backward compatibility
-        nonce = self._correct_padding(login_data['_embedded']['factor']['_embedded']['challenge']['nonce']);
-        credentialId = self._correct_padding(login_data['_embedded']['factor']['profile']['credentialId']);
+        nonce = login_data['_embedded']['factor']['_embedded']['challenge']['nonce'];
+        credentialId = login_data['_embedded']['factor']['profile']['credentialId'];
         appId = login_data['_embedded']['factor']['profile']['appId'];
         version = login_data['_embedded']['factor']['profile']['version'];
         response = {}
-        # TODO
+        verif = FactorU2F(appId, nonce, credentialId);
+        try:
+            clientData, signature = verif.verify()
+        except:
+            signature = None
+
+        clientData = str(base64.urlsafe_b64encode(clientData), "utf-8")
+        signatureData = str(base64.urlsafe_b64encode(signature), 'utf-8')
+        print("signature:", clientData, signatureData)
+
+        response = self._http_client.post(
+            login_data['_links']['next']['href'] + "?rememberDevice=false",
+            json={'stateToken': state_token, 'clientData': clientData, 'signatureData': signatureData},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+
+        response_data = response.json()
+        if 'status' in response_data and response_data['status'] == 'SUCCESS':
+            if 'stateToken' in response_data:
+                return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+            if 'sessionToken' in response_data:
+                return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+        else:
+            return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
 
 
     def _check_webauthn_result(self, state_token, login_data):

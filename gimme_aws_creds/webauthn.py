@@ -24,18 +24,13 @@ class FakeAssertion(object):
         self.signature = b'fake'
         self.auth_data = b'fake'
 
-class NoFIDODeviceFoundError(Exception):
-    pass
-
-class FIDODeviceTimeoutError(Exception):
-    pass
-
 class WebAuthnClient(object):
 
     def __init__(self, okta_org_url, challenge, credentialid):
         """
         :param okta_org_url: Base URL string for Okta IDP.
-        :param verify_ssl_certs: Enable/disable SSL verification
+        :param challenge: Challenge
+        :param credentialid: credentialid
         """
         self._okta_org_url = okta_org_url
         self._clients = None
