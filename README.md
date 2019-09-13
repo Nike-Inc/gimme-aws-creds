@@ -149,6 +149,38 @@ For changing variables outside of this, you'd need to create a separate profile 
 ### Viewing Profiles
 Run `gimme-aws-creds --list-profiles` will go to your okta config file and print out all profiles created and their settings.
 
+### Org2Org use case
+If you are using an Org2Org configuration and delegates the authentication to another Okta org than the one where AWS app is docked, gimme-aws-creds supports this scenario through using the `app_relay_state` parameter.
+- You need to have a fully working configured Org2Org between your two Okta orgs (you can check help on okta.com)
+- On the hub:
+  - a fully configured AWS app and its url (https://something-hub.okta[preview].com/home/amazon_aws/app_instance_id/something)
+  - the end user that need to access from the spoke (through org2org for example) have been provisionned correctly 
+  - the end user has been assigned to the AWS app
+- On the spoke (the org that actually authenticates the end user):
+  - org2org app (or equivalent) and its url (https://something-spoke.okta[preview].com/home/.../app_instance_id/some_id) has been configured 
+  - the end-users has been assigned to this app
+
+Adjust/Set your gimme-aws-creds configuration with following values : 
+```bash
+gimme_creds_server = appurl
+app_url = https://something-spoke.okta[preview].com/home/.../app_instance_id/some_id
+app_relay_state = https://something-hub.okta[preview].com/home/amazon_aws/app_instance_id/something
+```
+Caveats:
+- If MFA policies are set on both orgs:
+  - your MFA preferences only applies to the spoke not on the hub
+  - you are prompted twice (once on the spoke and once on the hub). This is by design as there is no way to pass your MFA status from org to org
+
+
+## MFA security keys support
+
+gimme-aws-creds works both on FIDO1 enabled org and WebAuthN enabled org
+
+Note that FIDO1 will probably be deprecated in the near future as standards moves forward to WebAuthN
+
+WebAuthN support is only available for usb security keys (gimme-aws-creds relies on the yubico fido2 lib). Authenticator such as Windows Hello or Touch ID are not yet supported.
+Actually it has only been tested with USB U2F keys & yubikeys.
+
 ## Running Tests
 
 You can run all the unit tests using nosetests. Most of the tests are mocked.
