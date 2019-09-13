@@ -173,6 +173,10 @@ class OktaClient(object):
         """ Authenticate the user with a saml token and return the Okta Session ID and username"""
         login_response = self.auth_inbound(saml_data)
 
+        if 'session' in login_response:
+            # no mfa, we already have the session cookies
+            return {"username": 'saml', "session": login_response['session'], "device_token": self._http_client.cookies['DT']}
+
         session_url = self._okta_org_url + '/login/sessionCookieRedirect'
 
         if 'redirect_uri' not in kwargs:
@@ -193,7 +197,7 @@ class OktaClient(object):
             allow_redirects=False
         )
 
-        return {"username": login_response['_embedded']['user']['profile']['login'], "session": response.cookies['sid']}
+        return {"username": login_response['_embedded']['user']['profile']['login'], "session": response.cookies['sid'], "device_token": self._http_client.cookies['DT']}
 
     def auth_oauth(self, client_id, **kwargs):
         """ Login to Okta and retrieve access token, ID token or both """
@@ -456,7 +460,7 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
-        print("Challenge with WebAuthN ...", file=sys.stderr)
+        print("Challenge with security keys ...", file=sys.stderr)
         response_data = response.json()
 
         if 'stateToken' in response_data:
@@ -520,11 +524,6 @@ class OktaClient(object):
             return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
-
-    def _correct_padding(self, data):
-        if len(data) % 4:
-            data +=	'=' * (4- len(data) % 4)
-        return data
 		
     def _check_u2f_result(self, state_token, login_data):
         # should be deprecated soon as OKTA move forward webauthN
@@ -565,7 +564,7 @@ class OktaClient(object):
         """ wait for webauthN challenge """
 
         nonce = login_data['_embedded']['factor']['_embedded']['challenge']['challenge'];
-        credentialId = self._correct_padding(login_data['_embedded']['factor']['profile']['credentialId']);
+        credentialId = login_data['_embedded']['factor']['profile']['credentialId'];
         response = {}
 
         """ Authenticator """
@@ -607,10 +606,13 @@ class OktaClient(object):
             api_response = self.stepup_auth(None, state_token)
             return api_response
 
-        #state_token = decode(re.search(r"var stateToken = '(.*)';", response.text).group(1), "unicode-escape")
-        #api_response = self.stepup_auth(None, state_token)
-        #print(api_response['sessionToken'])
-        return api_response; #TODO
+        # no MFA required => we should have a session cookies, login flow ends here
+        api_response = {}
+        api_response['status'] = 'SUCCESS'
+        api_response['sessionToken'] = ''
+        api_response['session'] = response.cookies['sid']
+        api_response['device_token'] = self._http_client.cookies['DT']
+        return api_response;
 
     def get_saml_response(self, url):
         """ return the base64 SAML value object from the SAML Response"""

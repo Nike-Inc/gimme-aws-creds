@@ -18,6 +18,7 @@ import base64
 from fido2.hid import CtapHidDevice, STATUS
 from fido2.client import Fido2Client, ClientError
 from threading import Event, Thread
+from gimme_aws_creds.common import NoFIDODeviceFoundError, FIDODeviceTimeoutError, FIDODeviceError
 
 class FakeAssertion(object):
     def __init__(self):
@@ -25,6 +26,12 @@ class FakeAssertion(object):
         self.auth_data = b'fake'
 
 class WebAuthnClient(object):
+
+    @staticmethod
+    def _correct_padding(data):
+        if len(data) % 4:
+            data +=	'=' * (4- len(data) % 4)
+        return data    
 
     def __init__(self, okta_org_url, challenge, credentialid):
         """
@@ -42,7 +49,7 @@ class WebAuthnClient(object):
         self._rp = {'id': okta_org_url[8:], 'name': okta_org_url[8:]}
         self._allow_list = [{
             'type': 'public-key',
-            'id': base64.urlsafe_b64decode(credentialid)
+            'id': base64.urlsafe_b64decode(self._correct_padding(credentialid))
         }]
 
     def locate_device(self):
