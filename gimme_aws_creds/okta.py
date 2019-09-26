@@ -134,16 +134,6 @@ class OktaClient(object):
 
         return flow_state['apiResponse']
 
-    def auth_inbound(self, saml_data):
-        """ Login to Okta using saml data"""
-        flow_state = self._login_saml(None, saml_data['TargetUrl'], saml_data['SAMLResponse'])
-
-        while flow_state.get('apiResponse').get('status') != 'SUCCESS':
-            flow_state = self._next_login_step(
-                flow_state.get('stateToken'), flow_state.get('apiResponse'))
-
-        return flow_state['apiResponse']
-
     def auth_session(self, **kwargs):
         """ Authenticate the user and return the Okta Session ID and username"""
         login_response = self.auth()
@@ -167,36 +157,6 @@ class OktaClient(object):
             verify=self._verify_ssl_certs,
             allow_redirects=False
         )
-        return {"username": login_response['_embedded']['user']['profile']['login'], "session": response.cookies['sid'], "device_token": self._http_client.cookies['DT']}
-
-    def auth_saml(self, saml_data, **kwargs):
-        """ Authenticate the user with a saml token and return the Okta Session ID and username"""
-        login_response = self.auth_inbound(saml_data)
-
-        if 'session' in login_response:
-            # no mfa, we already have the session cookies
-            return {"username": 'saml', "session": login_response['session'], "device_token": self._http_client.cookies['DT']}
-
-        session_url = self._okta_org_url + '/login/sessionCookieRedirect'
-
-        if 'redirect_uri' not in kwargs:
-            redirect_uri = 'http://localhost:8080/login'
-        else:
-            redirect_uri = kwargs['redirect_uri']
-
-        params = {
-            'token': login_response['sessionToken'],
-            'redirectUrl': redirect_uri
-        }
-
-        response = self._http_client.get(
-            session_url,
-            params=params,
-            headers=self._get_headers(),
-            verify=self._verify_ssl_certs,
-            allow_redirects=False
-        )
-
         return {"username": login_response['_embedded']['user']['profile']['login'], "session": response.cookies['sid'], "device_token": self._http_client.cookies['DT']}
 
     def auth_oauth(self, client_id, **kwargs):
@@ -284,14 +244,6 @@ class OktaClient(object):
             'Content-Type': 'application/json'}
         return headers
 
-    @staticmethod
-    def _get_headers_urlencoded():
-        """sets the default headers"""
-        headers = {
-            'User-Agent': "gimme-aws-creds {}".format(version),
-            'Content-Type': 'application/x-www-form-urlencoded'}
-        return headers
-
     def _get_initial_flow_state(self, embed_link, state_token=None):
         """ Starts the authentication flow with Okta"""
         if state_token is None:
@@ -369,28 +321,6 @@ class OktaClient(object):
                     pass
 
             exit(2)
-
-        func_result = {'apiResponse': response_data}
-        if 'stateToken' in response_data:
-            func_result['stateToken'] = response_data['stateToken']
-
-        return func_result
-
-    def _login_saml(self, state_token, url, saml_token):
-        """ login to Okta with a saml token"""
-        login_json = {
-            'SAMLResponse': saml_token
-        }
-
-        response = self._http_client.post(
-            url,
-            data=login_json,
-            headers=self._get_headers_urlencoded(),
-            verify=self._verify_ssl_certs,
-            allow_redirects=True
-        )
-
-        response_data = self.get_hs_stateToken(response)
 
         func_result = {'apiResponse': response_data}
         if 'stateToken' in response_data:

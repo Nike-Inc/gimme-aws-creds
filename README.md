@@ -94,7 +94,6 @@ A configuration wizard will prompt you to enter the necessary configuration para
   - sms - OTP via SMS message
 - resolve_aws_alias - y or n. If yes, gimme-aws-creds will try to resolve AWS account ids with respective alias names (default: n). This option can also be set interactively in the command line using `-r` or `--resolve` parameter
 - remember_device - y or n. If yes, the MFA device will be remembered by Okta service for a limited time. This option can also be set interactively in the command line using `-m` or `--remember-device`
-- app_relay_state - used in an Org2Org configuration, set it to the target aws application configured in Okta Hub instance. It is typically something like https://something.okta[preview].com/home/amazon_aws/app_instance_id/something. You must also set `app_url` parameter to the Org2Org url app of your Okta Spoke instance.
 
 ## Usage
 
@@ -148,29 +147,6 @@ For changing variables outside of this, you'd need to create a separate profile 
 
 ### Viewing Profiles
 Run `gimme-aws-creds --list-profiles` will go to your okta config file and print out all profiles created and their settings.
-
-### Org2Org use case
-If you are using an Org2Org configuration and delegates the authentication to another Okta org than the one where AWS app is docked, gimme-aws-creds supports this scenario through using the `app_relay_state` parameter.
-- You need to have a fully working configured Org2Org between your two Okta orgs (you can check help on okta.com)
-- On the hub:
-  - a fully configured AWS app and its url (https://something-hub.okta[preview].com/home/amazon_aws/app_instance_id/something)
-  - the end user that need to access from the spoke (through org2org for example) have been provisionned correctly 
-  - the end user has been assigned to the AWS app
-- On the spoke (the org that actually authenticates the end user):
-  - org2org app (or equivalent) and its url (https://something-spoke.okta[preview].com/home/.../app_instance_id/some_id) has been configured 
-  - the end-users has been assigned to this app
-
-Adjust/Set your gimme-aws-creds configuration with following values : 
-```bash
-gimme_creds_server = appurl
-app_url = https://something-spoke.okta[preview].com/home/.../app_instance_id/some_id
-app_relay_state = https://something-hub.okta[preview].com/home/amazon_aws/app_instance_id/something
-```
-Caveats:
-- If MFA policies are set on both orgs:
-  - your MFA preferences only applies to the spoke not on the hub
-  - you are prompted twice (once on the spoke and once on the hub). This is by design as there is no way to pass your MFA status from org to org
-
 
 ## MFA security keys support
 
