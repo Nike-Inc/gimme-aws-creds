@@ -10,6 +10,7 @@ from nose.tools import assert_equals
 from contextlib import contextmanager
 from io import StringIO
 
+from gimme_aws_creds import errors, ui
 from gimme_aws_creds.okta import OktaClient
 
 
@@ -153,7 +154,7 @@ class TestOktaClient(unittest.TestCase):
         self.factor_list = [self.sms_factor, self.push_factor, self.totp_factor]
 
     def setUp_client(self, okta_org_url, verify_ssl_certs):
-        client = OktaClient(okta_org_url, verify_ssl_certs)
+        client = OktaClient(ui.default, okta_org_url, verify_ssl_certs)
         client.req_session = requests
         return client
 
@@ -234,14 +235,14 @@ class TestOktaClient(unittest.TestCase):
 #    @patch('builtins.input', return_value='ann')
 #    def test_bad_username(self, mock_pass, mock_input):
 #        """Test that initial authentication works with Okta"""
-#        with self.assertRaises(SystemExit):
+#        with self.assertRaises(errors.GimmeAWSCredsExitBase):
 #            self.client._get_username_password_creds()
 
     @patch('getpass.getpass', return_value='')
     @patch('builtins.input', return_value='ann@example.com')
     def test_missing_password(self, mock_pass, mock_input):
         """Test that initial authentication works with Okta"""
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(errors.GimmeAWSCredsExitBase):
             self.client._get_username_password_creds()
 
     @responses.activate
@@ -694,7 +695,7 @@ class TestOktaClient(unittest.TestCase):
     @patch('builtins.input', return_value='12')
     def test_choose_bad_factor_totp(self, mock_input):
         """ Test selecting an invalid MFA factor"""
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(errors.GimmeAWSCredsExitBase):
             result = self.client._choose_factor(self.factor_list)
 
     def test_build_factor_name_sms(self):
