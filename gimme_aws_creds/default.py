@@ -9,25 +9,12 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
-import getpass
-import re
-import sys
-import time
-import uuid
-from codecs import decode
-from urllib.parse import parse_qs
-from urllib.parse import urlparse
-from . import version
-
-import keyring
-import requests
-from bs4 import BeautifulSoup
-
 import base64
-from collections import namedtuple
 import xml.etree.ElementTree as ET
 
 import gimme_aws_creds.common as commondef
+from . import errors
+
 
 class DefaultResolver(object):
     """
@@ -57,8 +44,7 @@ class DefaultResolver(object):
                 elif 'role' in field:
                     role = field
             if not idp or not role:
-                print('Parsing error on {}'.format(role_pair), file=sys.stderr)
-                exit()
+                raise errors.GimmeAWSCredsError('Parsing error on {}'.format(role_pair))
             else:
                 result.append(commondef.RoleSet(idp=idp, role=role, friendly_account_name="", friendly_role_name=""))
 

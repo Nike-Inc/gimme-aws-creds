@@ -26,15 +26,17 @@ from fido2.ctap1 import CTAP1
 from fido2.ctap1 import ApduError
 from fido2.ctap1 import APDU
 from gimme_aws_creds.common import NoFIDODeviceFoundError, FIDODeviceTimeoutError, FIDODeviceError
+from . import errors, ui, version
 
 class FactorU2F(object):
 
-    def __init__(self, appId, nonce, credentialId):
+    def __init__(self, ui, appId, nonce, credentialId):
         """
         :param appId: Base URL string for Okta IDP e.g. https://xxxx.okta.com'
         :param nonce: nonce
         :param credentialid: credentialid
         """
+        self.ui = ui
         self._clients = None
         self._has_prompted = False
         self._cancel = Event()
@@ -53,7 +55,7 @@ class FactorU2F(object):
         # Locate a device
         devs = list(CtapHidDevice.list_devices())
         if not devs:
-            print('No FIDO device found', file=sys.stderr)
+            self.ui.info("No FIDO device found")
             raise NoFIDODeviceFoundError
 
         self._clients = [CTAP1(d) for d in devs]
@@ -66,7 +68,7 @@ class FactorU2F(object):
             except ApduError as e:
                 if e.code == APDU.USE_NOT_SATISFIED:
                     if not self._has_prompted:
-                        print('\nTouch your authenticator device now...\n', file=sys.stderr)
+                        self.ui.info('\nTouch your authenticator device now...\n')
                         self._has_prompted = True
                     time.sleep(0.5)
                     continue
@@ -84,8 +86,7 @@ class FactorU2F(object):
         try:
             self.locate_device()
         except NoFIDODeviceFoundError:
-            print('Please insert your security key and press enter...', file=sys.stderr)
-            input()
+            self.ui.input('Please insert your security key and press enter...')
             self.locate_device()
 
         threads = []
@@ -98,7 +99,7 @@ class FactorU2F(object):
             t.join()
 
         if not self._cancel.is_set():
-            print('Operation timed out or no valid Security Key found !', file=sys.stderr)
+            self.ui.info('Operation timed out or no valid Security Key found !')
             raise FIDODeviceTimeoutError
 
         return self._clientData, self._signature

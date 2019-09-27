@@ -19,6 +19,7 @@ from fido2.hid import CtapHidDevice, STATUS
 from fido2.client import Fido2Client, ClientError
 from threading import Event, Thread
 from gimme_aws_creds.common import NoFIDODeviceFoundError, FIDODeviceTimeoutError, FIDODeviceError
+from . import errors, ui, version
 
 class FakeAssertion(object):
     def __init__(self):
@@ -33,12 +34,13 @@ class WebAuthnClient(object):
             data +=	'=' * (4- len(data) % 4)
         return data    
 
-    def __init__(self, okta_org_url, challenge, credentialid):
+    def __init__(self, ui, okta_org_url, challenge, credentialid):
         """
         :param okta_org_url: Base URL string for Okta IDP.
         :param challenge: Challenge
         :param credentialid: credentialid
         """
+        self.ui = ui
         self._okta_org_url = okta_org_url
         self._clients = None
         self._has_prompted = False
@@ -56,14 +58,14 @@ class WebAuthnClient(object):
         # Locate a device
         devs = list(CtapHidDevice.list_devices())
         if not devs:
-            print('No FIDO device found', file=sys.stderr)
+            self.ui.info('No FIDO device found')
             raise NoFIDODeviceFoundError
 
         self._clients = [Fido2Client(d, self._okta_org_url) for d in devs]
 
     def on_keepalive(self, status):
         if status == STATUS.UPNEEDED and not self._has_prompted:
-            print('\nTouch your authenticator device now...\n', file=sys.stderr)
+            self.ui.info('\nTouch your authenticator device now...\n')
             self._has_prompted = True
 
     def work(self, client):
@@ -73,7 +75,7 @@ class WebAuthnClient(object):
             )
         except ClientError as e:
             if e.code == ClientError.ERR.DEVICE_INELIGIBLE:
-                print('Security key is ineligible', file=sys.stderr) #TODO extract key info
+                self.ui.info('Security key is ineligible') #TODO extract key info
                 return
             elif e.code != ClientError.ERR.TIMEOUT:
                 raise
@@ -86,8 +88,7 @@ class WebAuthnClient(object):
         try:
             self.locate_device()
         except NoFIDODeviceFoundError:
-            print('Please insert your security key and press enter...', file=sys.stderr)
-            input()
+            self.ui.input('Please insert your security key and press enter...')
             self.locate_device()
 
         threads = []
@@ -100,7 +101,7 @@ class WebAuthnClient(object):
             t.join()
 
         if not self._cancel.is_set():
-            print('Operation timed out or no valid Security Key found !', file=sys.stderr)
+            self.ui.info('Operation timed out or no valid Security Key found !')
             raise FIDODeviceTimeoutError
 
         return self._client_data, self._assertions[0]

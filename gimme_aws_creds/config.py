@@ -12,11 +12,9 @@ See the License for the specific language governing permissions and* limitations
 import argparse
 import configparser
 import os
-import sys
-from os.path import expanduser
 from urllib.parse import urlparse
 
-from . import version
+from . import errors, ui, version
 
 
 class Config(object):
@@ -27,12 +25,18 @@ class Config(object):
        A lot of this code is modified from https://github.com/nimbusscale/okta_aws_login
        under the MIT license.
     """
-    FILE_ROOT = expanduser("~")
-    OKTA_CONFIG = os.environ.get("OKTA_CONFIG", os.path.join(FILE_ROOT, '.okta_aws_login_config'))
 
-    def __init__(self):
-        self.configure = False
-        self.register_device = False
+    def __init__(self, ui):
+        """
+        :type ui: ui.UserInterface
+        """
+        self.ui = ui
+        self.FILE_ROOT = self.ui.HOME
+        self.OKTA_CONFIG = self.ui.environ.get(
+            'OKTA_CONFIG',
+            os.path.join(self.FILE_ROOT, '.okta_aws_login_config')
+        )
+        self.action_register_device = False
         self.username = None
         self.api_key = None
         self.conf_profile = 'DEFAULT'
@@ -43,12 +47,18 @@ class Config(object):
         self.remember_device = False
         self.aws_default_duration = 3600
         self.device_token = None
+        self.action_configure = False
+        self.action_list_profiles = False
+        self.action_list_roles = False
+        self.action_store_json_creds = False
+        self.output_format = 'export'
+        self.roles = []
 
-        if os.environ.get("OKTA_USERNAME") is not None:
-            self.username = os.environ.get("OKTA_USERNAME")
+        if self.ui.environ.get("OKTA_USERNAME") is not None:
+            self.username = self.ui.environ.get("OKTA_USERNAME")
 
-        if os.environ.get("OKTA_API_KEY") is not None:
-            self.api_key = os.environ.get("OKTA_API_KEY")
+        if self.ui.environ.get("OKTA_API_KEY") is not None:
+            self.api_key = self.ui.environ.get("OKTA_API_KEY")
 
     def get_args(self):
         """Get the CLI args"""
@@ -58,23 +68,37 @@ class Config(object):
         parser.add_argument(
             '--username', '-u',
             help="The username to use when logging into Okta. The username can "
-            "also be set via the OKTA_USERNAME env variable. If not provided "
-            "you will be prompted to enter a username."
+                 "also be set via the OKTA_USERNAME env variable. If not provided "
+                 "you will be prompted to enter a username."
         )
         parser.add_argument(
-            '--configure', '-c',
+            '--action-configure', '--configure', '-c',
             action='store_true',
             help="If set, will prompt user for configuration parameters and then exit."
         )
         parser.add_argument(
+            '--action-register-device',
             '--register-device',
             '--register_device',
             action='store_true',
             help='Download a device token from Okta and add it to the configuration file.'
         )
         parser.add_argument(
+            '--output-format', '-o',
+            choices=['export', 'json'],
+            help='Output credentials as either list of shell exports or lines of structured JSON.'
+        )
+        parser.add_argument(
             '--profile', '-p',
             help='If set, the specified configuration profile will be used instead of the default.'
+        )
+        parser.add_argument(
+            '--roles',
+            help='If set, the specified role will be used instead of the aws_rolename in the profile, '
+                 'can be specified as a comma separated list, '
+                 'can be regex in format /<pattern>/. '
+                 'for example: arn:aws:iam::123456789012:role/Admin,/:210987654321:/ '
+                 'would match both account 123456789012 by ARN and 210987654321 by regexp'
         )
         parser.add_argument(
             '--resolve', '-r',
@@ -89,7 +113,8 @@ class Config(object):
         parser.add_argument(
             '--mfa-code',
             help="The MFA verification code to be used with SMS or TOTP authentication methods. "
-            "If not provided you will be prompted to enter an MFA verification code."
+                 "If not provided you will be prompted to enter an MFA verification code. "
+                 "Can be read from OKTA_MFA_CODE environment variable"
         )
         parser.add_argument(
             '--remember-device', '-m',
@@ -102,23 +127,27 @@ class Config(object):
             version='%(prog)s {}'.format(version),
             help='gimme-aws-creds version')
         parser.add_argument(
-            '--list-profiles', action='store_true',
+            '--action-list-profiles', '--list-profiles', action='store_true',
             help='List all the profiles under .okta_aws_login_config')
-        args = parser.parse_args()
+        parser.add_argument(
+            '--action-list-roles', action='store_true',
+            help='List all the roles in the selected profile')
+        parser.add_argument(
+            '--action-store-json-creds', action='store_true',
+            help='Read credentials from stdin (in json format) and store them in ~/.aws/credentials file')
+        args = parser.parse_args(self.ui.args)
 
-        self.configure = args.configure
-        self.register_device = args.register_device
+        self.action_configure = args.action_configure
+        self.action_list_profiles = args.action_list_profiles
+        self.action_list_roles = args.action_list_roles
+        self.action_store_json_creds = args.action_store_json_creds
+        self.action_register_device = args.action_register_device
+
         if args.insecure is True:
-            print("Warning: SSL certificate validation is disabled!")
+            ui.default.warning("Warning: SSL certificate validation is disabled!")
             self.verify_ssl_certs = False
         else:
             self.verify_ssl_certs = True
-
-        if args.list_profiles:
-            if os.path.isfile(self.OKTA_CONFIG):
-                with open(self.OKTA_CONFIG, 'r') as okta_config:
-                    print(okta_config.read())
-                    exit(0)
 
         if args.username is not None:
             self.username = args.username
@@ -128,6 +157,10 @@ class Config(object):
             self.remember_device = True
         if args.resolve is True:
             self.resolve = True
+        if args.output_format is not None:
+            self.output_format = args.output_format
+        if args.roles is not None:
+            self.roles = [role.strip() for role in args.roles.split(',') if role.strip()]
         self.conf_profile = args.profile or 'DEFAULT'
 
     def get_config_dict(self):
@@ -141,11 +174,9 @@ class Config(object):
             try:
                 return dict(config[self.conf_profile])
             except KeyError:
-                print('Configuration profile not found! Use the --configure flag to generate the profile.')
-                sys.exit(1)
-        else:
-            print('Configuration file not found! Use the --configure flag to generate file.')
-            sys.exit(1)
+                raise errors.GimmeAWSCredsError(
+                    'Configuration profile not found! Use the --action-configure flag to generate the profile.')
+        raise errors.GimmeAWSCredsError('Configuration file not found! Use the --action-configure flag to generate file.')
 
     def update_config_file(self):
         """
@@ -166,7 +197,7 @@ class Config(object):
 
         """
         config = configparser.ConfigParser()
-        if self.configure:
+        if self.action_configure:
             self.conf_profile = self._get_conf_profile_name(self.conf_profile)
 
         defaults = {
@@ -175,7 +206,7 @@ class Config(object):
             'client_id': '',
             'gimme_creds_server': 'appurl',
             'aws_appname': '',
-            'aws_rolename': '',
+            'aws_rolename': ','.join(self.roles),
             'write_aws_creds': '',
             'cred_profile': 'role',
             'okta_username': '',
@@ -184,7 +215,8 @@ class Config(object):
             'preferred_mfa_type': '',
             'remember_device': 'n',
             'aws_default_duration': '3600',
-            'device_token': ''
+            'device_token': '',
+            'output_format': 'export',
         }
 
         # See if a config file already exists.
@@ -218,6 +250,7 @@ class Config(object):
         config_dict['aws_default_duration'] = self._get_aws_default_duration(defaults['aws_default_duration'])
         config_dict['preferred_mfa_type'] = self._get_preferred_mfa_type(defaults['preferred_mfa_type'])
         config_dict['remember_device'] = self._get_remember_device(defaults['remember_device'])
+        config_dict['output_format'] = self._get_output_format(defaults['output_format'])
 
         # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
@@ -239,20 +272,20 @@ class Config(object):
 
     def _get_org_url_entry(self, default_entry):
         """ Get and validate okta_org_url """
-        print("Enter the Okta URL for your organization. This is https://something.okta[preview].com")
+        ui.default.info("Enter the Okta URL for your organization. This is https://something.okta[preview].com")
         okta_org_url_valid = False
         okta_org_url = default_entry
 
         while okta_org_url_valid is False:
-            okta_org_url = self._get_user_input(
-                "Okta URL for your organization", default_entry)
+            okta_org_url = self._get_user_input("Okta URL for your organization", default_entry)
             # Validate that okta_org_url is a well formed okta URL
             url_parse_results = urlparse(okta_org_url)
 
             if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" or "okta-emea.com" in okta_org_url:
                 okta_org_url_valid = True
             else:
-                print("Okta organization URL must be HTTPS URL for okta.com or oktapreview.com or okta-emea.com domain")
+                ui.default.error(
+                    "Okta organization URL must be HTTPS URL for okta.com or oktapreview.com or okta-emea.com domain")
 
         self._okta_org_url = okta_org_url
 
@@ -260,7 +293,8 @@ class Config(object):
 
     def _get_auth_server_entry(self, default_entry):
         """ Get and validate okta_auth_server """
-        print("Enter the OAuth authorization server for the gimme-creds-server. If you do not know this value, contact your Okta admin")
+        ui.default.message(
+            "Enter the OAuth authorization server for the gimme-creds-server. If you do not know this value, contact your Okta admin")
 
         okta_auth_server = self._get_user_input("Authorization server", default_entry)
         self._okta_auth_server = okta_auth_server
@@ -269,7 +303,8 @@ class Config(object):
 
     def _get_client_id_entry(self, default_entry):
         """ Get and validate client_id """
-        print("Enter the OAuth client id for the gimme-creds-server. If you do not know this value, contact your Okta admin")
+        ui.default.message(
+            "Enter the OAuth client id for the gimme-creds-server. If you do not know this value, contact your Okta admin")
 
         client_id = self._get_user_input("Client ID", default_entry)
         self._client_id = client_id
@@ -278,7 +313,8 @@ class Config(object):
 
     def _get_appurl_entry(self, default_entry):
         """ Get and validate app_url """
-        print("Enter the application link. This is https://something.okta[preview].com/home/amazon_aws/<app_id>/something")
+        ui.default.message(
+            "Enter the application link. This is https://something.okta[preview].com/home/amazon_aws/<app_id>/something")
         okta_org_url_valid = False
         app_url = default_entry
 
@@ -289,7 +325,8 @@ class Config(object):
             if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" or "okta-emea.com" in app_url:
                 okta_org_url_valid = True
             else:
-                print("Okta organization URL must be HTTPS URL for okta.com or oktapreview.com or okta-emea.com domain")
+                ui.default.warning(
+                    "Okta organization URL must be HTTPS URL for okta.com or oktapreview.com or okta-emea.com domain")
 
         self._app_url = app_url
 
@@ -297,7 +334,7 @@ class Config(object):
 
     def _get_gimme_creds_server_entry(self, default_entry):
         """ Get gimme_creds_server """
-        print("Enter the URL for the gimme-creds-server or 'internal' for handling Okta APIs locally.")
+        ui.default.message("Enter the URL for the gimme-creds-server or 'internal' for handling Okta APIs locally.")
         gimme_creds_server_valid = False
         gimme_creds_server = default_entry
 
@@ -314,58 +351,42 @@ class Config(object):
                 if url_parse_results.scheme == "https":
                     gimme_creds_server_valid = True
                 else:
-                    print("The gimme-creds-server must be a HTTPS URL")
+                    ui.default.warning("The gimme-creds-server must be a HTTPS URL")
 
         return gimme_creds_server
 
     def _get_write_aws_creds(self, default_entry):
         """ Option to write to the ~/.aws/credentials or to stdour"""
-        print("Do you want to write the temporary AWS to ~/.aws/credentials?"
-              "\nIf no, the credentials will be written to stdout."
-              "\nPlease answer y or n.")
-        write_aws_creds = None
-        while write_aws_creds is not True and write_aws_creds is not False:
-            default_entry = 'y' if default_entry is True else 'n'
-            answer = self._get_user_input(
-                "Write AWS Credentials", default_entry)
-            answer = answer.lower()
+        ui.default.message(
+            "Do you want to write the temporary AWS to ~/.aws/credentials?"
+            "\nIf no, the credentials will be written to stdout."
+            "\nPlease answer y or n.")
 
-            if answer == 'y':
-                write_aws_creds = True
-            elif answer == 'n':
-                write_aws_creds = False
-            else:
-                print("Write AWS Credentials must be either y or n.")
-
-        return write_aws_creds
+        while True:
+            try:
+                return self._get_user_input_yes_no("Write AWS Credentials", default_entry)
+            except ValueError:
+                ui.default.warning("Write AWS Credentials must be either y or n.")
 
     def _get_resolve_aws_alias(self, default_entry):
         """ Option to resolve account id to alias """
-        print("Do you want to resolve aws account id to aws alias ?"
-              "\nPlease answer y or n.")
-        resolve_aws_alias = None
-        while resolve_aws_alias is not True and resolve_aws_alias is not False:
-            default_entry = 'y' if default_entry is True else 'n'
-            answer = self._get_user_input(
-                "Resolve AWS alias", default_entry)
-            answer = answer.lower()
-
-            if answer == 'y':
-                resolve_aws_alias = True
-            elif answer == 'n':
-                resolve_aws_alias = False
-            else:
-                print("Resolve AWS alias must be either y or n.")
-
-        return resolve_aws_alias
-
+        ui.default.message(
+            "Do you want to resolve aws account id to aws alias ?"
+            "\nPlease answer y or n.")
+        while True:
+            try:
+                return self._get_user_input_yes_no("Resolve AWS alias", default_entry)
+            except ValueError:
+                ui.default.warning("Resolve AWS alias must be either y or n.")
 
     def _get_cred_profile(self, default_entry):
         """sets the aws credential profile name"""
-        print("The AWS credential profile defines which profile is used to store the temp AWS creds.\n"
-              "If set to 'role' then a new profile will be created matching the role name assumed by the user.\n"
-              "If set to 'default' then the temp creds will be stored in the default profile\n"
-              "If set to any other value, the name of the profile will match that value.")
+        ui.default.message(
+            "The AWS credential profile defines which profile is used to store the temp AWS creds.\n"
+            "If set to 'role' then a new profile will be created matching the role name assumed by the user.\n"
+            "If set to 'default' then the temp creds will be stored in the default profile\n"
+            "If set to any other value, the name of the profile will match that value."
+        )
 
         cred_profile = self._get_user_input(
             "AWS Credential Profile", default_entry)
@@ -377,73 +398,79 @@ class Config(object):
 
     def _get_aws_appname(self, default_entry):
         """ Get Okta AWS App name """
-        print("Enter the AWS Okta App Name."
-              "\nThis is optional, you can select the App when you run the CLI.")
+        ui.default.message(
+            "Enter the AWS Okta App Name."
+            "\nThis is optional, you can select the App when you run the CLI.")
         aws_appname = self._get_user_input("AWS App Name", default_entry)
         return aws_appname
 
     def _get_aws_rolename(self, default_entry):
         """ Get the AWS Role ARN"""
-        print("Enter the ARN for the AWS role you want credentials for. 'all' will retrieve all roles."
-              "\nThis is optional, you can select the role when you run the CLI.")
+        ui.default.message(
+            "Enter the ARN for the AWS role you want credentials for. 'all' will retrieve all roles."
+            "\nThis is optional, you can select the role when you run the CLI.")
         aws_rolename = self._get_user_input("AWS Role ARN", default_entry)
         return aws_rolename
 
     def _get_conf_profile_name(self, default_entry):
         """Get and validate configuration profile name. [Optional]"""
-        print("If you'd like to assign the Okta configuration to a specific profile\n"
-              "instead of to the default profile, specify the name of the profile.\n"
-              "This is optional.")
+        ui.default.message(
+            "If you'd like to assign the Okta configuration to a specific profile\n"
+            "instead of to the default profile, specify the name of the profile.\n"
+            "This is optional.")
         conf_profile = self._get_user_input(
             "Okta Configuration Profile Name", default_entry)
         return conf_profile
 
     def _get_okta_username(self, default_entry):
         """Get and validate okta username. [Optional]"""
-        print("If you'd like to set your okta username in the config file, specify the username\n."
-              "This is optional.")
+        ui.default.message(
+            "If you'd like to set your okta username in the config file, specify the username\n."
+            "This is optional.")
         okta_username = self._get_user_input(
             "Okta User Name", default_entry)
         return okta_username
 
     def _get_aws_default_duration(self, default_entry):
         """Get and validate the aws default session duration. [Optional]"""
-        print("If you'd like to set the default session duration, specify it (in seconds).\n"
-              "This is optional.")
+        ui.default.message(
+            "If you'd like to set the default session duration, specify it (in seconds).\n"
+            "This is optional.")
         aws_default_duration = self._get_user_input(
             "AWS Default Session Duration", default_entry)
         return aws_default_duration
 
     def _get_preferred_mfa_type(self, default_entry):
         """Get the user's preferred MFA device [Optional]"""
-        print("If you'd like to set a preferred device type to use for MFA, enter it here.\n"
-              "This is optional. valid devices types:[sms, call, push, token, token:software:totp]")
+        ui.default.message(
+            "If you'd like to set a preferred device type to use for MFA, enter it here.\n"
+            "This is optional. valid devices types:[sms, call, push, token, token:software:totp]")
         okta_username = self._get_user_input(
             "Preferred MFA Device Type", default_entry)
         return okta_username
 
+    def _get_output_format(self, default_entry):
+        """Get the user's preferred output format [Optional]"""
+        ui.default.message("Set the tools' output format:[bash, json]")
+        output_format = None
+        while output_format not in ('export', 'json'):
+            output_format = self._get_user_input(
+                "Preferred output format", default_entry)
+        return output_format
+
     def _get_remember_device(self, default_entry):
         """Option to remember the MFA device"""
-        print("Do you want the MFA device be remembered?\n"
-              "Please answer y or n.")
-        remember_device = None
-        while remember_device is not True and remember_device is not False:
-            default_entry = 'y' if default_entry is True else 'n'
-            answer = self._get_user_input(
-                "Remember device", default_entry)
-            answer = answer.lower()
+        ui.default.message(
+            "Do you want the MFA device be remembered?\n"
+            "Please answer y or n.")
+        while True:
+            try:
+                return self._get_user_input_yes_no(
+                    "Remember device", default_entry)
+            except ValueError:
+                ui.default.warning("Remember the MFA device must be either y or n.")
 
-            if answer == 'y':
-                remember_device = True
-            elif answer == 'n':
-                remember_device = False
-            else:
-                print("Remember the MFA device must be either y or n.")
-
-        return remember_device
-
-    @staticmethod
-    def _get_user_input(message, default=None):
+    def _get_user_input(self, message, default=None):
         """formats message to include default and then prompts user for input
         via keyboard with message. Returns user's input or if user doesn't
         enter input will return the default."""
@@ -453,12 +480,31 @@ class Config(object):
             prompt_message = message + ': '
 
         # print the prompt with print() rather than input() as input prompts on stderr
-        print(prompt_message, end='')
-        user_input = input()
-        if len(user_input) == 0:
-            return default
-        else:
+        user_input = self.ui.input(prompt_message)
+        if user_input:
             return user_input
+        return default
+
+    def _get_user_input_yes_no(self, message, default=None):
+        """works like _get_user_input, but either: return bool or
+        raises ValueError"""
+        if isinstance(default, str):
+            default = default.lower()
+
+        if default in ('y', 'true', True):
+            default = 'y'
+        else:
+            default = 'n'
+
+        answer = self._get_user_input(message, default=default)
+        answer = answer.lower()
+
+        if answer == 'y':
+            return True
+        if answer == 'n':
+            return False
+
+        raise ValueError('Invalid answer: %s' % answer)
 
     def clean_up(self):
         """ clean up secret stuff"""

@@ -62,12 +62,12 @@ With this config, you will be able to run further commands seamlessly!
 
 To set-up the configuration run:
 ```bash
-gimme-aws-creds --configure
+gimme-aws-creds --action-configure
 ```
 
 You can also set up different Okta configuration profiles, this useful if you have multiple Okta accounts or environments you need credentials for. You can use the configuration wizard or run:
 ```bash
-gimme-aws-creds --configure --profile profileName
+gimme-aws-creds --action-configure --profile profileName
 ```
 
 A configuration wizard will prompt you to enter the necessary configuration parameters for the tool to run, the only one that is required is the `okta_org_url`. The configuration file is written to `~/.okta_aws_login_config`, but you can change the location with the environment variable `OKTA_CONFIG`.
@@ -94,12 +94,13 @@ A configuration wizard will prompt you to enter the necessary configuration para
   - sms - OTP via SMS message
 - resolve_aws_alias - y or n. If yes, gimme-aws-creds will try to resolve AWS account ids with respective alias names (default: n). This option can also be set interactively in the command line using `-r` or `--resolve` parameter
 - remember_device - y or n. If yes, the MFA device will be remembered by Okta service for a limited time. This option can also be set interactively in the command line using `-m` or `--remember-device`
+- output_format - `json` or `export`, determines default credential output format, can be also specified by `--output-format FORMAT` and `-o FORMAT`. 
 
 ## Usage
 
 **If you are not using gimme-creds-lambda nor using appurl settings, make sure you set the OKTA_API_KEY environment variable.**
 
-After running --configure, just run gimme-aws-creds. You will be prompted for the necessary information.
+After running --action-configure, just run gimme-aws-creds. You will be prompted for the necessary information.
 
 ```bash
 $ ./gimme-aws-creds
@@ -139,14 +140,77 @@ If all goes well you will get your temporary AWS access, secret key and token, t
 You can always run `gimme-aws-creds --help` for all the available options.
 
 Alternatively, you can overwrite values in the config section with environment variables for instances where say you may want to change the duration of your token.
-A list of values of to change with environment variables are: `'OKTA_AUTH_SERVER', 'CLIENT_ID','OKTA_USERNAME', 'AWS_DEFAULT_DURATION'`, `'CRED_PROFILE'`.
+A list of values of to change with environment variables are: 
+- `AWS_DEFAULT_DURATION` - corresponds to `aws_default_duration` configuration
+- `AWS_SHARED_CREDENTIALS_FILE` - file to write credentials to, points to `~/.aws/credentials` by default 
+- `GIMME_AWS_CREDS_CLIENT_ID` - corresponds to `client_id` configuration
+- `GIMME_AWS_CREDS_CRED_PROFILE` - corresponds to `cred_profile` configuration
+- `GIMME_AWS_CREDS_OUTPUT_FORMAT` - corresponds to `output_format` configuration and `--output-format` CLI option
+- `OKTA_AUTH_SERVER` - corresponds to `okta_auth_server` configuration
+- `OKTA_DEVICE_TOKEN` - corresponds to `device_token` configuration, can be used in CI
+- `OKTA_MFA_CODE` - corresponds to `--mfa-code` CLI option
+- `OKTA_PASSWORD` - provides password during authentication, can be used in CI
+- `OKTA_USERNAME` - corresponds to `okta_username` configuration and `--username` CLI option
 
-Example: `CLIENT_ID='foobar' AWS_DEFAULT_DURATION=12345 gimme-aws-creds`
+Example: `GIMME_AWS_CREDS_CLIENT_ID='foobar' AWS_DEFAULT_DURATION=12345 gimme-aws-creds`
 
-For changing variables outside of this, you'd need to create a separate profile altogether with `gimme-aws-creds --configure --profile profileName`
+For changing variables outside of this, you'd need to create a separate profile altogether with `gimme-aws-creds --action-configure --profile profileName`
 
 ### Viewing Profiles
-Run `gimme-aws-creds --list-profiles` will go to your okta config file and print out all profiles created and their settings.
+`gimme-aws-creds --action-list-profiles` will go to your okta config file and print out all profiles created and their settings.
+
+### Viewing roles
+`gimme-aws-creds --action-list-roles` will print all available roles to STDOUT without retrieving their credentials.
+
+### Generate credentials as json
+`gimme-aws-creds -o json` will print out credentials in JSON format - 1 entry per line
+
+### Store credentials from json
+`gimme-aws-creds --action-store-json-creds` will store JSON formatted credentials from `stdin` to 
+aws credentials file, eg: `gimme-aws-creds -o json | gimme-aws-creds --action-store-json-creds`.
+Data can be modified by scripts on the way.
+
+### Usage in python code
+
+Configuration and interactions can be configured using [`gimme_aws_creds.ui`](./gimme_aws_creds/ui.py),
+UserInterfaces support all kind of interactions within library including: asking for input, `sys.argv` and `os.environ`
+overrides.
+
+```python
+import sys
+import gimme_aws_creds.main
+import gimme_aws_creds.ui
+
+account_ids = sys.argv[1:] or [
+  '123456789012',
+  '120123456789',
+]
+
+pattern = "|".join(sorted(set(account_ids)))
+pattern = '/:({}):/'.format(pattern)
+ui = gimme_aws_creds.ui.CLIUserInterface(argv=[sys.argv[0], '--roles', pattern])
+creds = gimme_aws_creds.main.GimmeAWSCreds(ui=ui)
+
+# Print out all selected roles:
+for role in creds.aws_selected_roles:
+    print(role)
+
+# Generate credentials overriding profile name with `okta-<account_id>`
+for data in creds.iter_selected_aws_credentials():
+    arn = data['role']['arn']
+    account_id = None
+    for piece in arn.split(':'):
+        if len(piece) == 12 and piece.isdigit():
+            account_id = piece
+            break
+  
+    if account_id is None:
+        raise ValueError("Didn't find aws_account_id (12 digits) in {}".format(arn))
+
+    data['profile']['name'] = 'okta-{}'.format(account_id)
+    creds.write_aws_creds_from_data(data)
+
+```
 
 ## MFA security keys support
 
