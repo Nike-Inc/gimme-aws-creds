@@ -1,6 +1,5 @@
 import sys
 import os
-import re
 import json
 from okta.framework.ApiClient import ApiClient
 from okta.framework.OktaError import OktaError
