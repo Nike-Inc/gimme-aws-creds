@@ -210,7 +210,7 @@ class Config(object):
             'write_aws_creds': '',
             'cred_profile': 'role',
             'okta_username': '',
-			'app_url': '',
+            'app_url': '',
             'resolve_aws_alias': 'n',
             'preferred_mfa_type': '',
             'remember_device': 'n',
