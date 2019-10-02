@@ -13,9 +13,13 @@ import getpass
 import re
 import time
 import uuid
+import sys
+
 from codecs import decode
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
+from . import version
+import base64
 
 import keyring
 import requests
@@ -25,6 +29,8 @@ from keyring.errors import PasswordDeleteError
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
+from gimme_aws_creds.webauthn import WebAuthnClient,FakeAssertion
+from gimme_aws_creds.u2f import FactorU2F
 from . import errors, ui, version
 
 
@@ -284,6 +290,10 @@ class OktaClient(object):
         elif status == 'MFA_REQUIRED':
             return self._login_multi_factor(state_token, login_data)
         elif status == 'MFA_CHALLENGE':
+            if login_data['_embedded']['factor']['factorType'] == 'u2f':
+                return self._check_u2f_result(state_token, login_data)
+            if login_data['_embedded']['factor']['factorType'] == 'webauthn':
+                return self._check_webauthn_result(state_token, login_data)
             if 'factorResult' in login_data and login_data['factorResult'] == 'WAITING':
                 return self._check_push_result(state_token, login_data)
             else:
@@ -381,6 +391,22 @@ class OktaClient(object):
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
+    def _login_input_webauthn_challenge(self, state_token, factor):
+        """ Retrieve nonce """
+        response = self._http_client.post(
+            factor['_links']['verify']['href'],
+            json={'stateToken': state_token},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+        self.ui.info("Challenge with security keys ...")
+        response_data = response.json()
+
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+
     def _login_multi_factor(self, state_token, login_data):
         """ handle multi-factor authentication with Okta"""
         factor = self._choose_factor(login_data['_embedded']['factors'])
@@ -394,6 +420,10 @@ class OktaClient(object):
             return self._login_input_mfa_challenge(state_token, factor['_links']['verify']['href'])
         elif factor['factorType'] == 'push':
             return self._login_send_push(state_token, factor)
+        elif factor['factorType'] == 'u2f':
+            return self._login_input_webauthn_challenge(state_token, factor)
+        elif factor['factorType'] == 'webauthn':
+            return self._login_input_webauthn_challenge(state_token, factor)
 
     def _login_input_mfa_challenge(self, state_token, next_url):
         """ Submit verification code for SMS or TOTP authentication methods"""
@@ -432,6 +462,95 @@ class OktaClient(object):
             return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+		
+    def _check_u2f_result(self, state_token, login_data):
+        # should be deprecated soon as OKTA move forward webauthN
+        # just for backward compatibility
+        nonce = login_data['_embedded']['factor']['_embedded']['challenge']['nonce'];
+        credentialId = login_data['_embedded']['factor']['profile']['credentialId'];
+        appId = login_data['_embedded']['factor']['profile']['appId'];
+        version = login_data['_embedded']['factor']['profile']['version'];
+        response = {}
+        verif = FactorU2F(self.ui, appId, nonce, credentialId);
+        try:
+            clientData, signature = verif.verify()
+        except:
+            signature = b'fake'
+            clientData = b'fake'
+
+        clientData = str(base64.urlsafe_b64encode(clientData), "utf-8")
+        signatureData = str(base64.urlsafe_b64encode(signature), 'utf-8')
+
+        response = self._http_client.post(
+            login_data['_links']['next']['href'] + "?rememberDevice=false",
+            json={'stateToken': state_token, 'clientData': clientData, 'signatureData': signatureData},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+
+        response_data = response.json()
+        if 'status' in response_data and response_data['status'] == 'SUCCESS':
+            if 'stateToken' in response_data:
+                return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+            if 'sessionToken' in response_data:
+                return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+        else:
+            return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
+
+
+    def _check_webauthn_result(self, state_token, login_data):
+        """ wait for webauthN challenge """
+
+        nonce = login_data['_embedded']['factor']['_embedded']['challenge']['challenge'];
+        credentialId = login_data['_embedded']['factor']['profile']['credentialId'];
+        response = {}
+
+        """ Authenticator """
+        verif = WebAuthnClient(self.ui, self._okta_org_url, nonce, credentialId);
+        try:
+            clientData, assertion = verif.verify()
+        except:
+            clientData = b'fake'
+            assertion = FakeAssertion()
+
+        clientData = str(base64.urlsafe_b64encode(clientData), "utf-8")
+        signatureData = base64.b64encode(assertion.signature).decode('utf-8')
+        authData = base64.b64encode(assertion.auth_data).decode('utf-8')
+
+        response = self._http_client.post(
+            login_data['_links']['next']['href'] + "?rememberDevice=false",
+            json={'stateToken': state_token, 'clientData':clientData, 'signatureData': signatureData, 'authenticatorData': authData},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+
+        response_data = response.json()
+        if 'status' in response_data and response_data['status'] == 'SUCCESS':
+            if 'stateToken' in response_data:
+                return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+            if 'sessionToken' in response_data:
+                return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+        else:
+            return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
+
+    def get_hs_stateToken(self, response):
+        # to test with user without MFA
+        state_token = None
+        saml_soup = BeautifulSoup(response.text, "html.parser")
+        # extract the stateToken from the Javascript code in the page and step up to MFA
+        if hasattr(saml_soup.title, 'string') and re.match(".* - Extra Verification$", saml_soup.title.string):
+            # extract the stateToken from the Javascript code in the page and step up to MFA
+            state_token = decode(re.search(r"var stateToken = '(.*)';", response.text).group(1), "unicode-escape")
+            api_response = self.stepup_auth(None, state_token)
+            return api_response
+
+        # no MFA required => we should have a session cookies, login flow ends here
+        api_response = {}
+        api_response['status'] = 'SUCCESS'
+        api_response['sessionToken'] = ''
+        api_response['session'] = response.cookies['sid']
+        api_response['device_token'] = self._http_client.cookies['DT']
+        return api_response;
 
     def get_saml_response(self, url):
         """ return the base64 SAML value object from the SAML Response"""
@@ -559,6 +678,10 @@ class OktaClient(object):
             return factor['factorType'] + "( " + factor['provider'] + " ) : " + factor['profile']['credentialId']
         elif factor['factorType'] == 'token':
             return factor['factorType'] + ": " + factor['profile']['credentialId']
+        elif factor['factorType'] == 'u2f':
+            return factor['factorType'] + ": " + factor['factorType']
+        elif factor['factorType'] == 'webauthn':
+            return factor['factorType'] + ": " + factor['factorType']        
         else:
             return ("Unknown MFA type: " + factor['factorType'])
 

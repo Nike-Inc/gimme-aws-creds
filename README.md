@@ -92,7 +92,7 @@ A configuration wizard will prompt you to enter the necessary configuration para
   - token:software:totp - OTP using the Okta Verify App
   - call - OTP via Voice call
   - sms - OTP via SMS message
-- resolve_aws_alias - y or n. If yes, gimme-aws-creds will try to resolve AWS account ids with respective alias names (default: n). This option can also be set interactively in the command line using `-r` or `--resolve parameter`
+- resolve_aws_alias - y or n. If yes, gimme-aws-creds will try to resolve AWS account ids with respective alias names (default: n). This option can also be set interactively in the command line using `-r` or `--resolve` parameter
 - remember_device - y or n. If yes, the MFA device will be remembered by Okta service for a limited time. This option can also be set interactively in the command line using `-m` or `--remember-device`
 - output_format - `json` or `export`, determines default credential output format, can be also specified by `--output-format FORMAT` and `-o FORMAT`. 
 
@@ -213,6 +213,15 @@ for data in creds.iter_selected_aws_credentials():
     creds.write_aws_creds_from_data(data)
 
 ```
+
+## MFA security keys support
+
+gimme-aws-creds works both on FIDO1 enabled org and WebAuthN enabled org
+
+Note that FIDO1 will probably be deprecated in the near future as standards moves forward to WebAuthN
+
+WebAuthN support is only available for usb security keys (gimme-aws-creds relies on the yubico fido2 lib). Authenticator such as Windows Hello or Touch ID are not yet supported.
+Actually it has only been tested with USB U2F keys & yubikeys.
 
 ## Running Tests
 

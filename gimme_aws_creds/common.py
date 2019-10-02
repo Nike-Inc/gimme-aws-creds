@@ -12,3 +12,12 @@ See the License for the specific language governing permissions and* limitations
 from collections import namedtuple
 
 RoleSet = namedtuple('RoleSet', 'idp, role, friendly_account_name, friendly_role_name')
+
+class NoFIDODeviceFoundError(Exception):
+    pass
+
+class FIDODeviceTimeoutError(Exception):
+    pass
+
+class FIDODeviceError(Exception):
+    pass
