@@ -59,3 +59,16 @@ class GimmeAWSCredsExceptionBase(Exception):
 
 class GimmeAWSCredsError(GimmeAWSCredsExceptionBase, GimmeAWSCredsExitError):
     pass
+
+
+class NoFIDODeviceFoundError(Exception):
+    pass
+
+
+class FIDODeviceTimeoutError(Exception):
+    pass
+
+
+class FIDODeviceError(Exception):
+    pass
+

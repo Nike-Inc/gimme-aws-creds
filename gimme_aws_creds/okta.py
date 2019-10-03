@@ -9,17 +9,14 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
+import base64
 import getpass
 import re
 import time
 import uuid
-import sys
-
 from codecs import decode
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
-from . import version
-import base64
 
 import keyring
 import requests
@@ -29,8 +26,8 @@ from keyring.errors import PasswordDeleteError
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-from gimme_aws_creds.webauthn import WebAuthnClient,FakeAssertion
 from gimme_aws_creds.u2f import FactorU2F
+from gimme_aws_creds.webauthn import WebAuthnClient, FakeAssertion
 from . import errors, ui, version
 
 
@@ -462,16 +459,16 @@ class OktaClient(object):
             return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
-		
+
     def _check_u2f_result(self, state_token, login_data):
         # should be deprecated soon as OKTA move forward webauthN
         # just for backward compatibility
-        nonce = login_data['_embedded']['factor']['_embedded']['challenge']['nonce'];
-        credentialId = login_data['_embedded']['factor']['profile']['credentialId'];
-        appId = login_data['_embedded']['factor']['profile']['appId'];
-        version = login_data['_embedded']['factor']['profile']['version'];
+        nonce = login_data['_embedded']['factor']['_embedded']['challenge']['nonce']
+        credentialId = login_data['_embedded']['factor']['profile']['credentialId']
+        appId = login_data['_embedded']['factor']['profile']['appId']
+        version = login_data['_embedded']['factor']['profile']['version']
         response = {}
-        verif = FactorU2F(self.ui, appId, nonce, credentialId);
+        verif = FactorU2F(self.ui, appId, nonce, credentialId)
         try:
             clientData, signature = verif.verify()
         except:
@@ -497,16 +494,15 @@ class OktaClient(object):
         else:
             return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
 
-
     def _check_webauthn_result(self, state_token, login_data):
         """ wait for webauthN challenge """
 
-        nonce = login_data['_embedded']['factor']['_embedded']['challenge']['challenge'];
-        credentialId = login_data['_embedded']['factor']['profile']['credentialId'];
+        nonce = login_data['_embedded']['factor']['_embedded']['challenge']['challenge']
+        credentialId = login_data['_embedded']['factor']['profile']['credentialId']
         response = {}
 
         """ Authenticator """
-        verif = WebAuthnClient(self.ui, self._okta_org_url, nonce, credentialId);
+        verif = WebAuthnClient(self.ui, self._okta_org_url, nonce, credentialId)
         try:
             clientData, assertion = verif.verify()
         except:

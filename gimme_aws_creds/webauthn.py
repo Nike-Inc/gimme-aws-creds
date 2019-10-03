@@ -12,26 +12,27 @@ See the License for the specific language governing permissions and* limitations
 
 from __future__ import print_function, absolute_import, unicode_literals
 
-import sys
 import base64
-
-from fido2.hid import CtapHidDevice, STATUS
-from fido2.client import Fido2Client, ClientError
 from threading import Event, Thread
-from gimme_aws_creds.common import NoFIDODeviceFoundError, FIDODeviceTimeoutError, FIDODeviceError
-from . import errors, ui, version
+
+from fido2.client import Fido2Client, ClientError
+from fido2.hid import CtapHidDevice, STATUS
+
+from gimme_aws_creds.errors import NoFIDODeviceFoundError, FIDODeviceTimeoutError
+
 
 class FakeAssertion(object):
     def __init__(self):
         self.signature = b'fake'
         self.auth_data = b'fake'
 
+
 class WebAuthnClient(object):
 
     @staticmethod
     def _correct_padding(data):
         if len(data) % 4:
-            data +=	'=' * (4- len(data) % 4)
+            data += '=' * (4 - len(data) % 4)
         return data    
 
     def __init__(self, ui, okta_org_url, challenge, credentialid):
@@ -75,7 +76,7 @@ class WebAuthnClient(object):
             )
         except ClientError as e:
             if e.code == ClientError.ERR.DEVICE_INELIGIBLE:
-                self.ui.info('Security key is ineligible') #TODO extract key info
+                self.ui.info('Security key is ineligible')  # TODO extract key info
                 return
             elif e.code != ClientError.ERR.TIMEOUT:
                 raise

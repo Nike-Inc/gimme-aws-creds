@@ -60,6 +60,10 @@ class Config(object):
         if self.ui.environ.get("OKTA_API_KEY") is not None:
             self.api_key = self.ui.environ.get("OKTA_API_KEY")
 
+        if not os.path.isfile(self.OKTA_CONFIG):
+            self.ui.notify('No gimme-aws-creds configuration file found, starting first-time configuration...')
+            self.update_config_file()
+
     def get_args(self):
         """Get the CLI args"""
         parser = argparse.ArgumentParser(

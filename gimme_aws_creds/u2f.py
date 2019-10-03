@@ -12,21 +12,19 @@ See the License for the specific language governing permissions and* limitations
 
 from __future__ import print_function, absolute_import, unicode_literals
 
-import sys
 import base64
-import time
 import json
-
-from fido2.hid import CtapHidDevice, STATUS
-from fido2.client import ClientError
-from fido2.client import Fido2Client
+import time
 from threading import Event, Thread
-from fido2.utils import sha256
-from fido2.ctap1 import CTAP1
-from fido2.ctap1 import ApduError
+
 from fido2.ctap1 import APDU
-from gimme_aws_creds.common import NoFIDODeviceFoundError, FIDODeviceTimeoutError, FIDODeviceError
-from . import errors, ui, version
+from fido2.ctap1 import ApduError
+from fido2.ctap1 import CTAP1
+from fido2.hid import CtapHidDevice
+from fido2.utils import sha256
+
+from gimme_aws_creds.errors import NoFIDODeviceFoundError, FIDODeviceTimeoutError, FIDODeviceError
+
 
 class FactorU2F(object):
 
@@ -47,7 +45,7 @@ class FactorU2F(object):
         self._clientData = json.dumps({
             "challenge": nonce,
             "origin": appId,
-            "typ":"navigator.id.getAssertion"
+            "typ": "navigator.id.getAssertion"
         }).encode()
         self._nonce = sha256(self._clientData)
 
@@ -76,7 +74,7 @@ class FactorU2F(object):
                     raise FIDODeviceError
             break
 
-        if self._signature == None:
+        if self._signature is None:
             raise FIDODeviceError
 
         self._cancel.set()

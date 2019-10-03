@@ -118,8 +118,10 @@ class GimmeAWSCreds(object):
         # Check to see if the aws creds path exists, if not create it
         aws_config = aws_config or self.AWS_CONFIG
         creds_dir = os.path.dirname(aws_config)
+
         if os.path.exists(creds_dir) is False:
             os.makedirs(creds_dir)
+
         config = configparser.RawConfigParser()
 
         # Read in the existing config file if it exists
@@ -266,14 +268,16 @@ class GimmeAWSCreds(object):
         app_list = []
         for app in final_result:
             # All AWS connections have the same app name
-            if (app['appName'] == 'amazon_aws'):
-                newAppEntry = {}
-                newAppEntry['id'] = app['id']
-                newAppEntry['name'] = app['label']
-                newAppEntry['links'] = {}
-                newAppEntry['links']['appLink'] = app['linkUrl']
-                newAppEntry['links']['appLogo'] = app['logoUrl']
-                app_list.append(newAppEntry)
+            if app['appName'] == 'amazon_aws':
+                new_app_entry = {
+                    'id': app['id'],
+                    'name': app['label'],
+                    'links': {
+                        'appLink': app['linkUrl'],
+                        'appLogo': app['logoUrl']
+                    }
+                }
+                app_list.append(new_app_entry)
 
         # Throw an error if we didn't get any accounts back
         if not app_list:
@@ -564,12 +568,12 @@ class GimmeAWSCreds(object):
 
             # build app list
             aws_results = []
-            newAppEntry = {}
-            newAppEntry['id'] = "fakeid"  # not used anyway
-            newAppEntry['name'] = "fakelabel"  # not used anyway
-            newAppEntry['links'] = {}
-            newAppEntry['links']['appLink'] = self.config.app_url
-            aws_results.append(newAppEntry)
+            new_app_entry = {
+                'id': 'fakeid',  # not used anyway
+                'name': 'fakelabel',  # not used anyway
+                'links': {'appLink': self.config.app_url}
+            }
+            aws_results.append(new_app_entry)
 
         # Use the gimme_creds_lambda service
         else:
