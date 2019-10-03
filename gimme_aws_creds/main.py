@@ -451,7 +451,7 @@ class GimmeAWSCreds(object):
     def config(self):
         if 'config' in self._cache:
             return self._cache['config']
-        self._cache['config'] = config = Config(ui=self.ui)
+        self._cache['config'] = config = Config(gac_ui=self.ui)
         config.get_args()
         self._cache['conf_dict'] = config.get_config_dict()
 

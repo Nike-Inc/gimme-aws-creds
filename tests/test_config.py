@@ -15,7 +15,7 @@ class TestConfig(unittest.TestCase):
 
     def setUp(self):
         """Set up for the unit tests"""
-        self.config = Config(ui=ui.cli)
+        self.config = Config(gac_ui=ui.cli, create_config=False)
 
     def tearDown(self):
         """Run Clean Up"""
