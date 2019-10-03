@@ -18,7 +18,7 @@ from . import errors
 
 class DefaultResolver(object):
     """
-       The Aws Client Class performes post request on AWS sign-in page
+       The Aws Client Class performs post request on AWS sign-in page
        to fetch friendly names/alias for account and IAM roles
     """
 

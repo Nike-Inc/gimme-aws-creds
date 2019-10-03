@@ -26,11 +26,11 @@ class Config(object):
        under the MIT license.
     """
 
-    def __init__(self, ui):
+    def __init__(self, gac_ui, create_config=True):
         """
-        :type ui: ui.UserInterface
+        :type gac_ui: ui.UserInterface
         """
-        self.ui = ui
+        self.ui = gac_ui
         self.FILE_ROOT = self.ui.HOME
         self.OKTA_CONFIG = self.ui.environ.get(
             'OKTA_CONFIG',
@@ -59,6 +59,10 @@ class Config(object):
 
         if self.ui.environ.get("OKTA_API_KEY") is not None:
             self.api_key = self.ui.environ.get("OKTA_API_KEY")
+
+        if create_config and not os.path.isfile(self.OKTA_CONFIG):
+            self.ui.notify('No gimme-aws-creds configuration file found, starting first-time configuration...')
+            self.update_config_file()
 
     def get_args(self):
         """Get the CLI args"""

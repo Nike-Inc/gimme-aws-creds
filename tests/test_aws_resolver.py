@@ -1,17 +1,16 @@
 """Unit tests for gimme_aws_creds"""
-import json
-import unittest
 import sys
-import requests
-import responses
-from mock import patch
-from nose.tools import assert_equals
-
+import unittest
 from contextlib import contextmanager
 from io import StringIO
 
-from gimme_aws_creds.aws import AwsResolver
+import requests
+import responses
+from nose.tools import assert_equals
+
 import gimme_aws_creds.common as commondef
+from gimme_aws_creds.aws import AwsResolver
+
 
 class TestAwsResolver(unittest.TestCase):
     """Class to test Okta Client Class.

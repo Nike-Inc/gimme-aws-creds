@@ -9,16 +9,17 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
+import base64
+import xml.etree.ElementTree as ET
+
 import requests
 from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-import base64
-import xml.etree.ElementTree as ET
-
 import gimme_aws_creds.common as commondef
 from . import errors
+
 
 class AwsResolver(object):
     """
@@ -54,7 +55,6 @@ class AwsResolver(object):
             verify=self._verify_ssl_certs
         )
         return response.text
-
 
     def _enumerate_saml_roles(self, assertion, saml_target_url):
         signin_page = self.get_signinpage(assertion, saml_target_url)
@@ -105,7 +105,8 @@ class AwsResolver(object):
             result.append(commondef.RoleSet(idp=idp, role=role, friendly_account_name=friendly_account_name, friendly_role_name=friendly_role_name))
         return result
 
-    def _display_role(self, roles):
+    @staticmethod
+    def _display_role(roles):
         """ gets a list of available roles and
         asks the user to select the role they want to assume
         """
@@ -116,9 +117,9 @@ class AwsResolver(object):
             if not role:
                 continue
             current_account = role.friendly_account_name
-            if not current_account ==  last_account:
+            if not current_account == last_account:
                 role_strs.append(current_account)
-                last_account=current_account
+                last_account = current_account
                 
             role_strs.append('      [ {} ]: {}'.format(i, role.friendly_role_name))
 
