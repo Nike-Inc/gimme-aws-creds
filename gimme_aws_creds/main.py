@@ -539,9 +539,7 @@ class GimmeAWSCreds(object):
     def device_token(self):
         if self.config.action_register_device is True:
             self.conf_dict['device_token'] = None
-        elif not self.conf_dict.get('device_token'):
-            raise errors.GimmeAWSCredsError(
-                'No device token in configuration.  Try running --action-register-device again.')
+
         return self.conf_dict.get('device_token')
 
     @property
@@ -558,7 +556,7 @@ class GimmeAWSCreds(object):
                                                      auth_result['username'])
 
         elif self.gimme_creds_server == 'appurl':
-            auth_result = self.okta.auth_session()
+            self.okta.auth_session()
             # bypass lambda & API call
             # Apps url is required when calling with appurl
             if self.conf_dict.get('app_url'):
@@ -788,11 +786,20 @@ class GimmeAWSCreds(object):
 
     def handle_action_register_device(self):
         # Capture the Device Token and write it to the config file
-        if self.config.action_register_device is True:
+        if self.device_token is None or self.config.action_register_device is True:
+            if not self.config.action_register_device:
+                self.ui.notify('\n*** No device token found in configuration file, it will be created.')
+                self.ui.notify('*** You may be prompted for MFA more than once for this run.\n')
+
             auth_result = self.okta.auth_session()
             self.conf_dict['device_token'] = auth_result['device_token']
             self.config.write_config_file(self.conf_dict)
-            raise errors.GimmeAWSCredsExitSuccess('Device token saved!')
+            self.okta.device_token = self.conf_dict['device_token']
+
+            self.ui.notify('\nDevice token saved!\n')
+
+            if self.config.action_register_device is True:
+                raise errors.GimmeAWSCredsExitSuccess()
 
     def handle_action_list_roles(self):
         if self.config.action_list_roles:
