@@ -204,11 +204,12 @@ class GimmeAWSCreds(object):
         """ using the assertion and arns return aws sts creds """
 
         # Use the first available region for partitions other than the public AWS
+        session = boto3.session.Session(profile_name=None)
         if partition != 'aws':
-            regions = boto3.session.Session().get_available_regions('sts', partition)
-            client = boto3.client('sts', regions[0])
+            regions = session.get_available_regions('sts', partition)
+            client = session.client('sts', regions[0])
         else:
-            client = boto3.client('sts')
+            client = session.client('sts')
 
         response = client.assume_role_with_saml(
             RoleArn=role,
