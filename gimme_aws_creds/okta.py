@@ -237,8 +237,10 @@ class OktaClient(object):
             verify=self._verify_ssl_certs,
             allow_redirects=False
         )
+        response.raise_for_status()
 
         url_parse_results = urlparse(response.headers['Location'])
+
         query_result = parse_qs(url_parse_results.fragment)
 
         tokens = {}
@@ -266,6 +268,7 @@ class OktaClient(object):
         if state_token is None:
             response = self._http_client.get(
                 embed_link, allow_redirects=False)
+            response.raise_for_status()
             url_parse_results = urlparse(response.headers['Location'])
             state_token = parse_qs(url_parse_results.query)['stateToken'][0]
 
@@ -275,6 +278,7 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
+        response.raise_for_status()
         return {'stateToken': state_token, 'apiResponse': response.json()}
 
     def _next_login_step(self, state_token, login_data):
@@ -324,6 +328,7 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
+        response.raise_for_status()
 
         response_data = response.json()
         if 'errorCode' in response_data:
@@ -350,6 +355,7 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
+        response.raise_for_status()
 
         self.ui.info("A verification code has been sent to " + factor['profile']['phoneNumber'])
         response_data = response.json()
@@ -368,6 +374,7 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
+        response.raise_for_status()
 
         self.ui.info("You should soon receive a phone call at " + factor['profile']['phoneNumber'])
         response_data = response.json()
@@ -386,6 +393,7 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
+        response.raise_for_status()
 
         self.ui.info("Okta Verify push sent...")
         response_data = response.json()
@@ -403,6 +411,8 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
+        response.raise_for_status()
+
         self.ui.info("Challenge with security keys ...")
         response_data = response.json()
 
@@ -441,6 +451,7 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
+        response.raise_for_status()
 
         response_data = response.json()
         if 'status' in response_data and response_data['status'] == 'SUCCESS':
@@ -460,6 +471,7 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
+        response.raise_for_status()
 
         response_data = response.json()
         if 'stateToken' in response_data:
@@ -490,6 +502,7 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
+        response.raise_for_status()
 
         response_data = response.json()
         if 'status' in response_data and response_data['status'] == 'SUCCESS':
@@ -525,6 +538,7 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
+        response.raise_for_status()
 
         response_data = response.json()
         if 'status' in response_data and response_data['status'] == 'SUCCESS':
@@ -558,6 +572,7 @@ class OktaClient(object):
     def get_saml_response(self, url):
         """ return the base64 SAML value object from the SAML Response"""
         response = self._http_client.get(url, verify=self._verify_ssl_certs)
+        response.raise_for_status()
 
         saml_response = None
         relay_state = None
