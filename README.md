@@ -11,7 +11,7 @@ With gimme-aws-creds all you need to know is your username, password, Okta url a
 
 ## Prerequisites
 
-[Okta SAML integration to AWS using the AWS App](https://support.okta.com/help/servlet/fileField?retURL=%2Fhelp%2Farticles%2FKnowledge_Article%2FAmazon-Web-Services-and-Okta-Integration-Guide&entityId=ka0F0000000MeyyIAC&field=File_Attachment__Body__s)
+[Okta SAML integration to AWS using the AWS App](https://help.okta.com/en/prod/Content/Topics/Miscellaneous/References/OktaAWSMulti-AccountConfigurationGuide.pdf)
 
 Python 3
 
@@ -90,6 +90,7 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - preferred_mfa_type - automatically select a particular  device when prompted for MFA:
   - push - Okta Verify App push
   - token:software:totp - OTP using the Okta Verify App
+  - token:hardware - OTP using hardware like Yubikey
   - call - OTP via Voice call
   - sms - OTP via SMS message
 - resolve_aws_alias - y or n. If yes, gimme-aws-creds will try to resolve AWS account ids with respective alias names (default: n). This option can also be set interactively in the command line using `-r` or `--resolve` parameter

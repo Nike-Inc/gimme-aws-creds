@@ -438,6 +438,8 @@ class OktaClient(object):
             return self._login_input_webauthn_challenge(state_token, factor)
         elif factor['factorType'] == 'webauthn':
             return self._login_input_webauthn_challenge(state_token, factor)
+        elif factor['factorType'] == 'token:hardware':
+            return self._login_input_mfa_challenge(state_token, factor['_links']['verify']['href'])
 
     def _login_input_mfa_challenge(self, state_token, next_url):
         """ Submit verification code for SMS or TOTP authentication methods"""
@@ -686,6 +688,8 @@ class OktaClient(object):
             return factor['factorType'] + ": " + factor['factorType']
         elif factor['factorType'] == 'webauthn':
             return factor['factorType'] + ": " + factor['factorType']        
+        elif factor['factorType'] == 'token:hardware':
+            return factor['factorType'] + ": " + factor['provider']
         else:
             return "Unknown MFA type: " + factor['factorType']
 
@@ -709,7 +713,7 @@ class OktaClient(object):
             # Set prompt to include the user name, since username could be set
             # via OKTA_USERNAME env and user might not remember.
             for x in range(0, 5):
-                passwd_prompt = "Password for {}: ".format(username)
+                passwd_prompt = "Okta Password for {}: ".format(username)
                 password = getpass.getpass(prompt=passwd_prompt)
                 if len(password) > 0:
                     break

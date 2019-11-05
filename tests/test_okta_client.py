@@ -112,6 +112,26 @@ class TestOktaClient(unittest.TestCase):
                 }
             }
 
+        self.hardware_factor = {
+                'id': 'ykfb7c5ujftQeL9B51t9',
+                'factorType': 'token:hardware',
+                'provider': 'YUBICO',
+                'vendorName': 'YUBICO',
+                'profile': {
+                    'credentialId': '000009884014'
+                 },
+                '_links': {
+                    'verify': {
+                        'href': 'https://datto.okta.com/api/v1/authn/factors/ykfb0c5ujftWeL9X51t7/verify',
+                        'hints': {
+                            'allow': [
+                                'POST'
+                            ]
+                        }
+                    }
+                }
+            }
+
         self.unknown_factor = {
                 "id": "ost9ei4toqQBAzXmw0h7",
                 "factorType": "UNKNOWN_FACTOR",
@@ -712,6 +732,11 @@ class TestOktaClient(unittest.TestCase):
         """ Test building a display name for TOTP"""
         result = self.client._build_factor_name(self.totp_factor)
         assert_equals(result, "token:software:totp( OKTA ) : jane.doe@example.com")
+
+    def test_build_factor_name_hardware(self):
+        """ Test building a display name for hardware"""
+        result = self.client._build_factor_name(self.hardware_factor)
+        assert_equals(result, "token:hardware: YUBICO")
 
     def test_build_factor_name_unknown(self):
         """ Handle an unknown MFA factor"""
