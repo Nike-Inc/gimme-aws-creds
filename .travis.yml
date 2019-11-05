@@ -10,7 +10,8 @@ python:
   - '3.7'
   
 install:
-  - pip install -U -r requirements_dev.txt
+  - pip uninstall -y -r <(pip freeze)
+  - pip install -r requirements_dev.txt
   - python3 setup.py install
   
 script: make test
