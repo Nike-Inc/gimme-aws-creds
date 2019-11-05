@@ -23,8 +23,7 @@ import requests
 from bs4 import BeautifulSoup
 from keyring.backends.fail import Keyring as FailKeyring
 from keyring.errors import PasswordDeleteError
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter, Retry
 
 from gimme_aws_creds.u2f import FactorU2F
 from gimme_aws_creds.webauthn import WebAuthnClient, FakeAssertion
@@ -112,7 +111,7 @@ class OktaClient(object):
         """ Login to Okta using the Step-up authentication flow"""
         flow_state = self._get_initial_flow_state(embed_link, state_token)
 
-        while flow_state.get('apiResponse').get('status') != 'SUCCESS':
+        while flow_state.get('apiResponse', {}).get('status') != 'SUCCESS':
             flow_state = self._next_login_step(
                 flow_state.get('stateToken'), flow_state.get('apiResponse'))
 
