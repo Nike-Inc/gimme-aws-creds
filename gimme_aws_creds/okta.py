@@ -694,7 +694,7 @@ class OktaClient(object):
             # Set prompt to include the user name, since username could be set
             # via OKTA_USERNAME env and user might not remember.
             for x in range(0, 5):
-                passwd_prompt = "Password for {}: ".format(username)
+                passwd_prompt = "Okta Password for {}: ".format(username)
                 password = getpass.getpass(prompt=passwd_prompt)
                 if len(password) > 0:
                     break
