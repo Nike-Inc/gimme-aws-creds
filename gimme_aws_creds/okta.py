@@ -428,6 +428,8 @@ class OktaClient(object):
             return self._login_input_webauthn_challenge(state_token, factor)
         elif factor['factorType'] == 'webauthn':
             return self._login_input_webauthn_challenge(state_token, factor)
+        elif factor['factorType'] == 'token:hardware':
+            return self._login_input_mfa_challenge(state_token, factor['_links']['verify']['href'])
 
     def _login_input_mfa_challenge(self, state_token, next_url):
         """ Submit verification code for SMS or TOTP authentication methods"""
@@ -671,6 +673,8 @@ class OktaClient(object):
             return factor['factorType'] + ": " + factor['factorType']
         elif factor['factorType'] == 'webauthn':
             return factor['factorType'] + ": " + factor['factorType']        
+        elif factor['factorType'] == 'token:hardware':
+            return factor['factorType'] + ": " + factor['provider']
         else:
             return "Unknown MFA type: " + factor['factorType']
 
