@@ -176,7 +176,20 @@ class Config(object):
             config.read(self.OKTA_CONFIG)
 
             try:
-                return dict(config[self.conf_profile])
+                profile_config = dict(config[self.conf_profile])
+                if "inherits" in profile_config.keys():
+                    print("using inherited config: " + profile_config["inherits"])
+                    if profile_config["inherits"] not in config:
+                        raise errors.GimmeAWSCredsError(self.conf_profile + " inherits from " + profile_config["inherits"] + ", but could not find " + profile_config["inherits"])
+                    combined_config = {
+                        **dict(config[profile_config["inherits"]]),
+                        **profile_config,
+                    }
+                    del combined_config["inherits"]
+                    return combined_config
+                else:
+                    return profile_config
+
             except KeyError:
                 raise errors.GimmeAWSCredsError(
                     'Configuration profile not found! Use the --action-configure flag to generate the profile.')
