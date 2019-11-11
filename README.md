@@ -97,6 +97,25 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - remember_device - y or n. If yes, the MFA device will be remembered by Okta service for a limited time. This option can also be set interactively in the command line using `-m` or `--remember-device`
 - output_format - `json` or `export`, determines default credential output format, can be also specified by `--output-format FORMAT` and `-o FORMAT`. 
 
+## Configuration File
+The config file follows a [configfile](https://docs.python.org/3/library/configparser.html) format.
+By default, it is located in $HOME/.okta_aws_login_config
+
+Example file:
+`
+[myprofile]
+client_id = myclient_id
+`
+
+Configurations can inherit from other configurations to share common configuration parameters.
+`
+[my-base-profile]
+client_id = myclient_id
+[myprofile]
+inherit = my-base-profile
+aws_rolename = my-role
+`
+
 ## Usage
 
 **If you are not using gimme-creds-lambda nor using appurl settings, make sure you set the OKTA_API_KEY environment variable.**
