@@ -141,7 +141,8 @@ class OktaClient(object):
         """ Login to Okta using the authentication API"""
         flow_state = self._login_username_password(None, self._okta_org_url + '/api/v1/authn')
 
-        while flow_state.get('apiResponse').get('status') != 'SUCCESS':
+        while flow_state.get('apiResponse', {}).get('status') != 'SUCCESS':
+            time.sleep(0.5)
             flow_state = self._next_login_step(
                 flow_state.get('stateToken'), flow_state.get('apiResponse'))
 
