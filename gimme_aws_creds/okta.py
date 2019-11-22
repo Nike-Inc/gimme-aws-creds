@@ -655,7 +655,7 @@ class OktaClient(object):
                 self.ui.notify('Preferred factor type of {} not available.'.format(self._preferred_mfa_type))
 
         if len(preferred_factors) == 1:
-            factor_name = self._build_factor_name(factors[0])
+            factor_name = self._build_factor_name(preferred_factors[0])
             self.ui.info(factor_name + ' selected')
             selection = 0
         else:
