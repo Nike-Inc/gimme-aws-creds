@@ -657,7 +657,7 @@ class OktaClient(object):
         if len(preferred_factors) == 1:
             factor_name = self._build_factor_name(preferred_factors[0])
             self.ui.info(factor_name + ' selected')
-            selection = 0
+            selection = factors.index(preferred_factors[0])
         else:
             self.ui.info("Pick a factor:")
             # print out the factors and let the user select
