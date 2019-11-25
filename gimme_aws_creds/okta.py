@@ -464,7 +464,7 @@ class OktaClient(object):
             auth = duo_client.trigger_duo(passcode=passcode)
         else:
             # Duo Auth without the browser
-            self.ui.info("Duo required; check your phone... 📱")
+            self.ui.info("Duo required; check your phone...")
             auth = duo_client.trigger_duo()
 
         if auth is not None:
