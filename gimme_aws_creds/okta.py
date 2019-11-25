@@ -148,7 +148,7 @@ class OktaClient(object):
         while flow_state.get('apiResponse', {}).get('status') != 'SUCCESS':
             time.sleep(0.5)
             flow_state = self._next_login_step(
-                flow_state.get('apiResponse').get('stateToken'), flow_state.get('apiResponse'))
+                flow_state.get('apiResponse', {}).get('stateToken'), flow_state.get('apiResponse'))
 
         return flow_state['apiResponse']
 
