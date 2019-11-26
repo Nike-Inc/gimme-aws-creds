@@ -27,9 +27,8 @@ from requests.adapters import HTTPAdapter, Retry
 
 from gimme_aws_creds.u2f import FactorU2F
 from gimme_aws_creds.webauthn import WebAuthnClient, FakeAssertion
-from . import errors, ui, version
+from . import errors, ui, version, duo
 
-from aws_okta_keyman import duo
 from multiprocessing import Process
 import webbrowser
 

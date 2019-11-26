@@ -6,4 +6,3 @@ keyring>=10.4.0
 requests>=2.13.0,<3.0.0
 fido2>=0.7.0,<1.0.0
 okta>=0.0.4,<1.0.0
-aws-okta-keyman>=0.7.2,<0.8.0
