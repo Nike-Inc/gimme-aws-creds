@@ -178,7 +178,7 @@ class Config(object):
             try:
                 profile_config = dict(config[self.conf_profile])
                 if "inherits" in profile_config.keys():
-                    print("using inherited config: " + profile_config["inherits"])
+                    print("Using inherited config: " + profile_config["inherits"])
                     if profile_config["inherits"] not in config:
                         raise errors.GimmeAWSCredsError(self.conf_profile + " inherits from " + profile_config["inherits"] + ", but could not find " + profile_config["inherits"])
                     combined_config = {
@@ -271,8 +271,7 @@ class Config(object):
 
         # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
-            config_dict['cred_profile'] = self._get_cred_profile(
-                defaults['cred_profile'])
+            config_dict['cred_profile'] = self._get_cred_profile(defaults['cred_profile'])
         else:
             config_dict['cred_profile'] = defaults['cred_profile']
 
@@ -294,7 +293,7 @@ class Config(object):
         okta_org_url = default_entry
 
         while okta_org_url_valid is False:
-            okta_org_url = self._get_user_input("Okta URL for your organization", default_entry)
+            okta_org_url = self._get_user_input("Okta URL for your organization", default_entry).strip('/')
             # Validate that okta_org_url is a well formed okta URL
             url_parse_results = urlparse(okta_org_url)
 
