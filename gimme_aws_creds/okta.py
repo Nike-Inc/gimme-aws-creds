@@ -27,7 +27,10 @@ from requests.adapters import HTTPAdapter, Retry
 
 from gimme_aws_creds.u2f import FactorU2F
 from gimme_aws_creds.webauthn import WebAuthnClient, FakeAssertion
-from . import errors, ui, version
+from . import errors, ui, version, duo
+
+from multiprocessing import Process
+import webbrowser
 
 
 class OktaClient(object):
@@ -144,7 +147,7 @@ class OktaClient(object):
         while flow_state.get('apiResponse', {}).get('status') != 'SUCCESS':
             time.sleep(0.5)
             flow_state = self._next_login_step(
-                flow_state.get('stateToken'), flow_state.get('apiResponse'))
+                flow_state.get('apiResponse', {}).get('stateToken'), flow_state.get('apiResponse'))
 
         return flow_state['apiResponse']
 
@@ -423,6 +426,98 @@ class OktaClient(object):
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
+    def _login_duo_challenge(self, state_token, factor):
+        """ Duo MFA challenge """
+
+        if factor['factorType'] is None:
+            # Prompt user for which Duo factor to use
+            raise duo.FactorRequired(id, state_token)
+
+        if factor['factorType'] == "passcode" and not passcode:
+            raise duo.PasscodeRequired(fid, state_token)
+
+        path = '/authn/factors/{fid}/verify'.format(fid=factor['id'])
+        data = {'fid': factor['id'],
+                'stateToken': state_token}
+
+        response = self._http_client.post(factor['_links']['verify']['href'],
+            params={'rememberDevice': self._remember_device},
+            json={'stateToken': state_token},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+        response_data = response.json()
+        verification = response_data['_embedded']['factor']['_embedded']['verification']
+
+        auth = None
+        duo_client = duo.Duo(verification, state_token, factor['factorType'])
+        if factor['factorType'] == "web":
+            # Duo Web via local browser
+            self.ui.info("Duo required; opening browser...")
+            proc = Process(target=duo_client.trigger_web_duo)
+            proc.start()
+            time.sleep(2)
+            webbrowser.open_new('http://127.0.0.1:65432/duo.html')
+        elif factor['factorType'] == "passcode":
+            # Duo auth with OTP code without a browser
+            self.ui.info("Duo required; using OTP...")
+            auth = duo_client.trigger_duo(passcode=passcode)
+        else:
+            # Duo Auth without the browser
+            self.ui.info("Duo required; check your phone...")
+            auth = duo_client.trigger_duo()
+
+        if auth is not None:
+            self.mfa_callback(auth, verification, state_token)
+            try:
+                sleep=2
+                while ret['status'] != 'SUCCESS':
+                    self.ui.info("Waiting for MFA success...")
+                    time.sleep(sleep)
+
+                    if response_data.get('factorResult', 'REJECTED') == 'REJECTED':
+                        self.ui.warning("Duo Push REJECTED")
+                        return None
+
+                    if response_data.get('factorResult', 'TIMEOUT') == 'TIMEOUT':
+                        self.ui.warning("Duo Push TIMEOUT")
+                        return None
+
+                    links = response_data.get('_links')
+                    response_data = self._http_client.post(links['next']['href'], data)
+
+            except KeyboardInterrupt:
+                self.ui.warning("User canceled waiting for MFA success.")
+                raise
+
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+
+        #return None
+
+    def mfa_callback(self, auth, verification, state_token):
+        """Do callback to Okta with the info from the MFA provider
+        Args:
+            auth: String auth from MFA provider to send in the callback
+            verification: Dict of details used in Okta API calls
+            state_token: String Okta state token
+        """
+        app = verification['signature'].split(":")[1]
+        response_sig = "{}:{}".format(auth, app)
+        callback_params = "stateToken={}&sig_response={}".format(
+            state_token, response_sig)
+
+        url = "{}?{}".format(
+            verification['_links']['complete']['href'],
+            callback_params)
+        ret = self._http_client.post(url)
+        if ret.status_code != 200:
+            raise Exception("Bad status from Okta callback {}".format(
+                ret.status_code))
+
+
     def _login_multi_factor(self, state_token, login_data):
         """ handle multi-factor authentication with Okta"""
         factor = self._choose_factor(login_data['_embedded']['factors'])
@@ -442,6 +537,8 @@ class OktaClient(object):
             return self._login_input_webauthn_challenge(state_token, factor)
         elif factor['factorType'] == 'token:hardware':
             return self._login_input_mfa_challenge(state_token, factor['_links']['verify']['href'])
+        elif factor['provider'] == 'DUO':
+            return self._login_duo_challenge(state_token, factor)
 
     def _login_input_mfa_challenge(self, state_token, next_url):
         """ Submit verification code for SMS or TOTP authentication methods"""
@@ -692,6 +789,8 @@ class OktaClient(object):
             return factor['factorType'] + ": " + factor['factorType']        
         elif factor['factorType'] == 'token:hardware':
             return factor['factorType'] + ": " + factor['provider']
+        elif factor['provider'] == 'DUO':
+            return factor['factorType'] + ": " + factor['provider'].capitalize()
         else:
             return "Unknown MFA type: " + factor['factorType']
 
