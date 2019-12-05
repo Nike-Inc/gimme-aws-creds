@@ -7,9 +7,9 @@ The Nike gimme-aws-creds software is licensed under the Apache-2.0 license found
 The Nike gimme-aws-creds software incorporates, depends upon, interacts with, or was developed using the free and open-source software components listed below.  Please see the linked component sites for additional licensing, dependency, and use information and component source code:
 
 * AWS Okta Keyman
-project homepage/download site: https://urldefense.com/v3/__https://nathanv.com/__;!DzK_eprLCB4!y9YiQvxgN4mM8-bKz_IkOCe2eVtrHwVHCVqBNjFIUSG2yGL6D4PxwjId5Yh5X4VF$ 
-https://urldefense.com/v3/__https://github.com/nathan-v/aws_okta_keyman__;!DzK_eprLCB4!y9YiQvxgN4mM8-bKz_IkOCe2eVtrHwVHCVqBNjFIUSG2yGL6D4PxwjId5cxwyyqO$ 
-project licensing notices: 
+project homepage/download site: https://nathanv.com/
+https://github.com/nathan-v/aws_okta_keyman
+project licensing notices:
 /README.md:
 License
 Copyright 2019 Nathan V
@@ -19,7 +19,7 @@ Some code in aws_okta_keyman/okta.py, aws_okta_keyman/aws.py, aws_okta_keyman/aw
 /LICENSE.txt:
 Apache License
 Version 2.0, January 2004
-https://urldefense.com/v3/__http://www.apache.org/licenses/__;!DzK_eprLCB4!y9YiQvxgN4mM8-bKz_IkOCe2eVtrHwVHCVqBNjFIUSG2yGL6D4PxwjId5e1H0Q97$ 
+http://www.apache.org/licenses/
 TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 1. Definitions.
 "License" shall mean the terms and conditions for use, reproduction, and distribution as defined by Sections 1 through 9 of this document.
