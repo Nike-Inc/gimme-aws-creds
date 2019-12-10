@@ -73,7 +73,7 @@ class GimmeAWSCreds(object):
            client_id = OAuth Client id for the gimme-creds-server
            okta_auth_server = Server ID for the OAuth authorization server used by gimme-creds-server
            write_aws_creds = Option to write creds to ~/.aws/credentials
-           cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
+           cred_profile = Use DEFAULT or Role-based name as the profile in ~/.aws/credentials
            aws_appname = (optional) Okta AWS App Name
            aws_rolename =  (optional) AWS Role ARN. 'ALL' will retrieve all roles, can be a CSV for multiple roles.
            okta_username = (optional) Okta User Name
@@ -285,6 +285,15 @@ class GimmeAWSCreds(object):
             raise errors.GimmeAWSCredsError("No AWS accounts found.")
 
         return app_list
+
+    @staticmethod
+    def _get_account_and_rolename_from_arn(arn):
+        """ Extracts account number and role name from role arn string """
+        matches = re.match(r"arn:(aws|aws-cn|aws-us-gov):iam:.*:(?P<acc>\d+):role/(?P<role>\S+)", arn)
+        return {
+            'account': matches.group('acc'),
+            'role': matches.group('role')
+        }
 
     def _choose_app(self, aws_info):
         """ gets a list of available apps and
@@ -676,15 +685,17 @@ class GimmeAWSCreds(object):
                 else:
                     self.ui.error('Failed to generate credentials for {} due to {}'.format(role.role, ex))
 
-        deriv_profname = re.sub('arn:(aws|aws-cn|aws-us-gov):iam:.*/', '', role.role)
+        naming_data = self._get_account_and_rolename_from_arn(role.role)
         # set the profile name
-        # Note if there are multiple roles, and 'default' is
-        # selected it will be overwritten multiple times and last role
-        # wins.
+        # Note if there are multiple roles
+        # it will be overwritten multiple times and last role wins.
         if self.conf_dict['cred_profile'].lower() == 'default':
             profile_name = 'default'
         elif self.conf_dict['cred_profile'].lower() == 'role':
-            profile_name = deriv_profname
+            profile_name = naming_data['role']
+        elif self.conf_dict['cred_profile'].lower() == 'acc-role':
+            profile_name = '-'.join([naming_data['account'],
+                                     naming_data['role']])
         else:
             profile_name = self.conf_dict['cred_profile']
 
@@ -692,7 +703,7 @@ class GimmeAWSCreds(object):
             'shared_credentials_file': self.AWS_CONFIG,
             'profile': {
                 'name': profile_name,
-                'derived_name': deriv_profname,
+                'derived_name': naming_data['role'],
                 'config_name': self.conf_dict.get('cred_profile', ''),
             },
             'role': {
