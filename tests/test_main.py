@@ -132,3 +132,12 @@ class TestMain(unittest.TestCase):
         creds = GimmeAWSCreds()
 
         self.assertRaises(errors.GimmeAWSCredsExitBase, creds._get_partition_from_saml_acs, 'https://signin.amazonaws-foo.com/saml')
+
+    def test_arn_to_account_and_role_name(self):
+        creds = GimmeAWSCreds()
+        arn = "arn:aws:iam::123456789012:role/okta-1234-role"
+        self.assertEqual(creds._get_account_and_rolename_from_arn(arn),
+        {
+            'account': '123456789012',
+            'role': 'okta-1234-role'
+        })

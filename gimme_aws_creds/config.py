@@ -205,7 +205,7 @@ class Config(object):
                 client_id = OAuth Client id for the gimme-creds-server
                 okta_auth_server = Server ID for the OAuth authorization server used by gimme-creds-server
                 write_aws_creds = Option to write creds to ~/.aws/credentials
-                cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
+                cred_profile = Use DEFAULT or Role-based name as the profile in ~/.aws/credentials
                 aws_appname = (optional) Okta AWS App Name
                 aws_rolename =  (optional) Okta Role ARN
                 okta_username = Okta username
@@ -400,6 +400,7 @@ class Config(object):
         ui.default.message(
             "The AWS credential profile defines which profile is used to store the temp AWS creds.\n"
             "If set to 'role' then a new profile will be created matching the role name assumed by the user.\n"
+            "If set to 'acc-role' then a new profile will be created matching the role name assumed by the user, but prefixed with account number to avoid collisions.\n"
             "If set to 'default' then the temp creds will be stored in the default profile\n"
             "If set to any other value, the name of the profile will match that value."
         )
@@ -407,7 +408,7 @@ class Config(object):
         cred_profile = self._get_user_input(
             "AWS Credential Profile", default_entry)
 
-        if cred_profile.lower() in ['default', 'role']:
+        if cred_profile.lower() in ['default', 'role', 'acc-role']:
             cred_profile = cred_profile.lower()
 
         return cred_profile
