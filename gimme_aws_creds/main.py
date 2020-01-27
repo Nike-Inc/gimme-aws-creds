@@ -699,24 +699,10 @@ class GimmeAWSCreds(object):
         # set the profile name
         # Note if there are multiple roles
         # it will be overwritten multiple times and last role wins.
-        if self.conf_dict['cred_profile'].lower() == 'default':
-            profile_name = 'default'
-        elif self.conf_dict['cred_profile'].lower() == 'role':
-            profile_name = naming_data['role']
-        elif self.conf_dict['cred_profile'].lower() == 'acc-role':
-            account = naming_data['account']
-            role_name = naming_data['role']
-            path = naming_data['path']
-            if self.conf_dict['resolve_aws_alias']:
-                account_alias = self._get_alias_from_friendly_name(role.friendly_account_name)
-                if account_alias:
-                    account = account_alias
-            if self.conf_dict['include_path'] == 'True':
-                role_name = ''.join([path, role_name])
-            profile_name = '-'.join([account,
-                                     role_name])
-        else:
-            profile_name = self.conf_dict['cred_profile']
+        cred_profile = self.conf_dict['cred_profile'].lower()
+        resolve_alias = self.conf_dict['resolve_aws_alias']
+        include_path = self.conf_dict['include_path']
+        profile_name = self.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role)
 
         return {
             'shared_credentials_file': self.AWS_CONFIG,
@@ -738,6 +724,27 @@ class GimmeAWSCreds(object):
                 'aws_security_token': aws_creds.get('SessionToken', ''),
             } if bool(aws_creds) else {}
         }
+
+    def get_profile_name(self, cred_profile, include_path, naming_data, resolve_alias, role):
+        if cred_profile == 'default':
+            profile_name = 'default'
+        elif cred_profile == 'role':
+            profile_name = naming_data['role']
+        elif cred_profile == 'acc-role':
+            account = naming_data['account']
+            role_name = naming_data['role']
+            path = naming_data['path']
+            if resolve_alias == 'True':
+                account_alias = self._get_alias_from_friendly_name(role.friendly_account_name)
+                if account_alias:
+                    account = account_alias
+            if include_path == 'True':
+                role_name = ''.join([path, role_name])
+            profile_name = '-'.join([account,
+                                     role_name])
+        else:
+            profile_name = cred_profile
+        return profile_name
 
     def iter_selected_aws_credentials(self):
         results = []
