@@ -287,13 +287,23 @@ class GimmeAWSCreds(object):
         return app_list
 
     @staticmethod
-    def _get_account_and_rolename_from_arn(arn):
-        """ Extracts account number and role name from role arn string """
-        matches = re.match(r"arn:(aws|aws-cn|aws-us-gov):iam:.*:(?P<acc>\d+):role/(?P<role>\S+)", arn)
+    def _parse_role_arn(arn):
+        """ Extracts account number, path and role name from role arn string """
+        matches = re.match(r"arn:(aws|aws-cn|aws-us-gov):iam:.*:(?P<accountid>\d{12}):role(?P<path>(/[\w/]+)?/)(?P<role>\S+)", arn)
         return {
-            'account': matches.group('acc'),
-            'role': matches.group('role')
+            'account': matches.group('accountid'),
+            'role': matches.group('role'),
+            'path': matches.group('path')
         }
+
+    @staticmethod
+    def _get_alias_from_friendly_name(friendly_name):
+        """ Extracts alias from friendly name string """
+        res = None
+        matches = re.match(r"Account:\s(?P<alias>.+)\s\(\d{12}\)", friendly_name)
+        if matches:
+            res = matches.group('alias')
+        return res
 
     def _choose_app(self, aws_info):
         """ gets a list of available apps and
@@ -685,7 +695,7 @@ class GimmeAWSCreds(object):
                 else:
                     self.ui.error('Failed to generate credentials for {} due to {}'.format(role.role, ex))
 
-        naming_data = self._get_account_and_rolename_from_arn(role.role)
+        naming_data = self._parse_role_arn(role.role)
         # set the profile name
         # Note if there are multiple roles
         # it will be overwritten multiple times and last role wins.
@@ -694,8 +704,17 @@ class GimmeAWSCreds(object):
         elif self.conf_dict['cred_profile'].lower() == 'role':
             profile_name = naming_data['role']
         elif self.conf_dict['cred_profile'].lower() == 'acc-role':
-            profile_name = '-'.join([naming_data['account'],
-                                     naming_data['role']])
+            account = naming_data['account']
+            role_name = naming_data['role']
+            path = naming_data['path']
+            if self.conf_dict['resolve_aws_alias']:
+                account_alias = self._get_alias_from_friendly_name(role.friendly_account_name)
+                if account_alias:
+                    account = account_alias
+            if self.conf_dict['include_path'] == 'True':
+                role_name = ''.join([path, role_name])
+            profile_name = '-'.join([account,
+                                     role_name])
         else:
             profile_name = self.conf_dict['cred_profile']
 

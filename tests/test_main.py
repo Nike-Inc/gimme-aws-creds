@@ -131,13 +131,36 @@ class TestMain(unittest.TestCase):
     def test_get_partition_unkown(self):
         creds = GimmeAWSCreds()
 
-        self.assertRaises(errors.GimmeAWSCredsExitBase, creds._get_partition_from_saml_acs, 'https://signin.amazonaws-foo.com/saml')
+        self.assertRaises(errors.GimmeAWSCredsExitBase, creds._get_partition_from_saml_acs,
+                          'https://signin.amazonaws-foo.com/saml')
 
-    def test_arn_to_account_and_role_name(self):
+    def test_parse_role_arn_base_path(self):
         creds = GimmeAWSCreds()
         arn = "arn:aws:iam::123456789012:role/okta-1234-role"
-        self.assertEqual(creds._get_account_and_rolename_from_arn(arn),
-        {
-            'account': '123456789012',
-            'role': 'okta-1234-role'
-        })
+        self.assertEqual(creds._parse_role_arn(arn),
+                         {
+                             'account': '123456789012',
+                             'path': '/',
+                             'role': 'okta-1234-role'
+                         })
+
+    def test_parse_role_arn_extended_path(self):
+        creds = GimmeAWSCreds()
+        arn = "arn:aws:iam::123456789012:role/a/really/extended/path/okta-1234-role"
+        self.assertEqual(creds._parse_role_arn(arn),
+                         {
+                             'account': '123456789012',
+                             'path': '/a/really/extended/path/',
+                             'role': 'okta-1234-role'
+                         })
+
+    def test_get_alias_from_friendly_name_no_alias(self):
+        creds = GimmeAWSCreds()
+        friendly_name = "Account: 123456789012"
+        self.assertEqual(creds._get_alias_from_friendly_name(friendly_name), None)
+
+    def test_get_alias_from_friendly_name_with_alias(self):
+        creds = GimmeAWSCreds()
+        friendly_name = "Account: my-account-org (123456789012)"
+        self.assertEqual(creds._get_alias_from_friendly_name(friendly_name), "my-account-org")
+
