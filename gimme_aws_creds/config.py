@@ -211,6 +211,7 @@ class Config(object):
                 okta_username = Okta username
                 aws_default_duration = Default AWS session duration (3600)
                 preferred_mfa_type = Select this MFA device type automatically
+                include_path - (optional) includes that full role path to the role name for profile
 
         """
         config = configparser.ConfigParser()
@@ -229,6 +230,7 @@ class Config(object):
             'okta_username': '',
             'app_url': '',
             'resolve_aws_alias': 'n',
+            'include_path': 'n',
             'preferred_mfa_type': '',
             'remember_device': 'n',
             'aws_default_duration': '3600',
@@ -262,6 +264,7 @@ class Config(object):
         if config_dict['gimme_creds_server'] != 'appurl':
             config_dict['aws_appname'] = self._get_aws_appname(defaults['aws_appname'])
         config_dict['resolve_aws_alias'] = self._get_resolve_aws_alias(defaults['resolve_aws_alias'])
+        config_dict['include_path'] = self._get_include_path(defaults['include_path'])
         config_dict['aws_rolename'] = self._get_aws_rolename(defaults['aws_rolename'])
         config_dict['okta_username'] = self._get_okta_username(defaults['okta_username'])
         config_dict['aws_default_duration'] = self._get_aws_default_duration(defaults['aws_default_duration'])
@@ -383,6 +386,19 @@ class Config(object):
                 return self._get_user_input_yes_no("Write AWS Credentials", default_entry)
             except ValueError:
                 ui.default.warning("Write AWS Credentials must be either y or n.")
+
+    def _get_include_path(self, default_entry):
+        """ Option to include path from rolename """
+
+        ui.default.message(
+            "Do you want to include full role path to the role name in AWS credential profile name?"
+            "\nPlease answer y or n.")
+
+        while True:
+            try:
+                return self._get_user_input_yes_no("Include Path", default_entry)
+            except ValueError:
+                ui.default.warning("Include Path must be either y or n.")
 
     def _get_resolve_aws_alias(self, default_entry):
         """ Option to resolve account id to alias """
