@@ -8,6 +8,7 @@ python:
   - '3.5'
   - '3.6'
   - '3.7'
+  - '3.8'
   
 install:
   - pip install --upgrade pip
@@ -20,7 +21,7 @@ jobs:
   include:
     - stage: deploy
       name: "PyPI Deploy"
-      python: '3.6'
+      python: '3.7'
       script: skip
       deploy:
         provider: pypi
