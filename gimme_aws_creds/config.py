@@ -391,7 +391,7 @@ class Config(object):
         """ Option to include path from rolename """
 
         ui.default.message(
-            "Do you want to include the role path from your role name ?"
+            "Do you want to include full role path to the role name in AWS credential profile name?"
             "\nPlease answer y or n.")
 
         while True:
