@@ -131,13 +131,118 @@ class TestMain(unittest.TestCase):
     def test_get_partition_unkown(self):
         creds = GimmeAWSCreds()
 
-        self.assertRaises(errors.GimmeAWSCredsExitBase, creds._get_partition_from_saml_acs, 'https://signin.amazonaws-foo.com/saml')
+        self.assertRaises(errors.GimmeAWSCredsExitBase, creds._get_partition_from_saml_acs,
+                          'https://signin.amazonaws-foo.com/saml')
 
-    def test_arn_to_account_and_role_name(self):
+    def test_parse_role_arn_base_path(self):
         creds = GimmeAWSCreds()
         arn = "arn:aws:iam::123456789012:role/okta-1234-role"
-        self.assertEqual(creds._get_account_and_rolename_from_arn(arn),
-        {
-            'account': '123456789012',
-            'role': 'okta-1234-role'
-        })
+        self.assertEqual(creds._parse_role_arn(arn),
+                         {
+                             'account': '123456789012',
+                             'path': '/',
+                             'role': 'okta-1234-role'
+                         })
+
+    def test_parse_role_arn_extended_path(self):
+        creds = GimmeAWSCreds()
+        arn = "arn:aws:iam::123456789012:role/a/really/extended/path/okta-1234-role"
+        self.assertEqual(creds._parse_role_arn(arn),
+                         {
+                             'account': '123456789012',
+                             'path': '/a/really/extended/path/',
+                             'role': 'okta-1234-role'
+                         })
+
+    def test_get_alias_from_friendly_name_no_alias(self):
+        creds = GimmeAWSCreds()
+        friendly_name = "Account: 123456789012"
+        self.assertEqual(creds._get_alias_from_friendly_name(friendly_name), None)
+
+    def test_get_alias_from_friendly_name_with_alias(self):
+        creds = GimmeAWSCreds()
+        friendly_name = "Account: my-account-org (123456789012)"
+        self.assertEqual(creds._get_alias_from_friendly_name(friendly_name), "my-account-org")
+
+
+    def test_get_profile_name_accrole_resolve_alias_do_not_include_paths(self):
+        "Testing the acc-role, with alias resolution, and not including full role path"
+        creds = GimmeAWSCreds()
+        naming_data = {'account': '123456789012', 'role': 'administrator', 'path': '/administrator/'}
+        role = RoleSet(idp='arn:aws:iam::123456789012:saml-provider/my-okta-provider',
+                       role='arn:aws:iam::123456789012:role/administrator/administrator',
+                       friendly_account_name='Account: my-org-master (123456789012)',
+                       friendly_role_name='administrator/administrator')
+        cred_profile = 'acc-role'
+        resolve_alias = 'True'
+        include_path = 'False'
+        self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role), "my-org-master-administrator")
+
+    def test_get_profile_accrole_name_do_not_resolve_alias_do_not_include_paths(self):
+        "Testing the acc-role, without alias resolution, and not including full role path"
+        creds = GimmeAWSCreds()
+        naming_data = {'account': '123456789012', 'role': 'administrator', 'path': '/administrator/'}
+        role = RoleSet(idp='arn:aws:iam::123456789012:saml-provider/my-okta-provider',
+                       role='arn:aws:iam::123456789012:role/administrator/administrator',
+                       friendly_account_name='Account: my-org-master (123456789012)',
+                       friendly_role_name='administrator/administrator')
+        cred_profile = 'acc-role'
+        resolve_alias = 'False'
+        include_path = 'False'
+        self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role),
+                         "123456789012-administrator")
+
+    def test_get_profile_accrole_name_do_not_resolve_alias_include_paths(self):
+        "Testing the acc-role, without alias resolution, and including full role path"
+        creds = GimmeAWSCreds()
+        naming_data = {'account': '123456789012', 'role': 'administrator', 'path': '/some/long/extended/path/'}
+        role = RoleSet(idp='arn:aws:iam::123456789012:saml-provider/my-okta-provider',
+                       role='arn:aws:iam::123456789012:role/some/long/extended/path/administrator',
+                       friendly_account_name='Account: my-org-master (123456789012)',
+                       friendly_role_name='administrator/administrator')
+        cred_profile = 'acc-role'
+        resolve_alias = 'False'
+        include_path = 'True'
+        self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role),
+                         "123456789012-/some/long/extended/path/administrator")
+    def test_get_profile_name_role(self):
+        "Testing the role"
+        creds = GimmeAWSCreds()
+        naming_data = {'account': '123456789012', 'role': 'administrator', 'path': '/some/long/extended/path/'}
+        role = RoleSet(idp='arn:aws:iam::123456789012:saml-provider/my-okta-provider',
+                       role='arn:aws:iam::123456789012:role/some/long/extended/path/administrator',
+                       friendly_account_name='Account: my-org-master (123456789012)',
+                       friendly_role_name='administrator/administrator')
+        cred_profile = 'role'
+        resolve_alias = 'False'
+        include_path = 'True'
+        self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role),
+                         'administrator')
+
+    def test_get_profile_name_default(self):
+        "Testing the default"
+        creds = GimmeAWSCreds()
+        naming_data = {'account': '123456789012', 'role': 'administrator', 'path': '/some/long/extended/path/'}
+        role = RoleSet(idp='arn:aws:iam::123456789012:saml-provider/my-okta-provider',
+                       role='arn:aws:iam::123456789012:role/some/long/extended/path/administrator',
+                       friendly_account_name='Account: my-org-master (123456789012)',
+                       friendly_role_name='administrator/administrator')
+        cred_profile = 'default'
+        resolve_alias = 'False'
+        include_path = 'True'
+        self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role),
+                         'default')
+
+    def test_get_profile_name_else(self):
+        "testing else statement in get_profile_name"
+        creds = GimmeAWSCreds()
+        naming_data = {'account': '123456789012', 'role': 'administrator', 'path': '/some/long/extended/path/'}
+        role = RoleSet(idp='arn:aws:iam::123456789012:saml-provider/my-okta-provider',
+                       role='arn:aws:iam::123456789012:role/some/long/extended/path/administrator',
+                       friendly_account_name='Account: my-org-master (123456789012)',
+                       friendly_role_name='administrator/administrator')
+        cred_profile = 'foo'
+        resolve_alias = 'False'
+        include_path = 'True'
+        self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role),
+                         'foo')
