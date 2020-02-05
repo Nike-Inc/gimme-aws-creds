@@ -67,7 +67,8 @@ class QuietHandler(BaseHTTPRequestHandler, object):
 class Duo:
     """Does all the background work needed to serve the Duo iframe."""
 
-    def __init__(self, details, state_token, factor=None):
+    def __init__(self, details, state_token, socket, factor=None,):
+        self.socket = socket
         self.details = details
         self.token = state_token
         self.factor = factor
@@ -94,7 +95,6 @@ class Duo:
         );</script>'''.format(tkn=self.token, scr=script,
                               hst=host, sig=sig,
                               cb=callback)
-
         proc = Process(target=self.duo_webserver)
         proc.start()
         time.sleep(10)
@@ -102,8 +102,7 @@ class Duo:
 
     def duo_webserver(self):
         """HTTP webserver."""
-        server_address = ('127.0.0.1', 65432)
-        httpd = HTTPServer(server_address, self.handler_with_html)
+        httpd = HTTPServer(self.socket, self.handler_with_html)
         httpd.serve_forever()
 
     def handler_with_html(self, *args):
