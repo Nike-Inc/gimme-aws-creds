@@ -426,8 +426,8 @@ class OktaClient(object):
             return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
-
-    def get_available_socket(self):
+    @staticmethod
+    def get_available_socket():
         """Get available socket, but requesting 0 and allowing OS to provide ephemeral open port"""
         s = socket.socket()
         s.bind(('127.0.0.1', 0))
