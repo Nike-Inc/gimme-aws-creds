@@ -701,7 +701,7 @@ class GimmeAWSCreds(object):
         # it will be overwritten multiple times and last role wins.
         cred_profile = self.conf_dict['cred_profile'].lower()
         resolve_alias = self.conf_dict['resolve_aws_alias']
-        include_path = self.conf_dict['include_path']
+        include_path = self.conf_dict.get('include_path')
         profile_name = self.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role)
 
         return {
