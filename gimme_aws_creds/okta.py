@@ -334,7 +334,6 @@ class OktaClient(object):
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
-        response.raise_for_status()
 
         response_data = response.json()
         if 'errorCode' in response_data:
@@ -769,7 +768,7 @@ class OktaClient(object):
             # print out the factors and let the user select
             for i, factor in enumerate(factors):
                 factor_name = self._build_factor_name(factor)
-                if factor_name is not "":
+                if factor_name != "":
                     self.ui.info('[{}] {}'.format(i, factor_name))
             selection = self.ui.input('Selection: ')
 
