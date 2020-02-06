@@ -31,6 +31,7 @@ from . import errors, ui, version, duo
 
 from multiprocessing import Process
 import webbrowser
+import socket
 
 
 class OktaClient(object):
@@ -425,6 +426,13 @@ class OktaClient(object):
             return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+    @staticmethod
+    def get_available_socket():
+        """Get available socket, but requesting 0 and allowing OS to provide ephemeral open port"""
+        s = socket.socket()
+        s.bind(('127.0.0.1', 0))
+        server_address = s.getsockname()
+        return server_address
 
     def _login_duo_challenge(self, state_token, factor):
         """ Duo MFA challenge """
@@ -448,16 +456,17 @@ class OktaClient(object):
         )
         response_data = response.json()
         verification = response_data['_embedded']['factor']['_embedded']['verification']
+        socket_addr = self.get_available_socket()
 
         auth = None
-        duo_client = duo.Duo(verification, state_token, factor['factorType'])
+        duo_client = duo.Duo(verification, state_token, socket_addr, factor['factorType'])
         if factor['factorType'] == "web":
             # Duo Web via local browser
             self.ui.info("Duo required; opening browser...")
             proc = Process(target=duo_client.trigger_web_duo)
             proc.start()
             time.sleep(2)
-            webbrowser.open_new('http://127.0.0.1:65432/duo.html')
+            webbrowser.open_new('http://{host}:{port}/duo.html'.format(host=socket_addr[0], port=socket_addr[1]))
         elif factor['factorType'] == "passcode":
             # Duo auth with OTP code without a browser
             self.ui.info("Duo required; using OTP...")
