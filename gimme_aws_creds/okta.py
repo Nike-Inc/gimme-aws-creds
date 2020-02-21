@@ -773,7 +773,7 @@ class OktaClient(object):
             selection = self._get_user_int_factor_choice(len(factors))
 
         # make sure the choice is valid
-        if selection is None or selection > len(factors):
+        if selection is None:
             raise errors.GimmeAWSCredsError("You made an invalid selection")
 
         return factors[selection]
