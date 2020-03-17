@@ -743,6 +743,7 @@ class GimmeAWSCreds(object):
             profile_name = '-'.join([account,
                                      role_name])
         else:
+            profile_name = self.conf_dict['cred_profile']
             profile_name = cred_profile
         return profile_name
 
