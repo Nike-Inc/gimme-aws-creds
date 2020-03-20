@@ -5,7 +5,7 @@ set PythonExe=""
 set PythonExeFlags=
 
 for %%i in (cmd bat exe) do (
-    for %%j in (python.%%i) do (
+    for %%j in (python3.%%i) do (
         call :SetPythonExe "%%~$PATH:j"
     )
 )
