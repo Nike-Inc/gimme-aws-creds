@@ -130,7 +130,7 @@ Configurations can inherit from other configurations to share common configurati
 [my-base-profile]
 client_id = myclient_id
 [myprofile]
-inherit = my-base-profile
+inherits = my-base-profile
 aws_rolename = my-role
 ```
 
