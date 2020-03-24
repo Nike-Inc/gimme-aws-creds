@@ -141,6 +141,8 @@ class GimmeAWSCreds(object):
         # Write the updated config file
         with open(aws_config, 'w+') as configfile:
             config.write(configfile)
+        # Update file permissions to secure  sensitive credentials file
+        os.chmod(aws_config, 0o600)
         self.ui.result('Written profile {} to {}'.format(profile, aws_config))
 
     def write_aws_creds_from_data(self, data, aws_config=None):
