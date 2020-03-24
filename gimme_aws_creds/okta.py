@@ -336,14 +336,26 @@ class OktaClient(object):
         )
 
         response_data = response.json()
-        if 'errorCode' in response_data:
-            if self.KEYRING_ENABLED:
-                try:
-                    keyring.delete_password(self.KEYRING_SERVICE, creds['username'])
-                except PasswordDeleteError:
-                    pass
+
+        if response.status_code == 200:
+            pass
+
+        # Handle known Okta error codes
+        # ref: https://developer.okta.com/docs/reference/error-codes/#example-errors-listed-by-http-return-code
+        elif response.status_code in [400, 401, 403, 404, 409, 429, 500, 501, 503]:
+            if response_data['errorCode'] == "E0000004":
+                if self.KEYRING_ENABLED:
+                    try:
+                        self.ui.info("Stored password is invalid, clearing.  Please try again")
+                        keyring.delete_password(self.KEYRING_SERVICE, creds['username'])
+                    except PasswordDeleteError:
+                        pass
             raise errors.GimmeAWSCredsError(
                 "LOGIN ERROR: {} | Error Code: {}".format(response_data['errorSummary'], response_data['errorCode']), 2)
+
+        # If the error code isn't one we know how to handle, raise an exception
+        else:
+            response.raise_for_status()
 
         func_result = {'apiResponse': response_data}
         if 'stateToken' in response_data:
@@ -814,7 +826,7 @@ class OktaClient(object):
         elif factor['factorType'] == 'u2f':
             return factor['factorType'] + ": " + factor['factorType']
         elif factor['factorType'] == 'webauthn':
-            return factor['factorType'] + ": " + factor['factorType']        
+            return factor['factorType'] + ": " + factor['factorType']
         elif factor['factorType'] == 'token:hardware':
             return factor['factorType'] + ": " + factor['provider']
         elif factor['provider'] == 'DUO':
