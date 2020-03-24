@@ -718,6 +718,12 @@ class TestOktaClient(unittest.TestCase):
         with self.assertRaises(errors.GimmeAWSCredsExitBase):
             result = self.client._choose_factor(self.factor_list)
 
+    @patch('builtins.input', return_value='a')
+    def test_choose_non_number_factor_totp(self, mock_input):
+        """ Test entering a non number value as MFA factor"""
+        with self.assertRaises(errors.GimmeAWSCredsExitBase):
+            result = self.client._choose_factor(self.factor_list)
+
     def test_build_factor_name_sms(self):
         """ Test building a display name for SMS"""
         result = self.client._build_factor_name(self.sms_factor)

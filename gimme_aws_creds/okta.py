@@ -770,13 +770,33 @@ class OktaClient(object):
                 factor_name = self._build_factor_name(factor)
                 if factor_name != "":
                     self.ui.info('[{}] {}'.format(i, factor_name))
-            selection = self.ui.input('Selection: ')
+            selection = self._get_user_int_factor_choice(len(factors))
 
         # make sure the choice is valid
-        if int(selection) > len(factors):
+        if selection is None:
             raise errors.GimmeAWSCredsError("You made an invalid selection")
 
-        return factors[int(selection)]
+        return factors[selection]
+
+    def _get_user_int_factor_choice(self, max_int, max_retries=5):
+        for _ in range(max_retries):
+            value = self.ui.input('Selection: ')
+            try:
+                selection = int(value.strip())
+            except ValueError:
+                self.ui.warning(
+                    'Invalid selection {!r}, must be an integer value.'.format(value)
+                )
+                continue
+
+            if 0 <= selection <= max_int:
+                return selection
+            else:
+                self.ui.warning(
+                    'Selection {!r} out of range <0, {}>'.format(selection, max_int)
+                )
+
+        return None
 
     @staticmethod
     def _build_factor_name(factor):
