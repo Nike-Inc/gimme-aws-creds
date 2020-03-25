@@ -87,7 +87,7 @@ class OktaClient(object):
     @device_token.setter
     def device_token(self, device_token):
         if device_token is not None:
-            match = re.search('^https://(.*)', self._okta_org_url)
+            match = re.search(r'^https://(.*)/?', self._okta_org_url)
             self._http_client.cookies.set('DT', device_token, domain=match.group(1), path='/')
 
     def set_username(self, username):
