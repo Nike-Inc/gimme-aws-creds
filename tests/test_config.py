@@ -86,6 +86,33 @@ aws_rolename = myrole
             "aws_rolename": "myrole",
         })
 
+    def test_read_nested_config_inherited(self):
+        """Test to make sure getting config works when inherited"""
+        test_ui = MockUserInterface(argv = [
+            "--profile",
+            "myprofile",
+        ])
+        with open(test_ui.HOME + "/.okta_aws_login_config", "w") as config_file:
+            config_file.write("""
+[mybase-level1]
+client_id = bar
+[mybase-level2]
+inherits = mybase-level1
+aws_appname = baz
+[myprofile]
+inherits = mybase-level2
+client_id = foo
+aws_rolename = myrole
+""")
+        config = Config(gac_ui=test_ui, create_config=False)
+        config.conf_profile = "myprofile"
+        profile_config = config.get_config_dict()
+        self.assertEqual(profile_config, {
+            "client_id": "foo",
+            "aws_appname": "baz",
+            "aws_rolename": "myrole",
+        })
+
 class MockUserInterface(ui.UserInterface):
 
     def __init__(self, argv):

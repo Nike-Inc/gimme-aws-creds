@@ -167,6 +167,20 @@ class Config(object):
             self.roles = [role.strip() for role in args.roles.split(',') if role.strip()]
         self.conf_profile = args.profile or 'DEFAULT'
 
+    def _handle_config(self, config, profile_config):
+        if "inherits" in profile_config.keys():
+            print("Using inherited config: " + profile_config["inherits"])
+            if profile_config["inherits"] not in config:
+                raise errors.GimmeAWSCredsError(self.conf_profile + " inherits from " + profile_config["inherits"] + ", but could not find " + profile_config["inherits"])
+            combined_config = {
+                **self._handle_config(config, dict(config[profile_config["inherits"]])),
+                **profile_config,
+            }
+            del combined_config["inherits"]
+            return combined_config
+        else:
+            return profile_config
+
     def get_config_dict(self):
         """returns the conf dict from the okta config file"""
         # Check to see if config file exists, if not complain and exit
@@ -177,19 +191,7 @@ class Config(object):
 
             try:
                 profile_config = dict(config[self.conf_profile])
-                if "inherits" in profile_config.keys():
-                    print("Using inherited config: " + profile_config["inherits"])
-                    if profile_config["inherits"] not in config:
-                        raise errors.GimmeAWSCredsError(self.conf_profile + " inherits from " + profile_config["inherits"] + ", but could not find " + profile_config["inherits"])
-                    combined_config = {
-                        **dict(config[profile_config["inherits"]]),
-                        **profile_config,
-                    }
-                    del combined_config["inherits"]
-                    return combined_config
-                else:
-                    return profile_config
-
+                return self._handle_config(config, profile_config)
             except KeyError:
                 raise errors.GimmeAWSCredsError(
                     'Configuration profile not found! Use the --action-configure flag to generate the profile.')
