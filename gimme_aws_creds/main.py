@@ -418,7 +418,7 @@ class GimmeAWSCreds(object):
         role_strs = self.resolver._display_role(roles)
 
         if role_strs:
-            self.ui.message("Pick a roles:")
+            self.ui.message("Pick a role:")
             for role in role_strs:
                 self.ui.message(role)
         else:
