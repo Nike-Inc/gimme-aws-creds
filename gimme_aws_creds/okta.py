@@ -710,11 +710,11 @@ class OktaClient(object):
 
         if saml_response is None:
             # We didn't get a SAML response.  Were we redirected to an MFA login page?
-            if hasattr(saml_soup.title, 'string') and re.match(".* - Extra Verification$", saml_soup.title.string):
+            if hasattr(saml_soup.title, 'string') and re.match("WarnerMedia Login", saml_soup.title.string.strip()):
                 # extract the stateToken from the Javascript code in the page and step up to MFA
-                state_token = decode(re.search(r"var stateToken = '(.*)';", response.text).group(1), "unicode-escape")
+                state_token = decode(re.search(r"var StateToken = '(.*)';", response.text).group(1), "unicode-escape")
                 api_response = self.stepup_auth(url, state_token)
-                saml_response = self.get_saml_response(url + '?sessionToken=' + api_response['sessionToken'])
+                saml_response = self.get_saml_response(url)
 
                 return saml_response
 
