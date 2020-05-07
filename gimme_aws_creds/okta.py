@@ -717,8 +717,7 @@ class OktaClient(object):
                 saml_response = self.get_saml_response(url + '?sessionToken=' + api_response['sessionToken'])
 
                 return saml_response
-
-             elif ('EXTRA VERIFICATION' in saml_soup.find('span').contents[0]) and ('EVHeader' in str(saml_soup.find('span', id='EVHeader'))):
+            elif ('EXTRA VERIFICATION' in saml_soup.find('span').contents[0]) and ('EVHeader' in str(saml_soup.find('span', id='EVHeader'))):
                 # extract the stateToken from the Javascript code in the page and step up to MFA
                 state_token = decode(re.search(r"var StateToken = '(.*)';", response.text).group(1), "unicode-escape")
                 api_response = self.stepup_auth(url, state_token)
