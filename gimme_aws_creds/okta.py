@@ -716,7 +716,8 @@ class OktaClient(object):
                 api_response = self.stepup_auth(url, state_token)
                 saml_response = self.get_saml_response(url + '?sessionToken=' + api_response['sessionToken'])
 
-                return saml_response
+                return saml_response1
+
 
             raise RuntimeError(
                 'Did not receive SAML Response after successful authentication [' + url + ']')
