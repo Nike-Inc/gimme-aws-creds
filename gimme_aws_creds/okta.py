@@ -718,16 +718,20 @@ class OktaClient(object):
 
                 return saml_response
 
-            elif ('EXTRA VERIFICATION' in saml_soup.find('span').contents[0]) and ('EVHeader' in str(saml_soup.find('span', id='EVHeader'))):
-                # extract the stateToken from the Javascript code in the page and step up to MFA
-                state_token = decode(re.search(r"var StateToken = '(.*)';", response.text).group(1), "unicode-escape")
-                api_response = self.stepup_auth(url, state_token)
-                if 'sessionToken' in api_response:
-                    saml_response = self.get_saml_response(url + '?sessionToken=' + api_response['sessionToken'])
-                else:
-                    saml_response = self.get_saml_response(url + '?stateToken=' + api_response['_links']['next']['href'])
+            else:
+                for tag in saml_soup.find_all('body'):
+                    # checking all the tags in body tag for Extra Verification string
+                    if re.search(r"Extra Verification", tag.text, re.IGNORECASE):
+                        # extract the stateToken from response (form action) instead of javascript variable
+                        pre_state_token = decode(re.search(r"stateToken=(.*?[ \"])", response.text).group(1), "unicode-escape")
+                        state_token = pre_state_token.rstrip('\"')
+                        api_response = self.stepup_auth(url, state_token)
+                        if 'sessionToken' in api_response:
+                            saml_response = self.get_saml_response(url + '?sessionToken=' + api_response['sessionToken'])
+                        else:
+                            saml_response = self.get_saml_response(url + '?stateToken=' + api_response['_links']['next']['href'])
 
-                return saml_response
+                        return saml_response
 
             raise RuntimeError(
                 'Did not receive SAML Response after successful authentication [' + url + ']')
