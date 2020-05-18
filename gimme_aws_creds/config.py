@@ -379,7 +379,7 @@ class Config(object):
     def _get_write_aws_creds(self, default_entry):
         """ Option to write to the ~/.aws/credentials or to stdour"""
         ui.default.message(
-            "Do you want to write the temporary AWS to ~/.aws/credentials?"
+            "Do you want to write the temporary AWS credentials to ~/.aws/credentials?"
             "\nIf no, the credentials will be written to stdout."
             "\nPlease answer y or n.")
 
