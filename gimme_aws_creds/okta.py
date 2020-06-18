@@ -717,9 +717,12 @@ class OktaClient(object):
                 saml_response = self.get_saml_response(url + '?sessionToken=' + api_response['sessionToken'])
 
                 return saml_response
+
             else:
                 for tag in saml_soup.find_all('body'):
+                    # checking all the tags in body tag for Extra Verification string
                     if re.search(r"Extra Verification", tag.text, re.IGNORECASE):
+                        # extract the stateToken from response (form action) instead of javascript variable
                         pre_state_token = decode(re.search(r"stateToken=(.*?[ \"])", response.text).group(1), "unicode-escape")
                         state_token = pre_state_token.rstrip('\"')
                         api_response = self.stepup_auth(url, state_token)
@@ -727,7 +730,7 @@ class OktaClient(object):
                             saml_response = self.get_saml_response(url + '?sessionToken=' + api_response['sessionToken'])
                         else:
                             saml_response = self.get_saml_response(url + '?stateToken=' + api_response['_links']['next']['href'])
-                        
+
                         return saml_response
 
             raise RuntimeError(
