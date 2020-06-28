@@ -477,7 +477,17 @@ class Config(object):
         """Get the user's preferred MFA device [Optional]"""
         ui.default.message(
             "If you'd like to set a preferred device type to use for MFA, enter it here.\n"
-            "This is optional. valid devices types:[sms, call, push, token, token:software:totp]")
+            "This is optional. valid devices types:\n"
+            """
+            - push - Okta Verify App push or DUO push (depends on okta supplied provider type)
+            - token:software:totp - OTP using the Okta Verify App
+            - token:hardware - OTP using hardware like Yubikey
+            - call - OTP via Voice call
+            - sms - OTP via SMS message
+            - web - DUO uses localhost webbrowser to support push|call|passcode
+            - passcode - DUO uses `OKTA_MFA_CODE` or `--mfa-code` if set, or prompts user for passcode(OTP).
+            """
+        )
         okta_username = self._get_user_input(
             "Preferred MFA Device Type", default_entry)
         return okta_username
