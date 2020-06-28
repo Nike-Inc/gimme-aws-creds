@@ -32,6 +32,7 @@ from . import errors, ui, version, duo
 from multiprocessing import Process
 import webbrowser
 import socket
+import copy
 
 
 class OktaClient(object):
@@ -214,7 +215,6 @@ class OktaClient(object):
         if 'redirect_uri' not in kwargs:
             redirect_uri = 'http://localhost:8080/login'
         else:
-            redirect_uri = kwargs['redirect_uri']
             redirect_uri = kwargs['redirect_uri']
 
         if 'nonce' not in kwargs:
@@ -758,7 +758,6 @@ class OktaClient(object):
         self.ui.info("Multi-factor Authentication required.")
 
         # filter the factor list down to just the types specified in preferred_mfa_type
-        import copy
         preferred_factors = []
         # even though duo supports both passcode and push, okta only lists web as an available factor. This if statement
         # adds the additional supported factors only if the provider is duo, and the web factor is the only one provided
