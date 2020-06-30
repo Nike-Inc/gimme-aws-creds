@@ -787,7 +787,7 @@ class GimmeAWSCreds(object):
                 continue
 
             # Defaults to `export` format
-            self.ui.result('# ' + data['role']['arn'])
+            self.ui.result("export AWS_ROLE_ARN=" + data['role']['arn'])
             self.ui.result("export AWS_ACCESS_KEY_ID=" + data['credentials']['aws_access_key_id'])
             self.ui.result("export AWS_SECRET_ACCESS_KEY=" + data['credentials']['aws_secret_access_key'])
             self.ui.result("export AWS_SESSION_TOKEN=" + data['credentials']['aws_session_token'])
