@@ -733,8 +733,12 @@ class OktaClient(object):
 
                         return saml_response
 
-            raise RuntimeError(
-                'Did not receive SAML Response after successful authentication [' + url + ']')
+            saml_error = 'Did not receive SAML Response after successful authentication [' + url + ']'
+
+            if saml_soup.find(class_='error-content') is not None:
+                saml_error += '\n' + saml_soup.find(class_='error-content').get_text()
+
+            raise RuntimeError(saml_error)
 
         return {'SAMLResponse': saml_response, 'RelayState': relay_state, 'TargetUrl': form_action}
 
