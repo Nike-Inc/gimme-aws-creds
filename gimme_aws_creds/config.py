@@ -167,8 +167,8 @@ class Config(object):
             self.roles = [role.strip() for role in args.roles.split(',') if role.strip()]
         self.conf_profile = args.profile or 'DEFAULT'
 
-    def _handle_config(self, config, profile_config):
-        if "inherits" in profile_config.keys():
+    def _handle_config(self, config, profile_config, include_inherits = True):
+        if "inherits" in profile_config.keys() and include_inherits:
             print("Using inherited config: " + profile_config["inherits"])
             if profile_config["inherits"] not in config:
                 raise errors.GimmeAWSCredsError(self.conf_profile + " inherits from " + profile_config["inherits"] + ", but could not find " + profile_config["inherits"])
@@ -181,7 +181,7 @@ class Config(object):
         else:
             return profile_config
 
-    def get_config_dict(self):
+    def get_config_dict(self, include_inherits = True):
         """returns the conf dict from the okta config file"""
         # Check to see if config file exists, if not complain and exit
         # If config file does exist return config dict from file
@@ -191,7 +191,7 @@ class Config(object):
 
             try:
                 profile_config = dict(config[self.conf_profile])
-                return self._handle_config(config, profile_config)
+                return self._handle_config(config, profile_config, include_inherits)
             except KeyError:
                 raise errors.GimmeAWSCredsError(
                     'Configuration profile not found! Use the --action-configure flag to generate the profile.')
