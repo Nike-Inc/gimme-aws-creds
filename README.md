@@ -102,11 +102,14 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - app_url - If using 'appurl' setting for gimme_creds_server, this sets the url to the aws application configured in Okta. It is typically something like <https://something.okta[preview].com/home/amazon_aws/app_instance_id/something>
 - okta_username - use this username to authenticate
 - preferred_mfa_type - automatically select a particular  device when prompted for MFA:
-  - push - Okta Verify App push
+  - push - Okta Verify App push or DUO push (depends on okta supplied provider type)
   - token:software:totp - OTP using the Okta Verify App
   - token:hardware - OTP using hardware like Yubikey
   - call - OTP via Voice call
   - sms - OTP via SMS message
+  - web - DUO uses localhost webbrowser to support push|call|passcode
+  - passcode - DUO uses `OKTA_MFA_CODE` or `--mfa-code` if set, or prompts user for passcode(OTP).
+  
 - resolve_aws_alias - y or n. If yes, gimme-aws-creds will try to resolve AWS account ids with respective alias names (default: n). This option can also be set interactively in the command line using `-r` or `--resolve` parameter
 - include_path - (optional) Includes full role path to the role name in AWS credential profile name. (default: n).  If `y`: `<acct>-/some/path/administrator`. If `n`: `<acct>-administrator`
 - remember_device - y or n. If yes, the MFA device will be remembered by Okta service for a limited time. This option can also be set interactively in the command line using `-m` or `--remember-device`

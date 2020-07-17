@@ -418,7 +418,7 @@ class GimmeAWSCreds(object):
         role_strs = self.resolver._display_role(roles)
 
         if role_strs:
-            self.ui.message("Pick a roles:")
+            self.ui.message("Pick a role:")
             for role in role_strs:
                 self.ui.message(role)
         else:
@@ -469,10 +469,10 @@ class GimmeAWSCreds(object):
         except errors.GimmeAWSCredsExitBase as exc:
             exc.handle()
 
-    @property
-    def config(self):
-        if 'config' in self._cache:
-            return self._cache['config']
+    def generate_config(self):
+        """ generates a new configuration and populates
+        various config caches
+        """
         self._cache['config'] = config = Config(gac_ui=self.ui)
         config.get_args()
         self._cache['conf_dict'] = config.get_config_dict()
@@ -489,6 +489,13 @@ class GimmeAWSCreds(object):
             self.config.aws_default_duration = 3600
 
         self.resolver = self.get_resolver()
+        return config
+
+    @property
+    def config(self):
+        if 'config' in self._cache:
+            return self._cache['config']
+        config = self.generate_config()
         return config
 
     @property
@@ -564,6 +571,17 @@ class GimmeAWSCreds(object):
 
         return self.conf_dict.get('device_token')
 
+    def set_auth_session(self, auth_session):
+        self._cache['auth_session'] = auth_session
+
+    @property
+    def auth_session(self):
+        if 'auth_session' in self._cache:
+            return self._cache['auth_session']
+        auth_result = self.okta.auth_session()
+        self.set_auth_session(auth_result)
+        return auth_result
+
     @property
     def aws_results(self):
         if 'aws_results' in self._cache:
@@ -573,12 +591,12 @@ class GimmeAWSCreds(object):
             # Okta API key is required when calling Okta APIs internally
             if self.config.api_key is None:
                 raise errors.GimmeAWSCredsError('OKTA_API_KEY environment variable not found!')
-            auth_result = self.okta.auth_session()
+            auth_result = self.auth_session
             aws_results = self._get_aws_account_info(self.okta_org_url, self.config.api_key,
                                                      auth_result['username'])
 
         elif self.gimme_creds_server == 'appurl':
-            self.okta.auth_session()
+            self.auth_session
             # bypass lambda & API call
             # Apps url is required when calling with appurl
             if self.conf_dict.get('app_url'):
@@ -787,7 +805,7 @@ class GimmeAWSCreds(object):
                 continue
 
             # Defaults to `export` format
-            self.ui.result('# ' + data['role']['arn'])
+            self.ui.result("export AWS_ROLE_ARN=" + data['role']['arn'])
             self.ui.result("export AWS_ACCESS_KEY_ID=" + data['credentials']['aws_access_key_id'])
             self.ui.result("export AWS_SECRET_ACCESS_KEY=" + data['credentials']['aws_secret_access_key'])
             self.ui.result("export AWS_SESSION_TOKEN=" + data['credentials']['aws_session_token'])
@@ -831,7 +849,7 @@ class GimmeAWSCreds(object):
                 self.ui.notify('\n*** No device token found in configuration file, it will be created.')
                 self.ui.notify('*** You may be prompted for MFA more than once for this run.\n')
 
-            auth_result = self.okta.auth_session()
+            auth_result = self.auth_session
             self.conf_dict['device_token'] = auth_result['device_token']
             self.config.write_config_file(self.conf_dict)
             self.okta.device_token = self.conf_dict['device_token']

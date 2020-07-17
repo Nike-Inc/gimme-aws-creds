@@ -19,6 +19,7 @@ import time
 from multiprocessing import Process
 
 import requests
+from . import ui
 
 if sys.version_info[0] < 3:  # pragma: no cover
     from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
@@ -67,7 +68,8 @@ class QuietHandler(BaseHTTPRequestHandler, object):
 class Duo:
     """Does all the background work needed to serve the Duo iframe."""
 
-    def __init__(self, details, state_token, socket, factor=None,):
+    def __init__(self, gac_ui, details, state_token, socket, factor=None,):
+        self.ui = gac_ui
         self.socket = socket
         self.details = details
         self.token = state_token
@@ -232,15 +234,17 @@ class Duo:
                     ret.status_code))
 
             result = ret.json()
-
+            self.ui.info("status: {}".format(result['response']['status']))
+            if result['response'].get('result') == 'FAILURE':
+                raise Exception('DUO MFA failed: {}'.format(format(result['response']['status'])))
             if result['stat'] == "OK":
                 if 'cookie' in result['response']:
                     auth = result['response']['cookie']
                 elif 'result_url' in result['response']:
                     auth = self.do_redirect(
                         result['response']['result_url'], sid)
-
-            time.sleep(1)
+            else:
+                time.sleep(1)
 
         if auth is None:
             raise Exception('Did not get callback information from Duo')

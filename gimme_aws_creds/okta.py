@@ -32,6 +32,7 @@ from . import errors, ui, version, duo
 from multiprocessing import Process
 import webbrowser
 import socket
+import copy
 
 
 class OktaClient(object):
@@ -447,30 +448,27 @@ class OktaClient(object):
 
     def _login_duo_challenge(self, state_token, factor):
         """ Duo MFA challenge """
-
+        passcode=self._mfa_code
         if factor['factorType'] is None:
             # Prompt user for which Duo factor to use
-            raise duo.FactorRequired(id, state_token)
+            raise duo.FactorRequired(factor['id'], state_token)
 
         if factor['factorType'] == "passcode" and not passcode:
-            raise duo.PasscodeRequired(fid, state_token)
+            try:
+                passcode = self.ui.input("Enter verification code(remember to refresh token between uses): ")
+            except Exception:
+                raise duo.PasscodeRequired(factor['id'], state_token)
 
         path = '/authn/factors/{fid}/verify'.format(fid=factor['id'])
         data = {'fid': factor['id'],
                 'stateToken': state_token}
 
-        response = self._http_client.post(factor['_links']['verify']['href'],
-            params={'rememberDevice': self._remember_device},
-            json={'stateToken': state_token},
-            headers=self._get_headers(),
-            verify=self._verify_ssl_certs
-        )
-        response_data = response.json()
+        response_data = self._get_response_data(factor['_links']['verify']['href'], state_token)
         verification = response_data['_embedded']['factor']['_embedded']['verification']
         socket_addr = self.get_available_socket()
 
         auth = None
-        duo_client = duo.Duo(verification, state_token, socket_addr, factor['factorType'])
+        duo_client = duo.Duo(self.ui, verification, state_token, socket_addr, factor['factorType'])
         if factor['factorType'] == "web":
             # Duo Web via local browser
             self.ui.info("Duo required; opening browser...")
@@ -490,11 +488,8 @@ class OktaClient(object):
         if auth is not None:
             self.mfa_callback(auth, verification, state_token)
             try:
-                sleep=2
-                while ret['status'] != 'SUCCESS':
-                    self.ui.info("Waiting for MFA success...")
-                    time.sleep(sleep)
-
+                response_data = self._get_response_data(response_data.get('_links')['next']['href'], state_token)
+                while response_data['status'] != 'SUCCESS':
                     if response_data.get('factorResult', 'REJECTED') == 'REJECTED':
                         self.ui.warning("Duo Push REJECTED")
                         return None
@@ -503,8 +498,9 @@ class OktaClient(object):
                         self.ui.warning("Duo Push TIMEOUT")
                         return None
 
-                    links = response_data.get('_links')
-                    response_data = self._http_client.post(links['next']['href'], data)
+                    self.ui.info("Waiting for MFA success...")
+                    time.sleep(2)
+                    response_data = self._get_response_data(response_data.get('_links')['next']['href'], state_token)
 
             except KeyboardInterrupt:
                 self.ui.warning("User canceled waiting for MFA success.")
@@ -516,6 +512,16 @@ class OktaClient(object):
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
         #return None
+
+    def _get_response_data(self, href, state_token):
+        response = self._http_client.post(href,
+                                          params={'rememberDevice': self._remember_device},
+                                          json={'stateToken': state_token},
+                                          headers=self._get_headers(),
+                                          verify=self._verify_ssl_certs
+                                          )
+        response_data = response.json()
+        return response_data
 
     def mfa_callback(self, auth, verification, state_token):
         """Do callback to Okta with the info from the MFA provider
@@ -541,7 +547,9 @@ class OktaClient(object):
     def _login_multi_factor(self, state_token, login_data):
         """ handle multi-factor authentication with Okta"""
         factor = self._choose_factor(login_data['_embedded']['factors'])
-        if factor['factorType'] == 'sms':
+        if factor['provider'] == 'DUO':
+            return self._login_duo_challenge(state_token, factor)
+        elif factor['factorType'] == 'sms':
             return self._login_send_sms(state_token, factor)
         elif factor['factorType'] == 'call':
             return self._login_send_call(state_token, factor)
@@ -557,8 +565,7 @@ class OktaClient(object):
             return self._login_input_webauthn_challenge(state_token, factor)
         elif factor['factorType'] == 'token:hardware':
             return self._login_input_mfa_challenge(state_token, factor['_links']['verify']['href'])
-        elif factor['provider'] == 'DUO':
-            return self._login_duo_challenge(state_token, factor)
+
 
     def _login_input_mfa_challenge(self, state_token, next_url):
         """ Submit verification code for SMS or TOTP authentication methods"""
@@ -733,8 +740,12 @@ class OktaClient(object):
 
                         return saml_response
 
-            raise RuntimeError(
-                'Did not receive SAML Response after successful authentication [' + url + ']')
+            saml_error = 'Did not receive SAML Response after successful authentication [' + url + ']'
+
+            if saml_soup.find(class_='error-content') is not None:
+                saml_error += '\n' + saml_soup.find(class_='error-content').get_text()
+
+            raise RuntimeError(saml_error)
 
         return {'SAMLResponse': saml_response, 'RelayState': relay_state, 'TargetUrl': form_action}
 
@@ -779,6 +790,15 @@ class OktaClient(object):
 
         # filter the factor list down to just the types specified in preferred_mfa_type
         preferred_factors = []
+        # even though duo supports both passcode and push, okta only lists web as an available factor. This if statement
+        # adds the additional supported factors only if the provider is duo, and the web factor is the only one provided
+        if len(factors) == 1 and factors[0].get('provider') == 'DUO' and factors[0].get('factorType') == 'web':
+            push = copy.deepcopy(factors[0])
+            push['factorType'] = "push"
+            factors.append(push)
+            passcode = copy.deepcopy(factors[0])
+            passcode['factorType'] = "passcode"
+            factors.append(passcode)
         if self._preferred_mfa_type is not None:
             preferred_factors = list(filter(lambda item: item['factorType'] == self._preferred_mfa_type, factors))
             # If the preferred factor isn't in the list of available factors, we'll let the user know before
@@ -828,7 +848,9 @@ class OktaClient(object):
     @staticmethod
     def _build_factor_name(factor):
         """ Build the display name for a MFA factor based on the factor type"""
-        if factor['factorType'] == 'push':
+        if factor['provider'] == 'DUO':
+            return factor['factorType'] + ": " + factor['provider'].capitalize()
+        elif factor['factorType'] == 'push':
             return "Okta Verify App: " + factor['profile']['deviceType'] + ": " + factor['profile']['name']
         elif factor['factorType'] == 'sms':
             return factor['factorType'] + ": " + factor['profile']['phoneNumber']
@@ -844,8 +866,7 @@ class OktaClient(object):
             return factor['factorType'] + ": " + factor['factorType']
         elif factor['factorType'] == 'token:hardware':
             return factor['factorType'] + ": " + factor['provider']
-        elif factor['provider'] == 'DUO':
-            return factor['factorType'] + ": " + factor['provider'].capitalize()
+
         else:
             return "Unknown MFA type: " + factor['factorType']
 
