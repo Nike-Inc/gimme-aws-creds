@@ -17,7 +17,7 @@ from threading import Event, Thread
 
 from fido2.client import Fido2Client, ClientError
 from fido2.hid import CtapHidDevice, STATUS
-
+from fido2.webauthn import PublicKeyCredentialRequestOptions
 from gimme_aws_creds.errors import NoFIDODeviceFoundError, FIDODeviceTimeoutError
 
 
@@ -71,9 +71,8 @@ class WebAuthnClient(object):
 
     def work(self, client):
         try:
-            self._assertions, self._client_data = client.get_assertion(
-                self._rp['id'], self._challenge, self._allow_list, timeout=self._cancel, on_keepalive=self.on_keepalive
-            )
+            request_options=PublicKeyCredentialRequestOptions(challenge=base64.urlsafe_b64decode(self._challenge), rp_id=self._rp['id'], allow_credentials=self._allow_list)
+            self._assertions, self._client_data = client.get_assertion(request_options, on_keepalive=self.on_keepalive, event=self._cancel)
         except ClientError as e:
             if e.code == ClientError.ERR.DEVICE_INELIGIBLE:
                 self.ui.info('Security key is ineligible')  # TODO extract key info
