@@ -296,7 +296,6 @@ class OktaClient(object):
 
         status = login_data['status']
 
-
         if status == 'UNAUTHENTICATED':
             return self._login_username_password(state_token, login_data['_links']['next']['href'])
         elif status == 'LOCKED_OUT':
