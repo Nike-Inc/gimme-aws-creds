@@ -34,6 +34,7 @@ import webbrowser
 import socket
 import copy
 
+
 class OktaClient(object):
     """
        The Okta Client Class performes the necessary API
