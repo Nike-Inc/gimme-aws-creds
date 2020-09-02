@@ -408,7 +408,6 @@ class OktaClient(object):
 
     def _login_send_push(self, state_token, factor):
         """ Send 'push' for the Okta Verify mobile app """
-        self.ui.info("URL: " + factor['_links']['verify']['href'])
         response = self._http_client.post(
             factor['_links']['verify']['href'],
             params={'rememberDevice': self._remember_device},
