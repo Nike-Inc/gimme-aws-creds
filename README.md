@@ -53,6 +53,12 @@ Build the docker image locally:
 docker build -t gimme-aws-creds .
 ```
 
+Alternatively, use docker-compose (you can also use `docker-compose run`)
+
+```bash
+docker-compose build
+```
+
 To make it easier you can also create an alias for the gimme-aws-creds command with docker:
 
 ```bash

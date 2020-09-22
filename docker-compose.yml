@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  gimme_aws_creds:
+    container_name: gimme_aws_creds
+    image: gimme_aws_creds
+    build: .
+    volumes:
+      - ${HOME}/.aws/credentials:/root/.aws/credentials
+      - ${HOME}/.okta_aws_login_config:/root/.okta_aws_login_config
+    dns: # bypass dns resolution over vpn
+      - 1.1.1.1
+      - 1.0.0.1
