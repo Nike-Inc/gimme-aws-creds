@@ -30,6 +30,7 @@ from .aws import AwsResolver
 from .config import Config
 from .default import DefaultResolver
 from .okta import OktaClient
+from .registered_authenticators import RegisteredAuthenticators
 
 
 class GimmeAWSCreds(object):
@@ -55,7 +56,7 @@ class GimmeAWSCreds(object):
           --profile PROFILE, -p PROFILE
                                 If set, the specified configuration profile will be
                                 used instead of the default.
-          --resolve, -r         If set, perfom alias resolution.
+          --resolve, -r         If set, performs alias resolution.
           --insecure, -k        Allow connections to SSL sites without cert
                                 verification.
           --mfa-code MFA_CODE   The MFA verification code to be used with SMS or TOTP
@@ -374,7 +375,7 @@ class GimmeAWSCreds(object):
     def _get_selected_roles(self, requested_roles, aws_roles):
         """ select the role from the config file if it exists in the
         results from Okta.  If not, present the user with a menu. """
-        # 'all' is a special case - skip procesing
+        # 'all' is a special case - skip processing
         if requested_roles == 'all':
             return set(role.role for role in aws_roles)
         # check to see if a role is in the config and look for it in the results from Okta
@@ -586,7 +587,7 @@ class GimmeAWSCreds(object):
     def aws_results(self):
         if 'aws_results' in self._cache:
             return self._cache['aws_results']
-        # Call the Okta APIs and proces data locally
+        # Call the Okta APIs and process data locally
         if self.gimme_creds_server == 'internal':
             # Okta API key is required when calling Okta APIs internally
             if self.config.api_key is None:
@@ -669,7 +670,7 @@ class GimmeAWSCreds(object):
         if 'aws_selected_roles' in self._cache:
             return self._cache['aws_selected_roles']
         selected_roles = self._get_selected_roles(self.requested_roles, self.aws_roles)
-        self._cache['aws_aws_selected_roless'] = ret = [
+        self._cache['aws_selected_roles'] = ret = [
             role
             for role in self.aws_roles
             if role.role in selected_roles
@@ -791,6 +792,7 @@ class GimmeAWSCreds(object):
         self.handle_action_list_profiles()
         self.handle_action_store_json_creds()
         self.handle_action_list_roles()
+        self.handle_setup_fido_authenticator()
 
         for data in self.iter_selected_aws_credentials():
             write_aws_creds = str(self.conf_dict['write_aws_creds']) == 'True'
@@ -862,3 +864,19 @@ class GimmeAWSCreds(object):
     def handle_action_list_roles(self):
         if self.config.action_list_roles:
             raise errors.GimmeAWSCredsExitSuccess(result='\n'.join(map(str, self.aws_roles)))
+
+    def handle_setup_fido_authenticator(self):
+        if self.config.action_setup_fido_authenticator:
+            # Registers a new fido authenticator to Okta, to be used later as an MFA device
+            self.ui.notify('\n*** Registering a new fido authenticator in Okta.')
+            self.ui.notify('\n*** Note that webauthn authenticators must be allowed for this operation to succeed.')
+            self.ui.notify('*** You may be prompted for MFA more than once for this run.\n')
+
+            # noinspection PyStatementEffect
+            self.auth_session
+
+            credential_id, user = self.okta.setup_fido_authenticator()
+
+            registered_authenticators = RegisteredAuthenticators(self.ui)
+            registered_authenticators.add_authenticator(credential_id, user)
+            raise errors.GimmeAWSCredsExitSuccess()
