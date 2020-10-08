@@ -21,6 +21,7 @@ from urllib.parse import urlparse, quote
 import keyring
 import requests
 from bs4 import BeautifulSoup
+from fido2.utils import websafe_decode
 from keyring.backends.fail import Keyring as FailKeyring
 from keyring.errors import PasswordDeleteError
 from requests.adapters import HTTPAdapter, Retry
@@ -828,7 +829,8 @@ class OktaClient(object):
             factor_name = None
             try:
                 registered_authenticators = RegisteredAuthenticators(self.ui)
-                factor_name = registered_authenticators.get_authenticator_user(factor['profile']['credentialId'])
+                credential_id = websafe_decode(factor['profile']['credentialId'])
+                factor_name = registered_authenticators.get_authenticator_user(credential_id)
             except Exception:
                 pass
 

@@ -38,6 +38,7 @@ class TestConfig(unittest.TestCase):
             action_list_profiles=False,
             action_list_roles=False,
             action_store_json_creds=False,
+            action_setup_fido_authenticator=False,
         ),
     )
     def test_get_args_username(self, mock_arg):
