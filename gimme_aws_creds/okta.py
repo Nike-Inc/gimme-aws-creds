@@ -571,7 +571,7 @@ class OktaClient(object):
         """ Submit verification code for SMS or TOTP authentication methods"""
         pass_code = self._mfa_code
         if pass_code is None:
-            pass_code = self.ui.input("Enter verification code: ")
+            pass_code = self.ui.input("Enter verification code: ", hidden=True)
         response = self._http_client.post(
             next_url,
             params={'rememberDevice': self._remember_device},
