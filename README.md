@@ -47,6 +47,14 @@ python3 setup.py install
 
 __OR__
 
+Use homebrew
+
+```bash
+brew install gimme-aws-creds
+```
+
+__OR__
+
 Build the docker image locally:
 
 ```bash
