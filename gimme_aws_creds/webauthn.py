@@ -17,7 +17,9 @@ from threading import Event, Thread
 
 from fido2.client import Fido2Client, ClientError
 from fido2.hid import CtapHidDevice, STATUS
+from fido2 import utils
 from fido2.webauthn import PublicKeyCredentialRequestOptions
+from getpass import getpass
 from gimme_aws_creds.errors import NoFIDODeviceFoundError, FIDODeviceTimeoutError
 
 
@@ -33,7 +35,7 @@ class WebAuthnClient(object):
     def _correct_padding(data):
         if len(data) % 4:
             data += '=' * (4 - len(data) % 4)
-        return data    
+        return data
 
     def __init__(self, ui, okta_org_url, challenge, credentialid):
         """
@@ -48,7 +50,7 @@ class WebAuthnClient(object):
         self._challenge = challenge
         self._cancel = Event()
         self._assertions = None
-        self._client_data = None 
+        self._client_data = None
         self._rp = {'id': okta_org_url[8:], 'name': okta_org_url[8:]}
         self._allow_list = [{
             'type': 'public-key',
@@ -71,8 +73,12 @@ class WebAuthnClient(object):
 
     def work(self, client):
         try:
-            request_options=PublicKeyCredentialRequestOptions(challenge=base64.urlsafe_b64decode(self._challenge), rp_id=self._rp['id'], allow_credentials=self._allow_list)
-            self._assertions, self._client_data = client.get_assertion(request_options, on_keepalive=self.on_keepalive, event=self._cancel)
+            pin = None
+            if client.info.options.get("clientPin"):
+                # Prompt for PIN if needed
+                pin = getpass("Please enter PIN: ")
+            request_options=PublicKeyCredentialRequestOptions(challenge=utils.websafe_decode(self._challenge), rp_id=self._rp['id'], allow_credentials=self._allow_list)
+            self._assertions, self._client_data = client.get_assertion(request_options, on_keepalive=self.on_keepalive, event=self._cancel, pin=pin)
         except ClientError as e:
             if e.code == ClientError.ERR.DEVICE_INELIGIBLE:
                 self.ui.info('Security key is ineligible')  # TODO extract key info
