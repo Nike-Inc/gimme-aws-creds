@@ -51,6 +51,7 @@ class Config(object):
         self.action_list_profiles = False
         self.action_list_roles = False
         self.action_store_json_creds = False
+        self.action_output_format = False
         self.output_format = 'export'
         self.roles = []
 
@@ -162,6 +163,7 @@ class Config(object):
         if args.resolve is True:
             self.resolve = True
         if args.output_format is not None:
+            self.action_output_format = args.output_format
             self.output_format = args.output_format
         if args.roles is not None:
             self.roles = [role.strip() for role in args.roles.split(',') if role.strip()]
@@ -272,7 +274,9 @@ class Config(object):
         config_dict['aws_default_duration'] = self._get_aws_default_duration(defaults['aws_default_duration'])
         config_dict['preferred_mfa_type'] = self._get_preferred_mfa_type(defaults['preferred_mfa_type'])
         config_dict['remember_device'] = self._get_remember_device(defaults['remember_device'])
-        config_dict['output_format'] = self._get_output_format(defaults['output_format'])
+        config_dict["output_format"] = ''
+        if not config_dict["write_aws_creds"]:
+            config_dict['output_format'] = self._get_output_format(defaults['output_format'])
 
         # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
