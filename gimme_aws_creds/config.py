@@ -195,6 +195,8 @@ class Config(object):
                 profile_config = dict(config[self.conf_profile])
                 return self._handle_config(config, profile_config, include_inherits)
             except KeyError:
+                if self.action_configure:
+                    return {}
                 raise errors.GimmeAWSCredsError(
                     'Configuration profile not found! Use the --action-configure flag to generate the profile.')
         raise errors.GimmeAWSCredsError('Configuration file not found! Use the --action-configure flag to generate file.')
