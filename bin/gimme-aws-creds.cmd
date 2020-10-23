@@ -16,6 +16,11 @@ for /f "tokens=2 delims==" %%i in ('assoc .py') do (
         )
     )
 )
+for %%i in (cmd bat exe) do (
+    for %%j in (python.%%i) do (
+        call :SetPythonExe "%%~$PATH:j"
+    )
+)
 %PythonExe% -x %PythonExeFlags% "%~f0" %*
 exit /B %ERRORLEVEL%
 goto :EOF
