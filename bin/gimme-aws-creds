@@ -16,4 +16,4 @@ if __name__ == '__main__':
     try:
         GimmeAWSCreds().run()
     except KeyboardInterrupt:
-        pass
+        exit(130)

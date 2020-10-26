@@ -1,13 +1,12 @@
 """Unit tests for gimme_aws_creds.config.Config"""
 import argparse
 import unittest
-import tempfile
 
 from mock import patch
-from nose.tools import assert_equals
 
 from gimme_aws_creds import ui
 from gimme_aws_creds.config import Config
+from tests.user_interface_mock import MockUserInterface
 
 
 class TestConfig(unittest.TestCase):
@@ -44,7 +43,7 @@ class TestConfig(unittest.TestCase):
     def test_get_args_username(self, mock_arg):
         """Test to make sure username gets returned"""
         self.config.get_args()
-        assert_equals(self.config.username, "ann")
+        self.assertEqual(self.config.username, "ann")
 
     def test_read_config(self):
         """Test to make sure getting config works"""
@@ -113,9 +112,3 @@ aws_rolename = myrole
             "aws_appname": "baz",
             "aws_rolename": "myrole",
         })
-
-class MockUserInterface(ui.UserInterface):
-
-    def __init__(self, argv):
-        super().__init__(environ={}, argv=argv)
-        self.HOME = tempfile.mkdtemp()

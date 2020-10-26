@@ -852,9 +852,10 @@ class GimmeAWSCreds(object):
                 self.ui.notify('*** You may be prompted for MFA more than once for this run.\n')
 
             auth_result = self.auth_session
-            self.conf_dict['device_token'] = auth_result['device_token']
-            self.config.write_config_file(self.conf_dict)
-            self.okta.device_token = self.conf_dict['device_token']
+            base_config = self.config.get_config_dict(include_inherits = False)
+            base_config['device_token'] = auth_result['device_token']
+            self.config.write_config_file(base_config)
+            self.okta.device_token = base_config['device_token']
 
             self.ui.notify('\nDevice token saved!\n')
 

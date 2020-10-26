@@ -12,16 +12,19 @@ See the License for the specific language governing permissions and* limitations
 
 from __future__ import print_function, absolute_import, unicode_literals
 
+from getpass import getpass
 from threading import Event, Thread
 
+from ctap_keyring_device.ctap_keyring_device import CtapKeyringDevice
+from ctap_keyring_device.ctap_strucs import CtapOptions
 from fido2 import cose
 from fido2.client import Fido2Client, ClientError
 from fido2.hid import CtapHidDevice, STATUS
 from fido2.utils import websafe_decode
-from fido2.webauthn import PublicKeyCredentialRequestOptions, PublicKeyCredentialCreationOptions, \
+from fido2.webauthn import PublicKeyCredentialCreationOptions, \
     PublicKeyCredentialType, PublicKeyCredentialParameters, PublicKeyCredentialDescriptor, UserVerificationRequirement
+from fido2.webauthn import PublicKeyCredentialRequestOptions
 
-from ctap_keyring_device.ctap_keyring_device import CtapKeyringDevice
 from gimme_aws_creds.errors import NoFIDODeviceFoundError, FIDODeviceTimeoutError
 
 
@@ -76,8 +79,11 @@ class WebAuthnClient(object):
             options = PublicKeyCredentialRequestOptions(challenge=self._challenge, rp_id=self._rp['id'],
                                                         allow_credentials=self._allow_list, timeout=self._timeout_ms,
                                                         user_verification=UserVerificationRequirement.PREFERRED)
+
+            pin = self._get_pin_from_client(client)
             self._assertions, self._client_data = client.get_assertion(options, event=self._event,
-                                                                       on_keepalive=self.on_keepalive)
+                                                                       on_keepalive=self.on_keepalive,
+                                                                       pin=pin)
             self._event.set()
         except ClientError as e:
             if e.code == ClientError.ERR.DEVICE_INELIGIBLE:
@@ -99,8 +105,10 @@ class WebAuthnClient(object):
         options = PublicKeyCredentialCreationOptions(self._rp, user, self._challenge, pub_key_cred_params,
                                                      timeout=self._timeout_ms)
 
+        pin = self._get_pin_from_client(client)
         self._attestation, self._client_data = client.make_credential(options, event=self._event,
-                                                                      on_keepalive=self.on_keepalive)
+                                                                      on_keepalive=self.on_keepalive,
+                                                                      pin=pin)
         self._event.set()
 
     def _run_in_thread(self, method, *args, **kwargs):
@@ -123,3 +131,12 @@ class WebAuthnClient(object):
         if not self._event.is_set():
             self.ui.info('Operation timed out or no valid Security Key found !')
             raise FIDODeviceTimeoutError
+
+    @staticmethod
+    def _get_pin_from_client(client):
+        if not client.info.options.get(CtapOptions.CLIENT_PIN):
+            return None
+
+        # Prompt for PIN if needed
+        pin = getpass("Please enter PIN: ")
+        return pin

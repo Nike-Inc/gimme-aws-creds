@@ -318,6 +318,10 @@ class OktaClient(object):
         else:
             raise RuntimeError('Unknown login status: ' + status)
 
+    def _print_correct_answer(self, answer):
+        """ prints the correct answer to the additional factor authentication step in Okta Verify"""
+        self.ui.info("Additional factor correct answer is: " + str(answer))
+
     def _login_username_password(self, state_token, url):
         """ login to Okta with a username and password"""
         creds = self._get_username_password_creds()
@@ -417,7 +421,6 @@ class OktaClient(object):
 
         self.ui.info("Okta Verify push sent...")
         response_data = response.json()
-
         if 'stateToken' in response_data:
             return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
         if 'sessionToken' in response_data:
@@ -568,7 +571,7 @@ class OktaClient(object):
         """ Submit verification code for SMS or TOTP authentication methods"""
         pass_code = self._mfa_code
         if pass_code is None:
-            pass_code = self.ui.input("Enter verification code: ")
+            pass_code = self.ui.input("Enter verification code: ", hidden=True)
         response = self._http_client.post(
             next_url,
             params={'rememberDevice': self._remember_device},
@@ -599,6 +602,16 @@ class OktaClient(object):
         response.raise_for_status()
 
         response_data = response.json()
+
+        try:
+            if '_embedded' in response_data['_embedded']['factor']:
+                if response_data['_embedded']['factor']['_embedded']['challenge']['correctAnswer']:
+                    if self._print_correct_answer:
+                        self._print_correct_answer(response_data['_embedded']['factor']['_embedded']['challenge']['correctAnswer'])
+                        self._print_correct_answer = None
+        except:
+            pass
+
         if 'stateToken' in response_data:
             return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
         if 'sessionToken' in response_data:

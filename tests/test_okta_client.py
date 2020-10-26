@@ -538,8 +538,8 @@ class TestOktaClient(unittest.TestCase):
         assert_equals(result, {'stateToken': self.state_token, 'apiResponse': verify_response})
 
     @responses.activate
-    @patch('builtins.input', return_value='12345678')
-    def test_login_input_mfa_challenge(self, mock_input):
+    @patch('getpass.getpass', return_value='1234qwert')
+    def test_login_input_mfa_challenge(self, mock_pass):
         """Test that MFA works with Okta"""
 
         verify_response = {
