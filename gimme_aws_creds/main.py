@@ -792,8 +792,16 @@ class GimmeAWSCreds(object):
         self.handle_action_list_profiles()
         self.handle_action_store_json_creds()
         self.handle_action_list_roles()
-
+        
+        # for each data item, if we have an override on output, prioritize that
+        # if we do not, prioritize writing credentials to file if that is in our
+        # configuration. If we are not writing to a credentials file, use whatever
+        # is in the output format field (default to exports)
         for data in self.iter_selected_aws_credentials():
+            if self.config.action_output_format:
+                self.write_result_action(self.config.action_output_format, data)
+                continue
+
             write_aws_creds = str(self.conf_dict['write_aws_creds']) == 'True'
             # check if write_aws_creds is true if so
             # get the profile name and write out the file
@@ -801,18 +809,26 @@ class GimmeAWSCreds(object):
                 self.write_aws_creds_from_data(data)
                 continue
 
-            if self.output_format == 'json':
-                self.ui.result(json.dumps(data))
-                continue
-
-            # Defaults to `export` format
-            self.ui.result("export AWS_ROLE_ARN=" + data['role']['arn'])
-            self.ui.result("export AWS_ACCESS_KEY_ID=" + data['credentials']['aws_access_key_id'])
-            self.ui.result("export AWS_SECRET_ACCESS_KEY=" + data['credentials']['aws_secret_access_key'])
-            self.ui.result("export AWS_SESSION_TOKEN=" + data['credentials']['aws_session_token'])
-            self.ui.result("export AWS_SECURITY_TOKEN=" + data['credentials']['aws_security_token'])
+            self.write_result_action(self.conf_dict["output_format"], data)
 
         self.config.clean_up()
+
+    def write_result_action(self, action, data):
+        if action == "json":
+            self.ui.result(json.dumps(data))
+            return
+        else:
+            # Defaults to `export` format
+            self.ui.result("export AWS_ROLE_ARN=" + data['role']['arn'])
+            self.ui.result("export AWS_ACCESS_KEY_ID=" +
+                           data['credentials']['aws_access_key_id'])
+            self.ui.result("export AWS_SECRET_ACCESS_KEY=" +
+                           data['credentials']['aws_secret_access_key'])
+            self.ui.result("export AWS_SESSION_TOKEN=" +
+                           data['credentials']['aws_session_token'])
+            self.ui.result("export AWS_SECURITY_TOKEN=" +
+                           data['credentials']['aws_security_token'])
+
 
     def handle_action_configure(self):
         # Create/Update config when configure arg set
