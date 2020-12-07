@@ -191,6 +191,7 @@ class Config(object):
 
             try:
                 profile_config = dict(config[self.conf_profile])
+                self.fail_if_profile_not_found(profile_config, self.conf_profile, config.default_section)
                 return self._handle_config(config, profile_config, include_inherits)
             except KeyError:
                 raise errors.GimmeAWSCredsError(
@@ -555,3 +556,14 @@ class Config(object):
         """ clean up secret stuff"""
         del self.username
         del self.api_key
+
+    def fail_if_profile_not_found(self, profile_config, conf_profile, default_section):
+        """
+        When a users profile does not have a profile named 'DEFAULT' configparser fails to throw
+        an exception. This will raise an exception that handles this case and provide better messaging
+        to the user why the failure occurred.
+        Ensure that whichever profile is set as the default exists in the end users okta config
+        """
+        if not profile_config and conf_profile == default_section:
+            raise errors.GimmeAWSCredsError(
+                'DEFAULT profile is missing! This is profile is required when not using --profile')

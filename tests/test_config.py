@@ -6,7 +6,7 @@ import tempfile
 from mock import patch
 from nose.tools import assert_equals
 
-from gimme_aws_creds import ui
+from gimme_aws_creds import ui, errors
 from gimme_aws_creds.config import Config
 
 
@@ -112,6 +112,21 @@ aws_rolename = myrole
             "aws_appname": "baz",
             "aws_rolename": "myrole",
         })
+
+    def test_fail_if_profile_not_found(self):
+        """Test to make sure missing Default fails properly"""
+        test_ui = MockUserInterface(argv=[])
+        with open(test_ui.HOME + "/.okta_aws_login_config", "w") as config_file:
+            config_file.write("""
+        [myprofile]
+        client_id = foo
+        """)
+        config = Config(gac_ui=test_ui, create_config=False)
+        config.conf_profile = "DEFAULT"
+        with self.assertRaises(errors.GimmeAWSCredsError) as context:
+            config.get_config_dict()
+        self.assertTrue('DEFAULT profile is missing! This is profile is required when not using --profile' == context.exception.message)
+
 
 class MockUserInterface(ui.UserInterface):
 
