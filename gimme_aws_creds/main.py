@@ -742,6 +742,7 @@ class GimmeAWSCreds(object):
                 'aws_secret_access_key': aws_creds.get('SecretAccessKey', ''),
                 'aws_session_token': aws_creds.get('SessionToken', ''),
                 'aws_security_token': aws_creds.get('SessionToken', ''),
+                'expiration': aws_creds.get('Expiration').isoformat(),
             } if bool(aws_creds) else {}
         }
 

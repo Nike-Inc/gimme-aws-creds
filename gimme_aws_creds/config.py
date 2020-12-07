@@ -169,7 +169,7 @@ class Config(object):
 
     def _handle_config(self, config, profile_config, include_inherits = True):
         if "inherits" in profile_config.keys() and include_inherits:
-            print("Using inherited config: " + profile_config["inherits"])
+            self.ui.message("Using inherited config: " + profile_config["inherits"])
             if profile_config["inherits"] not in config:
                 raise errors.GimmeAWSCredsError(self.conf_profile + " inherits from " + profile_config["inherits"] + ", but could not find " + profile_config["inherits"])
             combined_config = {
