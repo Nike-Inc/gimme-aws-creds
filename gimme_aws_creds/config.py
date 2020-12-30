@@ -167,7 +167,7 @@ class Config(object):
             self.output_format = args.output_format
         if args.roles is not None:
             self.roles = [role.strip() for role in args.roles.split(',') if role.strip()]
-        self.conf_profile = args.profile or 'DEFAULT'
+        self.conf_profile = args.profile
 
     def _handle_config(self, config, profile_config, include_inherits = True):
         if "inherits" in profile_config.keys() and include_inherits:
@@ -191,16 +191,49 @@ class Config(object):
             config = configparser.ConfigParser()
             config.read(self.OKTA_CONFIG)
 
-            try:
-                profile_config = dict(config[self.conf_profile])
-                self.fail_if_profile_not_found(profile_config, self.conf_profile, config.default_section)
-                return self._handle_config(config, profile_config, include_inherits)
-            except KeyError:
-                if self.action_configure:
-                    return {}
-                raise errors.GimmeAWSCredsError(
-                    'Configuration profile not found! Use the --action-configure flag to generate the profile.')
-        raise errors.GimmeAWSCredsError('Configuration file not found! Use the --action-configure flag to generate file.')
+            selected_section = None
+            if self.conf_profile is not None:
+                try:
+                    selected_section = config[self.conf_profile]
+                except KeyError:
+                    raise errors.GimmeAWSCredsError(
+                        'Configuration profile not found! Did you spell the profile name incorrectly? If not, '
+                        'use the --action-configure flag to generate a profile named {}.'.format(self.conf_profile))
+            else:
+                self.ui.message('The --profile switch has not been set. Searching for an automatic profile...')
+
+            if selected_section is None:
+                if self.ui.environ.get('AWS_PROFILE') is not None:
+                    aws_env_profile = self.ui.environ.get('AWS_PROFILE')
+                    self.ui.message('The AWS_PROFILE environment variable is set. Searching for a profile '
+                                    'where `aws_profile_env_match = {}`'.format(aws_env_profile))
+                    for section_name in config.sections():
+                        section = config[section_name]
+                        # Use a different key than `cred_profile` for e.g., cases where gimme-aws-creds
+                        # manages base credentials but elevated credentials are acquired via the STS AssumeRole
+                        # action using a different AWS profile name
+                        if 'aws_profile_env_match' in section and section['aws_profile_env_match'] == aws_env_profile:
+                            self.ui.message('  Match found! Using the [{}] profile'.format(section.name))
+                            selected_section = section
+                            break
+                else:
+                    self.ui.message("The AWS_PROFILE environment variable is not set. Can't search for existing "
+                                    "profiles with a matching `aws_profile_env_match` attribute.")
+
+            if selected_section is not None:
+                return self._handle_config(config, dict(selected_section), include_inherits)
+
+            if self.action_configure:
+                return {}
+
+            # configparser returns an empty dictionary instead of raising KeyError for missing default section
+            defaults_dict = config.defaults()
+            if defaults_dict:
+                return self._handle_config(config, defaults_dict, include_inherits)
+
+            raise errors.GimmeAWSCredsError(
+                'No profile found and DEFAULT profile is missing. Please specify a profile or run again with '
+                '`--action-configure` to generate a profile')
 
     def update_config_file(self):
         """
@@ -562,14 +595,3 @@ class Config(object):
         """ clean up secret stuff"""
         del self.username
         del self.api_key
-
-    def fail_if_profile_not_found(self, profile_config, conf_profile, default_section):
-        """
-        When a users profile does not have a profile named 'DEFAULT' configparser fails to throw
-        an exception. This will raise an exception that handles this case and provide better messaging
-        to the user why the failure occurred.
-        Ensure that whichever profile is set as the default exists in the end users okta config
-        """
-        if not profile_config and conf_profile == default_section:
-            raise errors.GimmeAWSCredsError(
-                'DEFAULT profile is missing! This is profile is required when not using --profile')
