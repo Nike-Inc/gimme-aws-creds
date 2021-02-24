@@ -21,7 +21,7 @@ from fido2.ctap1 import APDU
 from fido2.ctap1 import ApduError
 from fido2.ctap1 import CTAP1
 from fido2.hid import CtapHidDevice
-from fido2.utils import sha256
+from fido2.utils import sha256, websafe_decode
 
 from gimme_aws_creds.errors import NoFIDODeviceFoundError, FIDODeviceTimeoutError, FIDODeviceError
 
@@ -38,7 +38,7 @@ class FactorU2F(object):
         self._clients = None
         self._has_prompted = False
         self._cancel = Event()
-        self._credentialId = base64.urlsafe_b64decode(credentialId)
+        self._credentialId = websafe_decode(credentialId)
         self._appId = sha256(appId.encode())
         self._version = 'U2F_V2'
         self._signature = None
