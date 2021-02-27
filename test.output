@@ -1,0 +1,190 @@
+Test the roles are well displayed (grouped/indented by account) ... ok
+Test parsing the roles from SAML assrtion & AwsSigninPage ... ok
+Test to make sure missing Default fails properly ... ok
+Test to make sure username gets returned ... ok
+Test to make sure getting config works ... ok
+Test to make sure getting config works when inherited ... ERROR
+Test to make sure getting config works when inherited ... ERROR
+test_choose_roles_app_0 (tests.test_main.TestMain) ... Pick a role:
+[0] test1
+[1] test2
+Selections (comma separated): Pick a role:
+[0] test1
+[1] test2
+Selections (comma separated): ok
+test_choose_roles_app_1 (tests.test_main.TestMain) ... Pick a role:
+[0] test1
+[1] test2
+Selections (comma separated): Pick a role:
+[0] test1
+[1] test2
+Selections (comma separated): ok
+test_choose_roles_app_2 (tests.test_main.TestMain) ... Pick a role:
+[0] test1
+[1] test2
+Selections (comma separated): Selection 2 out of range <0, 1>
+Selections (comma separated): Selection 2 out of range <0, 1>
+Selections (comma separated): Selection 2 out of range <0, 1>
+Selections (comma separated): Selection 2 out of range <0, 1>
+Selections (comma separated): Selection 2 out of range <0, 1>
+Pick an app:
+[0] test1
+[1] test2
+Selection: ok
+test_choose_roles_app_a (tests.test_main.TestMain) ... Pick a role:
+[0] test1
+[1] test2
+Selections (comma separated): Invalid selection 'a', must be an integer value.
+Selections (comma separated): Invalid selection 'a', must be an integer value.
+Selections (comma separated): Invalid selection 'a', must be an integer value.
+Selections (comma separated): Invalid selection 'a', must be an integer value.
+Selections (comma separated): Invalid selection 'a', must be an integer value.
+Pick an app:
+[0] test1
+[1] test2
+Selection: Invalid selection, must be an integer value.
+Selection: Invalid selection, must be an integer value.
+Selection: Invalid selection, must be an integer value.
+Selection: Invalid selection, must be an integer value.
+Selection: Invalid selection, must be an integer value.
+ok
+test_choose_roles_app_neg1 (tests.test_main.TestMain) ... Pick a role:
+[0] test1
+[1] test2
+Selections (comma separated): Selection -1 out of range <0, 1>
+Selections (comma separated): Selection -1 out of range <0, 1>
+Selections (comma separated): Selection -1 out of range <0, 1>
+Selections (comma separated): Selection -1 out of range <0, 1>
+Selections (comma separated): Selection -1 out of range <0, 1>
+Pick an app:
+[0] test1
+[1] test2
+Selection: ok
+test_get_alias_from_friendly_name_no_alias (tests.test_main.TestMain) ... ok
+test_get_alias_from_friendly_name_with_alias (tests.test_main.TestMain) ... ok
+test_get_partition_aws (tests.test_main.TestMain) ... ok
+test_get_partition_china (tests.test_main.TestMain) ... ok
+test_get_partition_govcloud (tests.test_main.TestMain) ... ok
+test_get_partition_unkown (tests.test_main.TestMain) ... ok
+Testing the acc-role, without alias resolution, and not including full role path ... ok
+Testing the acc-role, without alias resolution, and including full role path ... ok
+Testing the acc-role, with alias resolution, and not including full role path ... ok
+Testing the default ... ok
+testing else statement in get_profile_name ... ok
+Testing the role ... ok
+test_get_selected_app_from_config_0 (tests.test_main.TestMain) ... ok
+test_get_selected_app_from_config_1 (tests.test_main.TestMain) ... ok
+test_get_selected_roles_all (tests.test_main.TestMain) ... ok
+test_get_selected_roles_from_config_0 (tests.test_main.TestMain) ... ok
+test_get_selected_roles_from_config_1 (tests.test_main.TestMain) ... ok
+test_get_selected_roles_multiple (tests.test_main.TestMain) ... ok
+test_get_selected_roles_multiple_list (tests.test_main.TestMain) ... ok
+test_missing_app_from_config (tests.test_main.TestMain) ... ERROR: AWS account [test3] not found!
+Pick an app:
+[0] test1
+[1] test2
+Selection: ok
+test_missing_role_from_config (tests.test_main.TestMain) ... ERROR: AWS roles [test3] not found!
+Pick a role:
+[0] test1
+[1] test2
+Selections (comma separated): ok
+test_parse_role_arn_base_path (tests.test_main.TestMain) ... ok
+test_parse_role_arn_extended_path (tests.test_main.TestMain) ... ok
+Test building a display name for hardware ... ok
+Test building a display name for push ... ok
+Test building a display name for SMS ... ok
+Test building a display name for TOTP ... ok
+Handle an unknown MFA factor ... ok
+Test that the Okta Verify response was successful ... Okta Verify push sent...
+ok
+Test selecting an invalid MFA factor ... Multi-factor Authentication required.
+Pick a factor:
+[0] sms: +1 XXX-XXX-1234
+[1] Okta Verify App: SmartPhone_IPhone: Jane.Doe iPhone
+[2] token:software:totp( OKTA ) : jane.doe@example.com
+Selection: Selection 12 out of range <0, 3>
+Selection: Selection 12 out of range <0, 3>
+Selection: Selection 12 out of range <0, 3>
+Selection: Selection 12 out of range <0, 3>
+Selection: Selection 12 out of range <0, 3>
+ok
+Test selecting Okta Verify as a MFA ... Multi-factor Authentication required.
+Pick a factor:
+[0] sms: +1 XXX-XXX-1234
+[1] Okta Verify App: SmartPhone_IPhone: Jane.Doe iPhone
+[2] token:software:totp( OKTA ) : jane.doe@example.com
+Selection: ok
+Test selecting SMS as a MFA ... Multi-factor Authentication required.
+Pick a factor:
+[0] sms: +1 XXX-XXX-1234
+[1] Okta Verify App: SmartPhone_IPhone: Jane.Doe iPhone
+[2] token:software:totp( OKTA ) : jane.doe@example.com
+Selection: ok
+Test selecting TOTP code as a MFA ... Multi-factor Authentication required.
+Pick a factor:
+[0] sms: +1 XXX-XXX-1234
+[1] Okta Verify App: SmartPhone_IPhone: Jane.Doe iPhone
+[2] token:software:totp( OKTA ) : jane.doe@example.com
+Selection: ok
+Test entering a non number value as MFA factor ... Multi-factor Authentication required.
+Pick a factor:
+[0] sms: +1 XXX-XXX-1234
+[1] Okta Verify App: SmartPhone_IPhone: Jane.Doe iPhone
+[2] token:software:totp( OKTA ) : jane.doe@example.com
+Selection: Invalid selection 'a', must be an integer value.
+Selection: Invalid selection 'a', must be an integer value.
+Selection: Invalid selection 'a', must be an integer value.
+Selection: Invalid selection 'a', must be an integer value.
+Selection: Invalid selection 'a', must be an integer value.
+ok
+Testing that get_headers returns the expected results ... ok
+Test that the SAML reponse was successful ... ok
+Testing state token is returned as expected ... ok
+Test that initial authentication works with Okta ... Username: Using password from keyring for ann@example.com
+Do you want to save this password in the keyring? (y/N) ok
+Test that MFA works with Okta ... Enter verification code: ok
+Test that Okta Verify can be used for MFA ... Okta Verify push sent...
+ok
+Test that SMS messages can be requested for MFA ... A verification code has been sent to +1 XXX-XXX-1234
+ok
+Test that initial authentication works with Okta ... Username: Using password from keyring for ann@example.com
+Do you want to save this password in the keyring? (y/N) ok
+Test that initial authentication works with Okta ... Username: Using password from keyring for ann@example.com
+Do you want to save this password in the keyring? (y/N) ok
+Test that the SAML reponse was successful (failed) ... ok
+Test that initial authentication works with Okta ... Using password from keyring for ann@example.com
+Do you want to save this password in the keyring? (y/N) ok
+
+======================================================================
+ERROR: Test to make sure getting config works when inherited
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/cturner/github.com/cturner-confluent/gimme-aws-creds/tests/test_config.py", line 82, in test_read_config_inherited
+    profile_config = config.get_config_dict()
+  File "/Users/cturner/github.com/cturner-confluent/gimme-aws-creds/gimme_aws_creds/config.py", line 197, in get_config_dict
+    return self._handle_config(config, profile_config, include_inherits)
+  File "/Users/cturner/github.com/cturner-confluent/gimme-aws-creds/gimme_aws_creds/config.py", line 174, in _handle_config
+    self.ui.message("Using inherited config: " + profile_config["inherits"])
+  File "/Users/cturner/github.com/cturner-confluent/gimme-aws-creds/gimme_aws_creds/ui.py", line 44, in message
+    raise NotImplementedError()
+NotImplementedError
+
+======================================================================
+ERROR: Test to make sure getting config works when inherited
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/cturner/github.com/cturner-confluent/gimme-aws-creds/tests/test_config.py", line 109, in test_read_nested_config_inherited
+    profile_config = config.get_config_dict()
+  File "/Users/cturner/github.com/cturner-confluent/gimme-aws-creds/gimme_aws_creds/config.py", line 197, in get_config_dict
+    return self._handle_config(config, profile_config, include_inherits)
+  File "/Users/cturner/github.com/cturner-confluent/gimme-aws-creds/gimme_aws_creds/config.py", line 174, in _handle_config
+    self.ui.message("Using inherited config: " + profile_config["inherits"])
+  File "/Users/cturner/github.com/cturner-confluent/gimme-aws-creds/gimme_aws_creds/ui.py", line 44, in message
+    raise NotImplementedError()
+NotImplementedError
+
+----------------------------------------------------------------------
+Ran 57 tests in 0.062s
+
+FAILED (errors=2)

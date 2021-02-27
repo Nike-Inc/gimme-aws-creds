@@ -12,7 +12,6 @@ See the License for the specific language governing permissions and* limitations
 
 from __future__ import print_function, absolute_import, unicode_literals
 
-import base64
 import json
 import time
 from threading import Event, Thread
