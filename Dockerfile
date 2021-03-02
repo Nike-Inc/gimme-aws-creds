@@ -4,7 +4,7 @@ WORKDIR /opt/gimme-aws-creds
 
 COPY . .
 
-ENV PACKAGES="gcc musl-dev python3-dev libffi-dev openssl-dev cargo"
+ENV PACKAGES="gcc musl-dev python3-dev libffi-dev openssl-dev cargo rustup"
 
 RUN apk --update add $PACKAGES \
     && python setup.py install \
