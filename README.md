@@ -13,7 +13,7 @@ With gimme-aws-creds all you need to know is your username, password, Okta url a
 
 [Okta SAML integration to AWS using the AWS App](https://help.okta.com/en/prod/Content/Topics/Miscellaneous/References/OktaAWSMulti-AccountConfigurationGuide.pdf)
 
-Python 3
+Python 3.6+
 
 ### Optional
 
