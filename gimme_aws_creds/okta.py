@@ -10,11 +10,15 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
 import base64
+import copy
 import getpass
 import re
+import socket
 import time
 import uuid
+import webbrowser
 from codecs import decode
+from multiprocessing import Process
 from urllib.parse import parse_qs
 from urllib.parse import urlparse, quote
 
@@ -30,11 +34,6 @@ from gimme_aws_creds.u2f import FactorU2F
 from gimme_aws_creds.webauthn import WebAuthnClient, FakeAssertion
 from . import errors, ui, version, duo
 from .registered_authenticators import RegisteredAuthenticators
-
-from multiprocessing import Process
-import webbrowser
-import socket
-import copy
 
 
 class OktaClient(object):

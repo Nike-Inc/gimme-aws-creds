@@ -14,17 +14,11 @@
 # https://github.com/nathan-v/aws_okta_keyman
 """All the Duo things."""
 
-import sys
 import time
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from multiprocessing import Process
 
 import requests
-from . import ui
-
-if sys.version_info[0] < 3:  # pragma: no cover
-    from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
-else:  # pragma: no cover
-    from http.server import HTTPServer, BaseHTTPRequestHandler
 
 
 class PasscodeRequired(BaseException):
@@ -109,7 +103,7 @@ class Duo:
 
     def handler_with_html(self, *args):
         """Call the handler and include the HTML."""
-        QuietHandler(self.html, *args)
+        return QuietHandler(self.html, *args)
 
     def trigger_duo(self, passcode=""):
         """Try to get a Duo Push without needing an iframe

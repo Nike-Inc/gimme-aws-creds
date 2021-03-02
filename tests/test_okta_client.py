@@ -5,13 +5,13 @@ import sys
 import unittest
 from contextlib import contextmanager
 from io import StringIO
+from unittest.mock import patch
 from urllib.parse import quote
 
 import requests
 import responses
 from fido2.attestation import PackedAttestation
 from fido2.ctap2 import AttestationObject, AuthenticatorData, AttestedCredentialData
-from mock import patch
 from nose.tools import assert_equals
 
 from gimme_aws_creds import errors, ui
@@ -265,7 +265,7 @@ class TestOktaClient(unittest.TestCase):
     def test_get_username_password_creds(self, mock_pass, mock_input):
         """Test that initial authentication works with Okta"""
         result = self.client._get_username_password_creds()
-        assert_equals(result, {'username': 'ann@example.com', 'password': '1234qwert' })
+        self.assertDictEqual(result, {'username': 'ann@example.com', 'password': '1234qwert' })
 
     @patch('getpass.getpass', return_value='1234qwert')
     @patch('builtins.input', return_value='')
@@ -273,7 +273,7 @@ class TestOktaClient(unittest.TestCase):
         """Test that initial authentication works with Okta"""
         self.client.set_username('ann@example.com')
         result = self.client._get_username_password_creds()
-        assert_equals(result, {'username': 'ann@example.com', 'password': '1234qwert' })
+        self.assertDictEqual(result, {'username': 'ann@example.com', 'password': '1234qwert' })
 
 #    @patch('getpass.getpass', return_value='1234qwert')
 #    @patch('builtins.input', return_value='ann')
