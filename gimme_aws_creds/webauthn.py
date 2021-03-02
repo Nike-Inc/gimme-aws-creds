@@ -12,14 +12,19 @@ See the License for the specific language governing permissions and* limitations
 
 from __future__ import print_function, absolute_import, unicode_literals
 
-import base64
+from getpass import getpass
 from threading import Event, Thread
 
+from ctap_keyring_device.ctap_keyring_device import CtapKeyringDevice
+from ctap_keyring_device.ctap_strucs import CtapOptions
+from fido2 import cose
 from fido2.client import Fido2Client, ClientError
 from fido2.hid import CtapHidDevice, STATUS
-from fido2 import utils
+from fido2.utils import websafe_decode
+from fido2.webauthn import PublicKeyCredentialCreationOptions, \
+    PublicKeyCredentialType, PublicKeyCredentialParameters, PublicKeyCredentialDescriptor, UserVerificationRequirement
 from fido2.webauthn import PublicKeyCredentialRequestOptions
-from getpass import getpass
+
 from gimme_aws_creds.errors import NoFIDODeviceFoundError, FIDODeviceTimeoutError
 
 
@@ -30,39 +35,33 @@ class FakeAssertion(object):
 
 
 class WebAuthnClient(object):
-
-    @staticmethod
-    def _correct_padding(data):
-        if len(data) % 4:
-            data += '=' * (4 - len(data) % 4)
-        return data
-
-    def __init__(self, ui, okta_org_url, challenge, credentialid):
+    def __init__(self, ui, okta_org_url, challenge, credential_id=None, timeout_ms=30_000):
         """
         :param okta_org_url: Base URL string for Okta IDP.
         :param challenge: Challenge
-        :param credentialid: credentialid
+        :param credential_id: FIDO credential ID
         """
         self.ui = ui
         self._okta_org_url = okta_org_url
         self._clients = None
         self._has_prompted = False
-        self._challenge = challenge
-        self._cancel = Event()
+        self._challenge = websafe_decode(challenge)
+        self._timeout_ms = timeout_ms
+        self._event = Event()
         self._assertions = None
         self._client_data = None
         self._rp = {'id': okta_org_url[8:], 'name': okta_org_url[8:]}
-        self._allow_list = [{
-            'type': 'public-key',
-            'id': base64.urlsafe_b64decode(self._correct_padding(credentialid))
-        }]
+
+        if credential_id:
+            self._allow_list = [
+                PublicKeyCredentialDescriptor(PublicKeyCredentialType.PUBLIC_KEY, websafe_decode(credential_id))
+            ]
 
     def locate_device(self):
         # Locate a device
         devs = list(CtapHidDevice.list_devices())
         if not devs:
-            self.ui.info('No FIDO device found')
-            raise NoFIDODeviceFoundError
+            devs = CtapKeyringDevice.list_devices()
 
         self._clients = [Fido2Client(d, self._okta_org_url) for d in devs]
 
@@ -71,25 +70,48 @@ class WebAuthnClient(object):
             self.ui.info('\nTouch your authenticator device now...\n')
             self._has_prompted = True
 
-    def work(self, client):
+    def verify(self):
+        self._run_in_thread(self._verify)
+        return self._client_data, self._assertions[0]
+
+    def _verify(self, client):
         try:
-            pin = None
-            if client.info.options.get("clientPin"):
-                # Prompt for PIN if needed
-                pin = getpass("Please enter PIN: ")
-            request_options=PublicKeyCredentialRequestOptions(challenge=utils.websafe_decode(self._challenge), rp_id=self._rp['id'], allow_credentials=self._allow_list)
-            self._assertions, self._client_data = client.get_assertion(request_options, on_keepalive=self.on_keepalive, event=self._cancel, pin=pin)
+            options = PublicKeyCredentialRequestOptions(challenge=self._challenge, rp_id=self._rp['id'],
+                                                        allow_credentials=self._allow_list, timeout=self._timeout_ms,
+                                                        user_verification=UserVerificationRequirement.PREFERRED)
+
+            pin = self._get_pin_from_client(client)
+            self._assertions, self._client_data = client.get_assertion(options, event=self._event,
+                                                                       on_keepalive=self.on_keepalive,
+                                                                       pin=pin)
+            self._event.set()
         except ClientError as e:
             if e.code == ClientError.ERR.DEVICE_INELIGIBLE:
                 self.ui.info('Security key is ineligible')  # TODO extract key info
                 return
+
             elif e.code != ClientError.ERR.TIMEOUT:
                 raise
+
             else:
                 return
-        self._cancel.set()
 
-    def verify(self):
+    def make_credential(self, user):
+        self._run_in_thread(self._make_credential, user)
+        return self._client_data, self._attestation.with_string_keys()
+
+    def _make_credential(self, client, user):
+        pub_key_cred_params = [PublicKeyCredentialParameters(PublicKeyCredentialType.PUBLIC_KEY, cose.ES256.ALGORITHM)]
+        options = PublicKeyCredentialCreationOptions(self._rp, user, self._challenge, pub_key_cred_params,
+                                                     timeout=self._timeout_ms)
+
+        pin = self._get_pin_from_client(client)
+        self._attestation, self._client_data = client.make_credential(options, event=self._event,
+                                                                      on_keepalive=self.on_keepalive,
+                                                                      pin=pin)
+        self._event.set()
+
+    def _run_in_thread(self, method, *args, **kwargs):
         # If authenticator is not found, prompt
         try:
             self.locate_device()
@@ -99,15 +121,22 @@ class WebAuthnClient(object):
 
         threads = []
         for client in self._clients:
-            t = Thread(target=self.work, args=(client,))
+            t = Thread(target=method, args=(client,) + args, kwargs=kwargs)
             threads.append(t)
             t.start()
 
         for t in threads:
             t.join()
 
-        if not self._cancel.is_set():
+        if not self._event.is_set():
             self.ui.info('Operation timed out or no valid Security Key found !')
             raise FIDODeviceTimeoutError
 
-        return self._client_data, self._assertions[0]
+    @staticmethod
+    def _get_pin_from_client(client):
+        if not client.info.options.get(CtapOptions.CLIENT_PIN):
+            return None
+
+        # Prompt for PIN if needed
+        pin = getpass("Please enter PIN: ")
+        return pin
