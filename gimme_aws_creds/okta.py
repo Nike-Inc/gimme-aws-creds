@@ -884,7 +884,7 @@ class OktaClient(object):
 
             if self.KEYRING_ENABLED:
                 # If the OS supports a keyring, offer to save the password
-                if self.ui.input("Do you want to save this password in the keyring? (y/n) ") == 'y':
+                if self.ui.input("Do you want to save this password in the keyring? (y/N) ") == 'y':
                     try:
                         keyring.set_password(self.KEYRING_SERVICE, username, password)
                         self.ui.info("Password for {} saved in keyring.".format(username))
