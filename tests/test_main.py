@@ -1,10 +1,9 @@
 import unittest
-
-from mock import patch
+from unittest.mock import patch
 
 from gimme_aws_creds import errors
-from gimme_aws_creds.main import GimmeAWSCreds
 from gimme_aws_creds.common import RoleSet
+from gimme_aws_creds.main import GimmeAWSCreds
 
 
 class TestMain(unittest.TestCase):

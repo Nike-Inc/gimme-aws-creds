@@ -16,7 +16,10 @@ import sys
 
 
 class UserInterface:
-    def __init__(self, environ=os.environ, argv=sys.argv):
+    def __init__(self, environ=os.environ, argv=None):
+        if argv is None:
+            argv = sys.argv
+
         self.environ = environ.copy()
         self.environ_bkp = None
         self.argv = argv[:]
@@ -113,6 +116,7 @@ class CLIUserInterface(UserInterface):
 
     def notify(self, message):
         builtins.print(message, file=sys.stderr)
+
 
 cli = CLIUserInterface()
 default = cli

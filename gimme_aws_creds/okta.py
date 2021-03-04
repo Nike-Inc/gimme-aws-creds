@@ -10,17 +10,22 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
 import base64
+import copy
 import getpass
 import re
+import socket
 import time
 import uuid
+import webbrowser
 from codecs import decode
+from multiprocessing import Process
 from urllib.parse import parse_qs
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 
 import keyring
 import requests
 from bs4 import BeautifulSoup
+from fido2.utils import websafe_decode
 from keyring.backends.fail import Keyring as FailKeyring
 from keyring.errors import PasswordDeleteError
 from requests.adapters import HTTPAdapter, Retry
@@ -28,16 +33,12 @@ from requests.adapters import HTTPAdapter, Retry
 from gimme_aws_creds.u2f import FactorU2F
 from gimme_aws_creds.webauthn import WebAuthnClient, FakeAssertion
 from . import errors, ui, version, duo
-
-from multiprocessing import Process
-import webbrowser
-import socket
-import copy
+from .registered_authenticators import RegisteredAuthenticators
 
 
 class OktaClient(object):
     """
-       The Okta Client Class performes the necessary API
+       The Okta Client Class performs the necessary API
        calls to Okta to get temporary AWS credentials. An
        Okta API key and URL must be provided.
     """
@@ -441,6 +442,7 @@ class OktaClient(object):
             return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+
     @staticmethod
     def get_available_socket():
         """Get available socket, but requesting 0 and allowing OS to provide ephemeral open port"""
@@ -451,7 +453,7 @@ class OktaClient(object):
 
     def _login_duo_challenge(self, state_token, factor):
         """ Duo MFA challenge """
-        passcode=self._mfa_code
+        passcode = self._mfa_code
         if factor['factorType'] is None:
             # Prompt user for which Duo factor to use
             raise duo.FactorRequired(factor['id'], state_token)
@@ -461,10 +463,6 @@ class OktaClient(object):
                 passcode = self.ui.input("Enter verification code(remember to refresh token between uses): ")
             except Exception:
                 raise duo.PasscodeRequired(factor['id'], state_token)
-
-        path = '/authn/factors/{fid}/verify'.format(fid=factor['id'])
-        data = {'fid': factor['id'],
-                'stateToken': state_token}
 
         response_data = self._get_response_data(factor['_links']['verify']['href'], state_token)
         verification = response_data['_embedded']['factor']['_embedded']['verification']
@@ -514,7 +512,7 @@ class OktaClient(object):
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
-        #return None
+        # return None
 
     def _get_response_data(self, href, state_token):
         response = self._http_client.post(href,
@@ -546,7 +544,6 @@ class OktaClient(object):
             raise Exception("Bad status from Okta callback {}".format(
                 ret.status_code))
 
-
     def _login_multi_factor(self, state_token, login_data):
         """ handle multi-factor authentication with Okta"""
         factor = self._choose_factor(login_data['_embedded']['factors'])
@@ -568,7 +565,6 @@ class OktaClient(object):
             return self._login_input_webauthn_challenge(state_token, factor)
         elif factor['factorType'] == 'token:hardware':
             return self._login_input_mfa_challenge(state_token, factor['_links']['verify']['href'])
-
 
     def _login_input_mfa_challenge(self, state_token, next_url):
         """ Submit verification code for SMS or TOTP authentication methods"""
@@ -630,7 +626,7 @@ class OktaClient(object):
         verify = FactorU2F(self.ui, app_id, nonce, credential_id)
         try:
             client_data, signature = verify.verify()
-        except:
+        except Exception:
             signature = b'fake'
             client_data = b'fake'
 
@@ -659,13 +655,13 @@ class OktaClient(object):
 
         nonce = login_data['_embedded']['factor']['_embedded']['challenge']['challenge']
         credential_id = login_data['_embedded']['factor']['profile']['credentialId']
-        response = {}
 
         """ Authenticator """
-        verif = WebAuthnClient(self.ui, self._okta_org_url, nonce, credential_id)
+        webauthn_client = WebAuthnClient(self.ui, self._okta_org_url, nonce, credential_id)
+        # noinspection PyBroadException
         try:
-            client_data, assertion = verif.verify()
-        except:
+            client_data, assertion = webauthn_client.verify()
+        except Exception:
             client_data = b'fake'
             assertion = FakeAssertion()
 
@@ -675,7 +671,8 @@ class OktaClient(object):
 
         response = self._http_client.post(
             login_data['_links']['next']['href'] + "?rememberDevice=false",
-            json={'stateToken': state_token, 'clientData':client_data, 'signatureData': signature_data, 'authenticatorData': auth_data},
+            json={'stateToken': state_token, 'clientData': client_data, 'signatureData': signature_data,
+                  'authenticatorData': auth_data},
             headers=self._get_headers(),
             verify=self._verify_ssl_certs
         )
@@ -690,26 +687,6 @@ class OktaClient(object):
         else:
             return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
 
-    def get_hs_stateToken(self, response):
-        # to test with user without MFA
-        state_token = None
-        saml_soup = BeautifulSoup(response.text, "html.parser")
-        # extract the stateToken from the Javascript code in the page and step up to MFA
-        if hasattr(saml_soup.title, 'string') and re.match(".* - Extra Verification$", saml_soup.title.string):
-            # extract the stateToken from the Javascript code in the page and step up to MFA
-            state_token = decode(re.search(r"var stateToken = '(.*)';", response.text).group(1), "unicode-escape")
-            api_response = self.stepup_auth(None, state_token)
-            return api_response
-
-        # no MFA required => we should have a session cookies, login flow ends here
-        api_response = {
-            'status': 'SUCCESS',
-            'sessionToken': '',
-            'session': response.cookies['sid'],
-            'device_token': self._http_client.cookies['DT']
-        }
-        return api_response
-
     def get_saml_response(self, url):
         """ return the base64 SAML value object from the SAML Response"""
         response = self._http_client.get(url, verify=self._verify_ssl_certs)
@@ -722,39 +699,25 @@ class OktaClient(object):
         saml_soup = BeautifulSoup(response.text, "html.parser")
         if saml_soup.find('form') is not None:
             form_action = saml_soup.find('form').get('action')
-        for inputtag in saml_soup.find_all('input'):
-            if inputtag.get('name') == 'SAMLResponse':
-                saml_response = inputtag.get('value')
-            elif inputtag.get('name') == 'RelayState':
-                relay_state = inputtag.get('value')
+        for input_tag in saml_soup.find_all('input'):
+            if input_tag.get('name') == 'SAMLResponse':
+                saml_response = input_tag.get('value')
+            elif input_tag.get('name') == 'RelayState':
+                relay_state = input_tag.get('value')
 
         if saml_response is None:
-            # We didn't get a SAML response.  Were we redirected to an MFA login page?
-            if hasattr(saml_soup.title, 'string') and re.match(".* - Extra Verification$", saml_soup.title.string):
-                # extract the stateToken from the Javascript code in the page and step up to MFA
-                state_token = decode(re.search(r"var stateToken = '(.*)';", response.text).group(1), "unicode-escape")
+            state_token = self._extract_state_token_from_http_response(response)
+            if state_token:
                 api_response = self.stepup_auth(url, state_token)
-                saml_response = self.get_saml_response(url + '?sessionToken=' + api_response['sessionToken'])
+                if 'sessionToken' in api_response:
+                    saml_request_url = url + '?sessionToken=' + api_response['sessionToken']
+                else:
+                    saml_request_url = url + '?stateToken=' + api_response['_links']['next']['href']
 
+                saml_response = self.get_saml_response(saml_request_url)
                 return saml_response
 
-            else:
-                for tag in saml_soup.find_all('body'):
-                    # checking all the tags in body tag for Extra Verification string
-                    if re.search(r"Extra Verification", tag.text, re.IGNORECASE):
-                        # extract the stateToken from response (form action) instead of javascript variable
-                        pre_state_token = decode(re.search(r"stateToken=(.*?[ \"])", response.text).group(1), "unicode-escape")
-                        state_token = pre_state_token.rstrip('\"')
-                        api_response = self.stepup_auth(url, state_token)
-                        if 'sessionToken' in api_response:
-                            saml_response = self.get_saml_response(url + '?sessionToken=' + api_response['sessionToken'])
-                        else:
-                            saml_response = self.get_saml_response(url + '?stateToken=' + api_response['_links']['next']['href'])
-
-                        return saml_response
-
             saml_error = 'Did not receive SAML Response after successful authentication [' + url + ']'
-
             if saml_soup.find(class_='error-content') is not None:
                 saml_error += '\n' + saml_soup.find(class_='error-content').get_text()
 
@@ -858,8 +821,7 @@ class OktaClient(object):
 
         return None
 
-    @staticmethod
-    def _build_factor_name(factor):
+    def _build_factor_name(self, factor):
         """ Build the display name for a MFA factor based on the factor type"""
         if factor['provider'] == 'DUO':
             return factor['factorType'] + ": " + factor['provider'].capitalize()
@@ -876,7 +838,18 @@ class OktaClient(object):
         elif factor['factorType'] == 'u2f':
             return factor['factorType'] + ": " + factor['factorType']
         elif factor['factorType'] == 'webauthn':
-            return factor['factorType'] + ": " + factor['factorType']
+            factor_name = None
+            try:
+                registered_authenticators = RegisteredAuthenticators(self.ui)
+                credential_id = websafe_decode(factor['profile']['credentialId'])
+                factor_name = registered_authenticators.get_authenticator_user(credential_id)
+            except Exception:
+                pass
+
+            default_factor_name = factor['profile'].get('authenticatorName') or factor['factorType']
+            factor_name = factor_name or default_factor_name
+
+            return factor['factorType'] + ": " + factor_name
         elif factor['factorType'] == 'token:hardware':
             return factor['factorType'] + ": " + factor['provider']
 
@@ -921,3 +894,148 @@ class OktaClient(object):
             raise errors.GimmeAWSCredsError('Password was not provided. Exiting.')
 
         return {'username': username, 'password': password}
+
+    def setup_fido_authenticator(self):
+        setup_fido_authenticator_url = self._okta_org_url + '/user/settings/factors/setup?factorType=FIDO_WEBAUTHN'
+
+        response = self._http_client.get(setup_fido_authenticator_url, headers=self._get_headers(),
+                                         verify=self._verify_ssl_certs)
+        response.raise_for_status()
+
+        parsed_url = urlparse(response.url)
+        if parsed_url and parsed_url.path == '/user/verify_password':
+            response = self._verify_password(response)
+
+        state_token = self._extract_state_token_from_http_response(response)
+        if not state_token:
+            raise RuntimeError('Could not extract state token from http response')
+
+        self.stepup_auth(setup_fido_authenticator_url, state_token)
+        response = self._http_client.get(setup_fido_authenticator_url, json={'stateToken': state_token},
+                                         headers=self._get_headers(), verify=self._verify_ssl_certs)
+        response.raise_for_status()
+
+        state_token = self._extract_state_token_from_http_response(response)
+        credential_id, user_name = self._activate_webauthn_factor(state_token)
+
+        self.ui.info('\nAuthenticator setup finished successfully.')
+        return credential_id, user_name
+
+    def _verify_password(self, verify_password_page_response):
+        creds = self._get_username_password_creds()
+
+        saml_soup = BeautifulSoup(verify_password_page_response.text, "html.parser")
+        token_elem = saml_soup.find(id='_xsrfToken')
+        if not token_elem:
+            raise RuntimeError('Could not find expected xsrf token in password verification page: id="_xsrfToken"')
+
+        if not token_elem.has_attr('value'):
+            raise RuntimeError('Could not find expected "value" attribute for xsrf dom element in password '
+                               'verification page')
+
+        xsrf_token = token_elem.get('value')
+        if not xsrf_token:
+            raise RuntimeError('Could not find non-blank "value" attribute for xsrf dom element in password'
+                               'verification page')
+
+        headers = self._get_headers()
+        # Must be form urlencoded
+        headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8'
+        data = '_xsrfToken={xsrf_token}&password={password}'.format(xsrf_token=xsrf_token, password=creds['password'])
+        response = self._http_client.post(self._okta_org_url + '/user/verify_password',
+                                          data=data, headers=headers, verify=self._verify_ssl_certs)
+        response.raise_for_status()
+
+        response = self._http_client.get(
+            self._okta_org_url + '/login/second-factor?fromURI=%2Fenduser%2Fsettings&forcePrompt=true&hideBgImage=true',
+            headers=self._get_headers(), verify=self._verify_ssl_certs)
+        response.raise_for_status()
+
+        return response
+
+    def _activate_webauthn_factor(self, state_token):
+        enrollment_response = self._enroll_factor(state_token)
+        response_json = enrollment_response.json()
+
+        next_link = response_json['_links']['next']
+        if next_link['name'] != 'activate':
+            raise RuntimeError('Expected next link to be an activation link, actually got: ' + next_link["name"])
+
+        factor_obj = response_json['_embedded']['factor']
+        activation_obj = factor_obj['_embedded']['activation']
+
+        challenge = activation_obj.get('challenge')
+        user_obj = activation_obj.get('user', {})
+
+        webauthn_client = WebAuthnClient(self.ui, self._okta_org_url, challenge)
+        client_data_json, attestation = webauthn_client.make_credential(user_obj)
+        client_data = str(base64.urlsafe_b64encode(client_data_json), 'utf-8')
+        attestation_data = str(base64.urlsafe_b64encode(attestation), 'utf-8')
+
+        response = self._http_client.post(
+            next_link['href'],
+            json={"stateToken": state_token, "clientData": client_data, "attestation": attestation_data},
+            headers=self._get_headers(), verify=self._verify_ssl_certs)
+        response.raise_for_status()
+
+        session_token = response.json()['sessionToken']
+        redirect_url = quote(self._okta_org_url + '/enduser/settings?enrolledFactor=FIDO_WEBAUTHN')
+
+        response = self._http_client.get(
+            self._okta_org_url + '/login/sessionCookieRedirect?checkAccountSetupComplete=true&'
+                                 'token={session_token}&redirectUrl={redirect_url}'.format(session_token=session_token,
+                                                                                           redirect_url=redirect_url),
+            headers=self._get_headers(), verify=self._verify_ssl_certs)
+        response.raise_for_status()
+
+        return attestation.auth_data.credential_data.credential_id, user_obj.get('name', 'gimme-aws-creds')
+
+    def _enroll_factor(self, state_token):
+        factors = self._introspect_factors(state_token)
+        if len(factors) != 1:
+            raise RuntimeError('Expected the state token to request enrollment for a specific factor')
+
+        # The state token should be set to return a specific factor
+        webauthn_factor = factors[0]
+        response = self._http_client.post(
+            webauthn_factor['_links']['enroll']['href'],
+            json={"stateToken": state_token, "factorType": webauthn_factor['factorType'],
+                  "provider": webauthn_factor['provider']},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+        response.raise_for_status()
+
+        return response
+
+    def _introspect_factors(self, state_token):
+        response = self._http_client.post(self._okta_org_url + '/api/v1/authn/introspect',
+                                          json={"stateToken": state_token}, headers=self._get_headers(),
+                                          verify=self._verify_ssl_certs)
+        response.raise_for_status()
+        factors = response.json()['_embedded']['factors']
+        if not factors:
+            raise RuntimeError('Could not introspect factors')
+
+        return factors
+
+    @staticmethod
+    def _extract_state_token_from_http_response(http_res):
+        saml_soup = BeautifulSoup(http_res.text, "html.parser")
+
+        if hasattr(saml_soup.title, 'string') and re.match(".* - Extra Verification$", saml_soup.title.string):
+            # extract the stateToken from the Javascript code in the page and step up to MFA
+            # noinspection PyTypeChecker
+            state_token = decode(re.search(r"var stateToken = '(.*)';", http_res.text).group(1), "unicode-escape")
+            return state_token
+
+        for tag in saml_soup.find_all('body'):
+            # checking all the tags in body tag for Extra Verification string
+            if re.search(r"Extra Verification", tag.text, re.IGNORECASE):
+                # extract the stateToken from response (form action) instead of javascript variable
+                # noinspection PyTypeChecker
+                pre_state_token = decode(re.search(r"stateToken=(.*?[ \"])", http_res.text).group(1), "unicode-escape")
+                state_token = pre_state_token.rstrip('\"')
+                return state_token
+
+        return None

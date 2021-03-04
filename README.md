@@ -13,7 +13,7 @@ With gimme-aws-creds all you need to know is your username, password, Okta url a
 
 [Okta SAML integration to AWS using the AWS App](https://help.okta.com/en/prod/Content/Topics/Miscellaneous/References/OktaAWSMulti-AccountConfigurationGuide.pdf)
 
-Python 3
+Python 3.6+
 
 ### Optional
 
@@ -274,8 +274,15 @@ gimme-aws-creds works both on FIDO1 enabled org and WebAuthN enabled org
 
 Note that FIDO1 will probably be deprecated in the near future as standards moves forward to WebAuthN
 
-WebAuthN support is only available for usb security keys (gimme-aws-creds relies on the yubico fido2 lib). Authenticator such as Windows Hello or Touch ID are not yet supported.
-Actually it has only been tested with USB U2F keys & yubikeys.
+WebAuthN support is available for usb security keys (gimme-aws-creds relies on the yubico fido2 lib).
+ 
+To use your local machine as an authenticator, along with Touch ID or Windows Hello, if available,
+you must register a new authenticator via gimme-aws-creds, using:
+```bash
+gimme-aws-creds --action-setup-fido-authenticator
+```
+
+Then, you can choose the newly registered authenticator from the factors list.
 
 ## Running Tests
 

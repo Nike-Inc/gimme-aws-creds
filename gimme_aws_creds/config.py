@@ -51,6 +51,7 @@ class Config(object):
         self.action_list_profiles = False
         self.action_list_roles = False
         self.action_store_json_creds = False
+        self.action_setup_fido_authenticator = False
         self.action_output_format = False
         self.output_format = 'export'
         self.roles = []
@@ -140,6 +141,10 @@ class Config(object):
         parser.add_argument(
             '--action-store-json-creds', action='store_true',
             help='Read credentials from stdin (in json format) and store them in ~/.aws/credentials file')
+        parser.add_argument(
+            '--action-setup-fido-authenticator', action='store_true',
+            help='Sets up a new FIDO WebAuthn authenticator in Okta'
+        )
         args = parser.parse_args(self.ui.args)
 
         self.action_configure = args.action_configure
@@ -147,6 +152,7 @@ class Config(object):
         self.action_list_roles = args.action_list_roles
         self.action_store_json_creds = args.action_store_json_creds
         self.action_register_device = args.action_register_device
+        self.action_setup_fido_authenticator = args.action_setup_fido_authenticator
 
         if args.insecure is True:
             ui.default.warning("Warning: SSL certificate validation is disabled!")
