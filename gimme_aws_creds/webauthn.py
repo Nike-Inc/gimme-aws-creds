@@ -76,9 +76,10 @@ class WebAuthnClient(object):
 
     def _verify(self, client):
         try:
+            user_verification = self._get_user_verification_requirement_from_client(client)
             options = PublicKeyCredentialRequestOptions(challenge=self._challenge, rp_id=self._rp['id'],
                                                         allow_credentials=self._allow_list, timeout=self._timeout_ms,
-                                                        user_verification=UserVerificationRequirement.PREFERRED)
+                                                        user_verification=user_verification)
 
             pin = self._get_pin_from_client(client)
             assertion_selection = client.get_assertion(options, event=self._event,
@@ -147,3 +148,10 @@ class WebAuthnClient(object):
         # Prompt for PIN if needed
         pin = getpass("Please enter PIN: ")
         return pin
+
+    @staticmethod
+    def _get_user_verification_requirement_from_client(client):
+        if not client.info.options.get(CtapOptions.USER_VERIFICATION):
+            return None
+
+        return UserVerificationRequirement.PREFERRED
