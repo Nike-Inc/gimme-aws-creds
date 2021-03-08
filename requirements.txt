@@ -4,6 +4,6 @@ beautifulsoup4>=4.6.0,<5.0.0
 configparser>=3.5.0,<4.0.0
 keyring>=21.4.0
 requests>=2.13.0,<3.0.0
-fido2>=0.8.1,<=0.9.0
+fido2>=0.8.1,<=0.9.1
 okta>=0.0.4,<1.0.0
 ctap-keyring-device>=1.0.4
