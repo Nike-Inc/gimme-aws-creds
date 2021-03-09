@@ -18,7 +18,7 @@ from threading import Event, Thread
 
 from fido2.ctap1 import APDU
 from fido2.ctap1 import ApduError
-from fido2.ctap1 import CTAP1
+from fido2.ctap1 import Ctap1
 from fido2.hid import CtapHidDevice
 from fido2.utils import sha256, websafe_decode
 
@@ -55,7 +55,7 @@ class FactorU2F(object):
             self.ui.info("No FIDO device found")
             raise NoFIDODeviceFoundError
 
-        self._clients = [CTAP1(d) for d in devs]
+        self._clients = [Ctap1(d) for d in devs]
 
     def work(self, client):
         for _ in range(30):

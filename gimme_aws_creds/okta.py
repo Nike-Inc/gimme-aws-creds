@@ -33,6 +33,7 @@ from requests.adapters import HTTPAdapter, Retry
 from gimme_aws_creds.u2f import FactorU2F
 from gimme_aws_creds.webauthn import WebAuthnClient, FakeAssertion
 from . import errors, ui, version, duo
+from .errors import GimmeAWSCredsMFAEnrollStatus
 from .registered_authenticators import RegisteredAuthenticators
 
 
@@ -302,7 +303,7 @@ class OktaClient(object):
         elif status == 'LOCKED_OUT':
             raise errors.GimmeAWSCredsError("Your Okta access has been locked out due to failed login attempts.", 2)
         elif status == 'MFA_ENROLL':
-            raise errors.GimmeAWSCredsError("You must enroll in MFA before using this tool.", 2)
+            raise GimmeAWSCredsMFAEnrollStatus()
         elif status == 'MFA_REQUIRED':
             return self._login_multi_factor(state_token, login_data)
         elif status == 'MFA_CHALLENGE':
@@ -910,7 +911,12 @@ class OktaClient(object):
         if not state_token:
             raise RuntimeError('Could not extract state token from http response')
 
-        self.stepup_auth(setup_fido_authenticator_url, state_token)
+        try:
+            self.stepup_auth(setup_fido_authenticator_url, state_token)
+        except errors.GimmeAWSCredsMFAEnrollStatus:
+            # Expected while adding a new fido authenticator
+            pass
+
         response = self._http_client.get(setup_fido_authenticator_url, json={'stateToken': state_token},
                                          headers=self._get_headers(), verify=self._verify_ssl_certs)
         response.raise_for_status()
