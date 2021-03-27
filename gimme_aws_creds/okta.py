@@ -63,6 +63,7 @@ class OktaClient(object):
         self._username = None
         self._password = None
         self._preferred_mfa_type = None
+        self._authenticator_name = None
         self._mfa_code = None
         self._remember_device = None
 
@@ -101,6 +102,9 @@ class OktaClient(object):
 
     def set_preferred_mfa_type(self, preferred_mfa_type):
         self._preferred_mfa_type = preferred_mfa_type
+
+    def set_authenticator_name(self, authenticator_name):
+        self._authenticator_name = authenticator_name
 
     def set_mfa_code(self, mfa_code):
         self._mfa_code = mfa_code
@@ -778,6 +782,11 @@ class OktaClient(object):
             factors.append(passcode)
         if self._preferred_mfa_type is not None:
             preferred_factors = list(filter(lambda item: item['factorType'] == self._preferred_mfa_type, factors))
+
+            # if you have more than one webauthn registered
+            if self._authenticator_name is not None:
+                preferred_factors=list(filter(lambda item: item['profile']['authenticatorName'] == 'Authenticator', preferred_factors))
+
             # If the preferred factor isn't in the list of available factors, we'll let the user know before
             # prompting to select another.
             if not preferred_factors:
