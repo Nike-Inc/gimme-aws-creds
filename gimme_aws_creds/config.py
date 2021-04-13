@@ -439,7 +439,7 @@ class Config(object):
         cred_profile = self._get_user_input(
             "AWS Credential Profile", default_entry)
 
-        if cred_profile.lower() in ['default', 'role', 'acc-role']:
+        if cred_profile.lower() in ['default', 'role', 'acc-role', 'acc']:
             cred_profile = cred_profile.lower()
 
         return cred_profile
