@@ -201,6 +201,14 @@ class Config(object):
             if self.conf_profile is not None:
                 try:
                     selected_section = config[self.conf_profile]
+                    if self.conf_profile == 'DEFAULT':
+                        found_default_option = False
+                        for _ in selected_section:
+                            found_default_option = True
+                            break
+                        if not found_default_option:
+                            selected_section = None
+
                 except KeyError:
                     raise errors.GimmeAWSCredsError(
                         'Configuration profile not found! Did you spell the profile name incorrectly? If not, '
