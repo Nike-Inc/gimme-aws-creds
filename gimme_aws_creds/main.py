@@ -893,6 +893,7 @@ class GimmeAWSCreds(object):
             # noinspection PyStatementEffect
             self.auth_session
 
+            self.okta.set_preferred_mfa_type(None)
             credential_id, user = self.okta.setup_fido_authenticator()
 
             registered_authenticators = RegisteredAuthenticators(self.ui)

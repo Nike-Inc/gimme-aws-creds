@@ -76,14 +76,20 @@ class WebAuthnClient(object):
 
     def _verify(self, client):
         try:
+            user_verification = self._get_user_verification_requirement_from_client(client)
             options = PublicKeyCredentialRequestOptions(challenge=self._challenge, rp_id=self._rp['id'],
                                                         allow_credentials=self._allow_list, timeout=self._timeout_ms,
-                                                        user_verification=UserVerificationRequirement.PREFERRED)
+                                                        user_verification=user_verification)
 
             pin = self._get_pin_from_client(client)
-            self._assertions, self._client_data = client.get_assertion(options, event=self._event,
-                                                                       on_keepalive=self.on_keepalive,
-                                                                       pin=pin)
+            assertion_selection = client.get_assertion(options, event=self._event,
+                                                       on_keepalive=self.on_keepalive,
+                                                       pin=pin)
+            self._assertions = assertion_selection.get_assertions()
+            assert len(self._assertions) >= 0
+
+            assertion_res = assertion_selection.get_response(0)
+            self._client_data = assertion_res.client_data
             self._event.set()
         except ClientError as e:
             if e.code == ClientError.ERR.DEVICE_INELIGIBLE:
@@ -106,9 +112,11 @@ class WebAuthnClient(object):
                                                      timeout=self._timeout_ms)
 
         pin = self._get_pin_from_client(client)
-        self._attestation, self._client_data = client.make_credential(options, event=self._event,
-                                                                      on_keepalive=self.on_keepalive,
-                                                                      pin=pin)
+        attestation_res = client.make_credential(options, event=self._event,
+                                                 on_keepalive=self.on_keepalive,
+                                                 pin=pin)
+
+        self._attestation, self._client_data = attestation_res.attestation_object, attestation_res.client_data
         self._event.set()
 
     def _run_in_thread(self, method, *args, **kwargs):
@@ -140,3 +148,10 @@ class WebAuthnClient(object):
         # Prompt for PIN if needed
         pin = getpass("Please enter PIN: ")
         return pin
+
+    @staticmethod
+    def _get_user_verification_requirement_from_client(client):
+        if not client.info.options.get(CtapOptions.USER_VERIFICATION):
+            return None
+
+        return UserVerificationRequirement.PREFERRED
