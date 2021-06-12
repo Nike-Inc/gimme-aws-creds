@@ -745,7 +745,7 @@ class GimmeAWSCreds(object):
                 'aws_access_key_id': aws_creds.get('AccessKeyId', ''),
                 'aws_secret_access_key': aws_creds.get('SecretAccessKey', ''),
                 'aws_session_token': aws_creds.get('SessionToken', ''),
-                'aws_security_token': aws_creds.get('SessionToken', ''),
+                'aws_security_token': aws_creds.get('SessionToken', ''),  # deprecated (https://aws.amazon.com/blogs/security/a-new-and-standardized-way-to-manage-credentials-in-the-aws-sdks/)
                 'expiration': aws_creds.get('Expiration').isoformat(),
             } if bool(aws_creds) else {}
         }
