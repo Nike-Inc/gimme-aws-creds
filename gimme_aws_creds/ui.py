@@ -10,16 +10,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
 import builtins
-import getpass
 import os
 import sys
 
 
 class UserInterface:
-    def __init__(self, environ=os.environ, argv=None):
-        if argv is None:
-            argv = sys.argv
-
+    def __init__(self, environ=os.environ, argv=sys.argv):
         self.environ = environ.copy()
         self.environ_bkp = None
         self.argv = argv[:]
@@ -46,7 +42,7 @@ class UserInterface:
         """
         raise NotImplementedError()
 
-    def read_input(self, hidden=False):
+    def read_input(self):
         """returns user input
         :rtype: str
         """
@@ -58,13 +54,13 @@ class UserInterface:
         """
         raise NotImplementedError()
 
-    def input(self, message=None, hidden=False):
+    def input(self, message=None):
         """handles asking for user input, calls prompt() then read_input()
         :type message: str
         :rtype: str
         """
         self.prompt(message)
-        return self.read_input(hidden)
+        return self.read_input()
 
     def info(self, message):
         """handles messages meant for info
@@ -106,13 +102,12 @@ class CLIUserInterface(UserInterface):
     def prompt(self, message=None):
         if message is not None:
             builtins.print(message, file=sys.stderr, end='')
-            sys.stderr.flush()
 
     def message(self, message):
         builtins.print(message, file=sys.stderr)
 
-    def read_input(self, hidden=False):
-        return getpass.getpass('') if hidden else builtins.input()
+    def read_input(self):
+        return builtins.input()
 
     def notify(self, message):
         builtins.print(message, file=sys.stderr)

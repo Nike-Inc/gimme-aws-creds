@@ -51,8 +51,6 @@ class Config(object):
         self.action_list_profiles = False
         self.action_list_roles = False
         self.action_store_json_creds = False
-        self.action_setup_fido_authenticator = False
-        self.action_output_format = False
         self.output_format = 'export'
         self.roles = []
 
@@ -141,10 +139,6 @@ class Config(object):
         parser.add_argument(
             '--action-store-json-creds', action='store_true',
             help='Read credentials from stdin (in json format) and store them in ~/.aws/credentials file')
-        parser.add_argument(
-            '--action-setup-fido-authenticator', action='store_true',
-            help='Sets up a new FIDO WebAuthn authenticator in Okta'
-        )
         args = parser.parse_args(self.ui.args)
 
         self.action_configure = args.action_configure
@@ -152,7 +146,6 @@ class Config(object):
         self.action_list_roles = args.action_list_roles
         self.action_store_json_creds = args.action_store_json_creds
         self.action_register_device = args.action_register_device
-        self.action_setup_fido_authenticator = args.action_setup_fido_authenticator
 
         if args.insecure is True:
             ui.default.warning("Warning: SSL certificate validation is disabled!")
@@ -169,27 +162,12 @@ class Config(object):
         if args.resolve is True:
             self.resolve = True
         if args.output_format is not None:
-            self.action_output_format = args.output_format
             self.output_format = args.output_format
         if args.roles is not None:
             self.roles = [role.strip() for role in args.roles.split(',') if role.strip()]
         self.conf_profile = args.profile or 'DEFAULT'
 
-    def _handle_config(self, config, profile_config, include_inherits = True):
-        if "inherits" in profile_config.keys() and include_inherits:
-            self.ui.message("Using inherited config: " + profile_config["inherits"])
-            if profile_config["inherits"] not in config:
-                raise errors.GimmeAWSCredsError(self.conf_profile + " inherits from " + profile_config["inherits"] + ", but could not find " + profile_config["inherits"])
-            combined_config = {
-                **self._handle_config(config, dict(config[profile_config["inherits"]])),
-                **profile_config,
-            }
-            del combined_config["inherits"]
-            return combined_config
-        else:
-            return profile_config
-
-    def get_config_dict(self, include_inherits = True):
+    def get_config_dict(self):
         """returns the conf dict from the okta config file"""
         # Check to see if config file exists, if not complain and exit
         # If config file does exist return config dict from file
@@ -199,11 +177,20 @@ class Config(object):
 
             try:
                 profile_config = dict(config[self.conf_profile])
-                self.fail_if_profile_not_found(profile_config, self.conf_profile, config.default_section)
-                return self._handle_config(config, profile_config, include_inherits)
+                if "inherits" in profile_config.keys():
+                    print("Using inherited config: " + profile_config["inherits"])
+                    if profile_config["inherits"] not in config:
+                        raise errors.GimmeAWSCredsError(self.conf_profile + " inherits from " + profile_config["inherits"] + ", but could not find " + profile_config["inherits"])
+                    combined_config = {
+                        **dict(config[profile_config["inherits"]]),
+                        **profile_config,
+                    }
+                    del combined_config["inherits"]
+                    return combined_config
+                else:
+                    return profile_config
+
             except KeyError:
-                if self.action_configure:
-                    return {}
                 raise errors.GimmeAWSCredsError(
                     'Configuration profile not found! Use the --action-configure flag to generate the profile.')
         raise errors.GimmeAWSCredsError('Configuration file not found! Use the --action-configure flag to generate file.')
@@ -218,13 +205,12 @@ class Config(object):
                 client_id = OAuth Client id for the gimme-creds-server
                 okta_auth_server = Server ID for the OAuth authorization server used by gimme-creds-server
                 write_aws_creds = Option to write creds to ~/.aws/credentials
-                cred_profile = Use DEFAULT or Role-based name as the profile in ~/.aws/credentials
+                cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
                 aws_appname = (optional) Okta AWS App Name
                 aws_rolename =  (optional) Okta Role ARN
                 okta_username = Okta username
                 aws_default_duration = Default AWS session duration (3600)
                 preferred_mfa_type = Select this MFA device type automatically
-                include_path - (optional) includes that full role path to the role name for profile
 
         """
         config = configparser.ConfigParser()
@@ -243,7 +229,6 @@ class Config(object):
             'okta_username': '',
             'app_url': '',
             'resolve_aws_alias': 'n',
-            'include_path': 'n',
             'preferred_mfa_type': '',
             'remember_device': 'n',
             'aws_default_duration': '3600',
@@ -277,15 +262,12 @@ class Config(object):
         if config_dict['gimme_creds_server'] != 'appurl':
             config_dict['aws_appname'] = self._get_aws_appname(defaults['aws_appname'])
         config_dict['resolve_aws_alias'] = self._get_resolve_aws_alias(defaults['resolve_aws_alias'])
-        config_dict['include_path'] = self._get_include_path(defaults['include_path'])
         config_dict['aws_rolename'] = self._get_aws_rolename(defaults['aws_rolename'])
         config_dict['okta_username'] = self._get_okta_username(defaults['okta_username'])
         config_dict['aws_default_duration'] = self._get_aws_default_duration(defaults['aws_default_duration'])
         config_dict['preferred_mfa_type'] = self._get_preferred_mfa_type(defaults['preferred_mfa_type'])
         config_dict['remember_device'] = self._get_remember_device(defaults['remember_device'])
-        config_dict["output_format"] = ''
-        if not config_dict["write_aws_creds"]:
-            config_dict['output_format'] = self._get_output_format(defaults['output_format'])
+        config_dict['output_format'] = self._get_output_format(defaults['output_format'])
 
         # If write_aws_creds is True get the profile name
         if config_dict['write_aws_creds'] is True:
@@ -402,19 +384,6 @@ class Config(object):
             except ValueError:
                 ui.default.warning("Write AWS Credentials must be either y or n.")
 
-    def _get_include_path(self, default_entry):
-        """ Option to include path from rolename """
-
-        ui.default.message(
-            "Do you want to include full role path to the role name in AWS credential profile name?"
-            "\nPlease answer y or n.")
-
-        while True:
-            try:
-                return self._get_user_input_yes_no("Include Path", default_entry)
-            except ValueError:
-                ui.default.warning("Include Path must be either y or n.")
-
     def _get_resolve_aws_alias(self, default_entry):
         """ Option to resolve account id to alias """
         ui.default.message(
@@ -431,7 +400,6 @@ class Config(object):
         ui.default.message(
             "The AWS credential profile defines which profile is used to store the temp AWS creds.\n"
             "If set to 'role' then a new profile will be created matching the role name assumed by the user.\n"
-            "If set to 'acc-role' then a new profile will be created matching the role name assumed by the user, but prefixed with account number to avoid collisions.\n"
             "If set to 'default' then the temp creds will be stored in the default profile\n"
             "If set to any other value, the name of the profile will match that value."
         )
@@ -439,7 +407,7 @@ class Config(object):
         cred_profile = self._get_user_input(
             "AWS Credential Profile", default_entry)
 
-        if cred_profile.lower() in ['default', 'role', 'acc-role']:
+        if cred_profile.lower() in ['default', 'role']:
             cred_profile = cred_profile.lower()
 
         return cred_profile
@@ -492,24 +460,14 @@ class Config(object):
         """Get the user's preferred MFA device [Optional]"""
         ui.default.message(
             "If you'd like to set a preferred device type to use for MFA, enter it here.\n"
-            "This is optional. valid devices types:\n"
-            """
-            - push - Okta Verify App push or DUO push (depends on okta supplied provider type)
-            - token:software:totp - OTP using the Okta Verify App
-            - token:hardware - OTP using hardware like Yubikey
-            - call - OTP via Voice call
-            - sms - OTP via SMS message
-            - web - DUO uses localhost webbrowser to support push|call|passcode
-            - passcode - DUO uses `OKTA_MFA_CODE` or `--mfa-code` if set, or prompts user for passcode(OTP).
-            """
-        )
+            "This is optional. valid devices types:[sms, call, push, token, token:software:totp]")
         okta_username = self._get_user_input(
             "Preferred MFA Device Type", default_entry)
         return okta_username
 
     def _get_output_format(self, default_entry):
         """Get the user's preferred output format [Optional]"""
-        ui.default.message("Set the tools' output format:[export, json]")
+        ui.default.message("Set the tools' output format:[bash, json]")
         output_format = None
         while output_format not in ('export', 'json'):
             output_format = self._get_user_input(
@@ -568,14 +526,3 @@ class Config(object):
         """ clean up secret stuff"""
         del self.username
         del self.api_key
-
-    def fail_if_profile_not_found(self, profile_config, conf_profile, default_section):
-        """
-        When a users profile does not have a profile named 'DEFAULT' configparser fails to throw
-        an exception. This will raise an exception that handles this case and provide better messaging
-        to the user why the failure occurred.
-        Ensure that whichever profile is set as the default exists in the end users okta config
-        """
-        if not profile_config and conf_profile == default_section:
-            raise errors.GimmeAWSCredsError(
-                'DEFAULT profile is missing! This is profile is required when not using --profile')

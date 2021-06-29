@@ -14,11 +14,16 @@
 # https://github.com/nathan-v/aws_okta_keyman
 """All the Duo things."""
 
+import sys
 import time
-from http.server import HTTPServer, BaseHTTPRequestHandler
 from multiprocessing import Process
 
 import requests
+
+if sys.version_info[0] < 3:  # pragma: no cover
+    from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
+else:  # pragma: no cover
+    from http.server import HTTPServer, BaseHTTPRequestHandler
 
 
 class PasscodeRequired(BaseException):
@@ -62,9 +67,7 @@ class QuietHandler(BaseHTTPRequestHandler, object):
 class Duo:
     """Does all the background work needed to serve the Duo iframe."""
 
-    def __init__(self, gac_ui, details, state_token, socket, factor=None,):
-        self.ui = gac_ui
-        self.socket = socket
+    def __init__(self, details, state_token, factor=None):
         self.details = details
         self.token = state_token
         self.factor = factor
@@ -91,6 +94,7 @@ class Duo:
         );</script>'''.format(tkn=self.token, scr=script,
                               hst=host, sig=sig,
                               cb=callback)
+
         proc = Process(target=self.duo_webserver)
         proc.start()
         time.sleep(10)
@@ -98,12 +102,13 @@ class Duo:
 
     def duo_webserver(self):
         """HTTP webserver."""
-        httpd = HTTPServer(self.socket, self.handler_with_html)
+        server_address = ('127.0.0.1', 65432)
+        httpd = HTTPServer(server_address, self.handler_with_html)
         httpd.serve_forever()
 
     def handler_with_html(self, *args):
         """Call the handler and include the HTML."""
-        return QuietHandler(self.html, *args)
+        QuietHandler(self.html, *args)
 
     def trigger_duo(self, passcode=""):
         """Try to get a Duo Push without needing an iframe
@@ -228,17 +233,15 @@ class Duo:
                     ret.status_code))
 
             result = ret.json()
-            self.ui.info("status: {}".format(result['response']['status']))
-            if result['response'].get('result') == 'FAILURE':
-                raise Exception('DUO MFA failed: {}'.format(format(result['response']['status'])))
+
             if result['stat'] == "OK":
                 if 'cookie' in result['response']:
                     auth = result['response']['cookie']
                 elif 'result_url' in result['response']:
                     auth = self.do_redirect(
                         result['response']['result_url'], sid)
-            else:
-                time.sleep(1)
+
+            time.sleep(1)
 
         if auth is None:
             raise Exception('Did not get callback information from Duo')

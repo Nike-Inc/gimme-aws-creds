@@ -1,15 +1,11 @@
-FROM python:3.8-alpine
+FROM python:3.7-alpine
 
 WORKDIR /opt/gimme-aws-creds
 
 COPY . .
 
-ENV PACKAGES="gcc musl-dev python3-dev libffi-dev openssl-dev cargo"
-
-RUN apk --update add $PACKAGES \
-    && pip install --upgrade pip setuptools-rust \
-    && pip install futures \
+RUN apk --update add gcc musl-dev libffi-dev openssl-dev \
     && python setup.py install \
-    && apk del --purge $PACKAGES
+    && apk del --purge gcc musl-dev libffi-dev openssl-dev
 
 ENTRYPOINT ["/usr/local/bin/gimme-aws-creds"]
