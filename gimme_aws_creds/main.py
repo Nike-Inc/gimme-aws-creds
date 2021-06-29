@@ -30,6 +30,7 @@ from .aws import AwsResolver
 from .config import Config
 from .default import DefaultResolver
 from .okta import OktaClient
+from .registered_authenticators import RegisteredAuthenticators
 
 
 class GimmeAWSCreds(object):
@@ -55,7 +56,7 @@ class GimmeAWSCreds(object):
           --profile PROFILE, -p PROFILE
                                 If set, the specified configuration profile will be
                                 used instead of the default.
-          --resolve, -r         If set, perfom alias resolution.
+          --resolve, -r         If set, performs alias resolution.
           --insecure, -k        Allow connections to SSL sites without cert
                                 verification.
           --mfa-code MFA_CODE   The MFA verification code to be used with SMS or TOTP
@@ -73,7 +74,7 @@ class GimmeAWSCreds(object):
            client_id = OAuth Client id for the gimme-creds-server
            okta_auth_server = Server ID for the OAuth authorization server used by gimme-creds-server
            write_aws_creds = Option to write creds to ~/.aws/credentials
-           cred_profile = Use DEFAULT or Role as the profile in ~/.aws/credentials
+           cred_profile = Use DEFAULT or Role-based name as the profile in ~/.aws/credentials
            aws_appname = (optional) Okta AWS App Name
            aws_rolename =  (optional) AWS Role ARN. 'ALL' will retrieve all roles, can be a CSV for multiple roles.
            okta_username = (optional) Okta User Name
@@ -141,6 +142,8 @@ class GimmeAWSCreds(object):
         # Write the updated config file
         with open(aws_config, 'w+') as configfile:
             config.write(configfile)
+        # Update file permissions to secure  sensitive credentials file
+        os.chmod(aws_config, 0o600)
         self.ui.result('Written profile {} to {}'.format(profile, aws_config))
 
     def write_aws_creds_from_data(self, data, aws_config=None):
@@ -286,6 +289,25 @@ class GimmeAWSCreds(object):
 
         return app_list
 
+    @staticmethod
+    def _parse_role_arn(arn):
+        """ Extracts account number, path and role name from role arn string """
+        matches = re.match(r"arn:(aws|aws-cn|aws-us-gov):iam:.*:(?P<accountid>\d{12}):role(?P<path>(/[\w/]+)?/)(?P<role>\S+)", arn)
+        return {
+            'account': matches.group('accountid'),
+            'role': matches.group('role'),
+            'path': matches.group('path')
+        }
+
+    @staticmethod
+    def _get_alias_from_friendly_name(friendly_name):
+        """ Extracts alias from friendly name string """
+        res = None
+        matches = re.match(r"Account:\s(?P<alias>.+)\s\(\d{12}\)", friendly_name)
+        if matches:
+            res = matches.group('alias')
+        return res
+
     def _choose_app(self, aws_info):
         """ gets a list of available apps and
         ask the user to select the app they want
@@ -353,7 +375,7 @@ class GimmeAWSCreds(object):
     def _get_selected_roles(self, requested_roles, aws_roles):
         """ select the role from the config file if it exists in the
         results from Okta.  If not, present the user with a menu. """
-        # 'all' is a special case - skip procesing
+        # 'all' is a special case - skip processing
         if requested_roles == 'all':
             return set(role.role for role in aws_roles)
         # check to see if a role is in the config and look for it in the results from Okta
@@ -397,7 +419,7 @@ class GimmeAWSCreds(object):
         role_strs = self.resolver._display_role(roles)
 
         if role_strs:
-            self.ui.message("Pick a roles:")
+            self.ui.message("Pick a role:")
             for role in role_strs:
                 self.ui.message(role)
         else:
@@ -448,10 +470,10 @@ class GimmeAWSCreds(object):
         except errors.GimmeAWSCredsExitBase as exc:
             exc.handle()
 
-    @property
-    def config(self):
-        if 'config' in self._cache:
-            return self._cache['config']
+    def generate_config(self):
+        """ generates a new configuration and populates
+        various config caches
+        """
         self._cache['config'] = config = Config(gac_ui=self.ui)
         config.get_args()
         self._cache['conf_dict'] = config.get_config_dict()
@@ -468,6 +490,13 @@ class GimmeAWSCreds(object):
             self.config.aws_default_duration = 3600
 
         self.resolver = self.get_resolver()
+        return config
+
+    @property
+    def config(self):
+        if 'config' in self._cache:
+            return self._cache['config']
+        config = self.generate_config()
         return config
 
     @property
@@ -543,21 +572,32 @@ class GimmeAWSCreds(object):
 
         return self.conf_dict.get('device_token')
 
+    def set_auth_session(self, auth_session):
+        self._cache['auth_session'] = auth_session
+
+    @property
+    def auth_session(self):
+        if 'auth_session' in self._cache:
+            return self._cache['auth_session']
+        auth_result = self.okta.auth_session()
+        self.set_auth_session(auth_result)
+        return auth_result
+
     @property
     def aws_results(self):
         if 'aws_results' in self._cache:
             return self._cache['aws_results']
-        # Call the Okta APIs and proces data locally
+        # Call the Okta APIs and process data locally
         if self.gimme_creds_server == 'internal':
             # Okta API key is required when calling Okta APIs internally
             if self.config.api_key is None:
                 raise errors.GimmeAWSCredsError('OKTA_API_KEY environment variable not found!')
-            auth_result = self.okta.auth_session()
+            auth_result = self.auth_session
             aws_results = self._get_aws_account_info(self.okta_org_url, self.config.api_key,
                                                      auth_result['username'])
 
         elif self.gimme_creds_server == 'appurl':
-            self.okta.auth_session()
+            self.auth_session
             # bypass lambda & API call
             # Apps url is required when calling with appurl
             if self.conf_dict.get('app_url'):
@@ -630,7 +670,7 @@ class GimmeAWSCreds(object):
         if 'aws_selected_roles' in self._cache:
             return self._cache['aws_selected_roles']
         selected_roles = self._get_selected_roles(self.requested_roles, self.aws_roles)
-        self._cache['aws_aws_selected_roless'] = ret = [
+        self._cache['aws_selected_roles'] = ret = [
             role
             for role in self.aws_roles
             if role.role in selected_roles
@@ -676,23 +716,20 @@ class GimmeAWSCreds(object):
                 else:
                     self.ui.error('Failed to generate credentials for {} due to {}'.format(role.role, ex))
 
-        deriv_profname = re.sub('arn:(aws|aws-cn|aws-us-gov):iam:.*/', '', role.role)
+        naming_data = self._parse_role_arn(role.role)
         # set the profile name
-        # Note if there are multiple roles, and 'default' is
-        # selected it will be overwritten multiple times and last role
-        # wins.
-        if self.conf_dict['cred_profile'].lower() == 'default':
-            profile_name = 'default'
-        elif self.conf_dict['cred_profile'].lower() == 'role':
-            profile_name = deriv_profname
-        else:
-            profile_name = self.conf_dict['cred_profile']
+        # Note if there are multiple roles
+        # it will be overwritten multiple times and last role wins.
+        cred_profile = self.conf_dict['cred_profile']
+        resolve_alias = self.conf_dict['resolve_aws_alias']
+        include_path = self.conf_dict.get('include_path')
+        profile_name = self.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role)
 
         return {
             'shared_credentials_file': self.AWS_CONFIG,
             'profile': {
                 'name': profile_name,
-                'derived_name': deriv_profname,
+                'derived_name': naming_data['role'],
                 'config_name': self.conf_dict.get('cred_profile', ''),
             },
             'role': {
@@ -706,8 +743,30 @@ class GimmeAWSCreds(object):
                 'aws_secret_access_key': aws_creds.get('SecretAccessKey', ''),
                 'aws_session_token': aws_creds.get('SessionToken', ''),
                 'aws_security_token': aws_creds.get('SessionToken', ''),
+                'expiration': aws_creds.get('Expiration').isoformat(),
             } if bool(aws_creds) else {}
         }
+
+    def get_profile_name(self, cred_profile, include_path, naming_data, resolve_alias, role):
+        if cred_profile.lower() == 'default':
+            profile_name = 'default'
+        elif cred_profile.lower() == 'role':
+            profile_name = naming_data['role']
+        elif cred_profile.lower() == 'acc-role':
+            account = naming_data['account']
+            role_name = naming_data['role']
+            path = naming_data['path']
+            if resolve_alias == 'True':
+                account_alias = self._get_alias_from_friendly_name(role.friendly_account_name)
+                if account_alias:
+                    account = account_alias
+            if include_path == 'True':
+                role_name = ''.join([path, role_name])
+            profile_name = '-'.join([account,
+                                     role_name])
+        else:
+            profile_name = cred_profile
+        return profile_name
 
     def iter_selected_aws_credentials(self):
         results = []
@@ -734,8 +793,17 @@ class GimmeAWSCreds(object):
         self.handle_action_list_profiles()
         self.handle_action_store_json_creds()
         self.handle_action_list_roles()
-
+        self.handle_setup_fido_authenticator()
+  
+        # for each data item, if we have an override on output, prioritize that
+        # if we do not, prioritize writing credentials to file if that is in our
+        # configuration. If we are not writing to a credentials file, use whatever
+        # is in the output format field (default to exports)
         for data in self.iter_selected_aws_credentials():
+            if self.config.action_output_format:
+                self.write_result_action(self.config.action_output_format, data)
+                continue
+
             write_aws_creds = str(self.conf_dict['write_aws_creds']) == 'True'
             # check if write_aws_creds is true if so
             # get the profile name and write out the file
@@ -743,18 +811,26 @@ class GimmeAWSCreds(object):
                 self.write_aws_creds_from_data(data)
                 continue
 
-            if self.output_format == 'json':
-                self.ui.result(json.dumps(data))
-                continue
-
-            # Defaults to `export` format
-            self.ui.result('# ' + data['role']['arn'])
-            self.ui.result("export AWS_ACCESS_KEY_ID=" + data['credentials']['aws_access_key_id'])
-            self.ui.result("export AWS_SECRET_ACCESS_KEY=" + data['credentials']['aws_secret_access_key'])
-            self.ui.result("export AWS_SESSION_TOKEN=" + data['credentials']['aws_session_token'])
-            self.ui.result("export AWS_SECURITY_TOKEN=" + data['credentials']['aws_security_token'])
+            self.write_result_action(self.conf_dict["output_format"], data)
 
         self.config.clean_up()
+
+    def write_result_action(self, action, data):
+        if action == "json":
+            self.ui.result(json.dumps(data))
+            return
+        else:
+            # Defaults to `export` format
+            self.ui.result("export AWS_ROLE_ARN=" + data['role']['arn'])
+            self.ui.result("export AWS_ACCESS_KEY_ID=" +
+                           data['credentials']['aws_access_key_id'])
+            self.ui.result("export AWS_SECRET_ACCESS_KEY=" +
+                           data['credentials']['aws_secret_access_key'])
+            self.ui.result("export AWS_SESSION_TOKEN=" +
+                           data['credentials']['aws_session_token'])
+            self.ui.result("export AWS_SECURITY_TOKEN=" +
+                           data['credentials']['aws_security_token'])
+
 
     def handle_action_configure(self):
         # Create/Update config when configure arg set
@@ -792,10 +868,11 @@ class GimmeAWSCreds(object):
                 self.ui.notify('\n*** No device token found in configuration file, it will be created.')
                 self.ui.notify('*** You may be prompted for MFA more than once for this run.\n')
 
-            auth_result = self.okta.auth_session()
-            self.conf_dict['device_token'] = auth_result['device_token']
-            self.config.write_config_file(self.conf_dict)
-            self.okta.device_token = self.conf_dict['device_token']
+            auth_result = self.auth_session
+            base_config = self.config.get_config_dict(include_inherits = False)
+            base_config['device_token'] = auth_result['device_token']
+            self.config.write_config_file(base_config)
+            self.okta.device_token = base_config['device_token']
 
             self.ui.notify('\nDevice token saved!\n')
 
@@ -805,3 +882,20 @@ class GimmeAWSCreds(object):
     def handle_action_list_roles(self):
         if self.config.action_list_roles:
             raise errors.GimmeAWSCredsExitSuccess(result='\n'.join(map(str, self.aws_roles)))
+
+    def handle_setup_fido_authenticator(self):
+        if self.config.action_setup_fido_authenticator:
+            # Registers a new fido authenticator to Okta, to be used later as an MFA device
+            self.ui.notify('\n*** Registering a new fido authenticator in Okta.')
+            self.ui.notify('\n*** Note that webauthn authenticators must be allowed for this operation to succeed.')
+            self.ui.notify('*** You may be prompted for MFA more than once for this run.\n')
+
+            # noinspection PyStatementEffect
+            self.auth_session
+
+            self.okta.set_preferred_mfa_type(None)
+            credential_id, user = self.okta.setup_fido_authenticator()
+
+            registered_authenticators = RegisteredAuthenticators(self.ui)
+            registered_authenticators.add_authenticator(credential_id, user)
+            raise errors.GimmeAWSCredsExitSuccess()

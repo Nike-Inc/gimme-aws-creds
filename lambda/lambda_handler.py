@@ -1,8 +1,10 @@
-import sys
-import os
 import json
+import os
+import sys
+
 from okta.framework.ApiClient import ApiClient
 from okta.framework.OktaError import OktaError
+
 
 def aws_account_info(event, context):
     # We need access to the entire JSON response from the Okta APIs, so we need to

@@ -61,6 +61,11 @@ class GimmeAWSCredsError(GimmeAWSCredsExceptionBase, GimmeAWSCredsExitError):
     pass
 
 
+class GimmeAWSCredsMFAEnrollStatus(GimmeAWSCredsError):
+    def __init__(self):
+        super().__init__("You must enroll in MFA before using this tool.", 2)
+
+
 class NoFIDODeviceFoundError(Exception):
     pass
 
@@ -71,4 +76,3 @@ class FIDODeviceTimeoutError(Exception):
 
 class FIDODeviceError(Exception):
     pass
-

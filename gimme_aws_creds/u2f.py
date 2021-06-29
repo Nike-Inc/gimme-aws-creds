@@ -12,16 +12,15 @@ See the License for the specific language governing permissions and* limitations
 
 from __future__ import print_function, absolute_import, unicode_literals
 
-import base64
 import json
 import time
 from threading import Event, Thread
 
 from fido2.ctap1 import APDU
 from fido2.ctap1 import ApduError
-from fido2.ctap1 import CTAP1
+from fido2.ctap1 import Ctap1
 from fido2.hid import CtapHidDevice
-from fido2.utils import sha256
+from fido2.utils import sha256, websafe_decode
 
 from gimme_aws_creds.errors import NoFIDODeviceFoundError, FIDODeviceTimeoutError, FIDODeviceError
 
@@ -38,7 +37,7 @@ class FactorU2F(object):
         self._clients = None
         self._has_prompted = False
         self._cancel = Event()
-        self._credentialId = base64.urlsafe_b64decode(credentialId)
+        self._credentialId = websafe_decode(credentialId)
         self._appId = sha256(appId.encode())
         self._version = 'U2F_V2'
         self._signature = None
@@ -56,7 +55,7 @@ class FactorU2F(object):
             self.ui.info("No FIDO device found")
             raise NoFIDODeviceFoundError
 
-        self._clients = [CTAP1(d) for d in devs]
+        self._clients = [Ctap1(d) for d in devs]
 
     def work(self, client):
         for _ in range(30):
