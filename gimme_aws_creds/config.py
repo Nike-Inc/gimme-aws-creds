@@ -55,6 +55,7 @@ class Config(object):
         self.action_output_format = False
         self.output_format = 'export'
         self.roles = []
+        self.filter_selection = ""
 
         if self.ui.environ.get("OKTA_USERNAME") is not None:
             self.username = self.ui.environ.get("OKTA_USERNAME")
@@ -105,6 +106,15 @@ class Config(object):
                  'can be regex in format /<pattern>/. '
                  'for example: arn:aws:iam::123456789012:role/Admin,/:210987654321:/ '
                  'would match both account 123456789012 by ARN and 210987654321 by regexp'
+        )
+        parser.add_argument(
+            '--filter-selection', '-f',
+            help='If set, the input will be used to filter the list of roles presented to the user. '
+                 'The filter acts on the so called \'friendly_account_name\' associated with each role. '
+                 'The friendly account name contains the account name and number. '
+                 'For example: \'nonprod\' would match any roles where the text \'nonprod\' is found. '
+                 'If only one match is found, it will be auto selected and credentials generated. '
+                 'If no results are found, the program exits.'
         )
         parser.add_argument(
             '--resolve', '-r',
@@ -173,6 +183,8 @@ class Config(object):
             self.output_format = args.output_format
         if args.roles is not None:
             self.roles = [role.strip() for role in args.roles.split(',') if role.strip()]
+        if args.filter_selection is not None:
+            self.filter_selection = args.filter_selection.strip()
         self.conf_profile = args.profile or 'DEFAULT'
 
     def _handle_config(self, config, profile_config, include_inherits = True):
