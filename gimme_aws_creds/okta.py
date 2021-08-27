@@ -1029,7 +1029,7 @@ class OktaClient(object):
     def _extract_state_token_from_http_response(http_res):
         saml_soup = BeautifulSoup(http_res.text, "html.parser")
 
-        if hasattr(saml_soup.title, 'string') and re.match(".* - Extra Verification$", saml_soup.title.string):
+        if hasattr(saml_soup.title, 'string') and re.match(".* - (Extra Verification|Vérification supplémentaire)$", saml_soup.title.string):
             # extract the stateToken from the Javascript code in the page and step up to MFA
             # noinspection PyTypeChecker
             state_token = decode(re.search(r"var stateToken = '(.*)';", http_res.text).group(1), "unicode-escape")
