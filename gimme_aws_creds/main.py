@@ -139,7 +139,7 @@ class GimmeAWSCreds(object):
         config.set(profile, 'aws_session_token', token)
         config.set(profile, 'aws_security_token', token)
         if expiration is not None:
-            config.set(profile, 'expiration', expiration)
+            config.set(profile, 'aws_credential_expiration', expiration)
 
         # Write the updated config file
         with open(aws_config, 'w+') as configfile:
