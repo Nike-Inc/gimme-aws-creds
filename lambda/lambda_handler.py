@@ -100,6 +100,5 @@ def main():
         }
     }
 
-    print(aws_account_info(event, {}))
 
 if __name__ == "__main__": main()
