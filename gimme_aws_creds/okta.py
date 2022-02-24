@@ -1059,8 +1059,6 @@ class OktaClient(object):
             '額外驗證'
         )
 
-        # print(saml_soup.title.string)
-        #if hasattr(saml_soup.title, 'string') and re.match(".* - (Extra Verification|Vérification supplémentaire|Zusätzliche Bestätigung)$", saml_soup.title.string):
         if hasattr(saml_soup.title, 'string') and saml_soup.title.string.endswith(mfa_string):
             # extract the stateToken from the Javascript code in the page and step up to MFA
             # noinspection PyTypeChecker
