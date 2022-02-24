@@ -32,6 +32,7 @@ class TestConfig(unittest.TestCase):
             jar=None,
             output_format=None,
             roles=None,
+            jar=None,
             action_register_device=False,
             action_configure=False,
             action_list_profiles=False,
