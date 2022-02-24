@@ -41,7 +41,6 @@ class Config(object):
         self.api_key = None
         self.conf_profile = 'DEFAULT'
         self.verify_ssl_certs = True
-        self.jar = None
         self.app_url = None
         self.resolve = False
         self.mfa_code = None
