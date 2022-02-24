@@ -29,7 +29,6 @@ class TestConfig(unittest.TestCase):
             resolve=None,
             mfa_code=None,
             remember_device=False,
-            jar=None,
             output_format=None,
             roles=None,
             action_register_device=False,
