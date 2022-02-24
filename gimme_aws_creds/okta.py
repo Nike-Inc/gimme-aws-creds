@@ -12,7 +12,6 @@ See the License for the specific language governing permissions and* limitations
 import base64
 import copy
 import getpass
-import os
 import re
 import socket
 import time
@@ -21,6 +20,7 @@ import webbrowser
 from codecs import decode
 from http.cookiejar import LWPCookieJar, lwp_cookie_str
 from multiprocessing import Process
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from urllib.parse import parse_qs
 from urllib.parse import urlparse, quote
@@ -43,12 +43,12 @@ from .registered_authenticators import RegisteredAuthenticators
 
 class OktaCookieJar(RequestsCookieJar):
     """Extends RequestsCookieJar adding serialization to/from a file."""
-    def __init__(self, filename, *args, **kwargs):
+    def __init__(self, path, *args, **kwargs):
         """Populates the jar from filename if the file exists."""
         super().__init__(*args, **kwargs)
-        self._filename = filename
+        self._path = path
         # Use a temporary LWPCookieJar to read the cookies from disk
-        jar = LWPCookieJar(filename)
+        jar = LWPCookieJar(path.as_posix())
         try:
             jar.load(ignore_discard=True)
         except FileNotFoundError:
@@ -61,7 +61,7 @@ class OktaCookieJar(RequestsCookieJar):
         # Because we move the temporary file, this may throw FileNotFoundError
         try:
             # Write the new jar into a temporary file in the same directory
-            with NamedTemporaryFile(mode="w", dir=os.path.dirname(self._filename)) as tmp:
+            with NamedTemporaryFile(mode="w", dir=self._path.parent) as tmp:
                 now = time.time()
                 tmp.write("#LWP-Cookies-2.0\n")
                 for cookie in self:
@@ -70,7 +70,7 @@ class OktaCookieJar(RequestsCookieJar):
                     tmp.write("Set-Cookie3: %s\n" % lwp_cookie_str(cookie))
                 tmp.flush()
                 # rename is an atomic operation (within the same fs)
-                os.rename(tmp.name, self._filename)
+                Path(tmp.name).replace(self._path)
         except FileNotFoundError:
             pass # expected if rename successful
 
@@ -120,7 +120,7 @@ class OktaClient(object):
         self._oauth_access_token = None
         self._oauth_id_token = None
 
-        self._jar = OktaCookieJar(jar) if jar else RequestsCookieJar()
+        self._jar = OktaCookieJar(Path(jar).expanduser()) if jar else RequestsCookieJar()
 
         # Allow up to 5 retries on requests to Okta in case we have network issues
         self._http_client = requests.Session()

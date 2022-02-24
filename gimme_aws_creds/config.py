@@ -146,10 +146,6 @@ class Config(object):
             '--action-setup-fido-authenticator', action='store_true',
             help='Sets up a new FIDO WebAuthn authenticator in Okta'
         )
-        parser.add_argument(
-            '--jar', '-j',
-            help='If set, the specified file will be used as a cookiejar.'
-        )
         args = parser.parse_args(self.ui.args)
 
         self.action_configure = args.action_configure
@@ -178,8 +174,6 @@ class Config(object):
             self.output_format = args.output_format
         if args.roles is not None:
             self.roles = [role.strip() for role in args.roles.split(',') if role.strip()]
-        if args.jar is not None:
-            self.jar = args.jar
         self.conf_profile = args.profile or 'DEFAULT'
 
     def _handle_config(self, config, profile_config, include_inherits = True):
@@ -255,6 +249,7 @@ class Config(object):
             'remember_device': 'n',
             'aws_default_duration': '3600',
             'device_token': '',
+            'jar': '',
             'output_format': 'export',
         }
 
