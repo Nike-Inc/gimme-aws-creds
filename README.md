@@ -121,7 +121,7 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - resolve_aws_alias - y or n. If yes, gimme-aws-creds will try to resolve AWS account ids with respective alias names (default: n). This option can also be set interactively in the command line using `-r` or `--resolve` parameter
 - include_path - (optional) Includes full role path to the role name in AWS credential profile name. (default: n).  If `y`: `<acct>-/some/path/administrator`. If `n`: `<acct>-administrator`
 - remember_device - y or n. If yes, the MFA device will be remembered by Okta service for a limited time. This option can also be set interactively in the command line using `-m` or `--remember-device`
-- output_format - `json` or `export`, determines default credential output format, can be also specified by `--output-format FORMAT` and `-o FORMAT`.
+- output_format - `json` , `export` or `windows`, determines default credential output format, can be also specified by `--output-format FORMAT` and `-o FORMAT`.
 
 ## Configuration File
 
@@ -174,7 +174,7 @@ export AWS_ACCESS_KEY_ID=AQWERTYUIOP
 export AWS_SECRET_ACCESS_KEY=T!#$JFLOJlsoddop1029405-P
 ```
 
-You can automate the environment variable creation by running `$(gimme-aws-creds)` on linux or `iex (gimme-aws-creds)` using Windows Powershell
+You can automate the environment variable creation by running `$(gimme-aws-creds)` on linux or `gimme-aws-creds | iex` using Windows Powershell
 
 You can run a specific configuration profile with the `--profile` parameter:
 
