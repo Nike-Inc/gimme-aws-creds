@@ -613,6 +613,7 @@ class GimmeAWSCreds(object):
                 'links': {'appLink': self.config.app_url}
             }
             aws_results.append(new_app_entry)
+            self.ui.info("Authentication Success!")
 
         # Use the gimme_creds_lambda service
         else:
