@@ -55,6 +55,8 @@ class Config(object):
         self.action_output_format = False
         self.output_format = 'export'
         self.roles = []
+        self.okta_app = None
+        self.okta_role = None
 
         if self.ui.environ.get("OKTA_USERNAME") is not None:
             self.username = self.ui.environ.get("OKTA_USERNAME")
@@ -145,6 +147,8 @@ class Config(object):
             '--action-setup-fido-authenticator', action='store_true',
             help='Sets up a new FIDO WebAuthn authenticator in Okta'
         )
+        parser.add_argument('--okta-app', type=int)
+        parser.add_argument('--okta-role', type=int)
         args = parser.parse_args(self.ui.args)
 
         self.action_configure = args.action_configure
@@ -173,6 +177,11 @@ class Config(object):
             self.output_format = args.output_format
         if args.roles is not None:
             self.roles = [role.strip() for role in args.roles.split(',') if role.strip()]
+        if args.okta_app is not None:
+            self.okta_app = args.okta_app
+        if args.okta_role is not None:
+            self.okta_role = args.okta_role
+
         self.conf_profile = args.profile or 'DEFAULT'
 
     def _handle_config(self, config, profile_config, include_inherits = True):
