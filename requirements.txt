@@ -1,5 +1,4 @@
 boto3>=1.7.70,<2.0.0
-python-dateutil<=2.8.1
 beautifulsoup4>=4.6.0,<5.0.0
 configparser>=3.5.0,<4.0.0
 keyring>=21.4.0
