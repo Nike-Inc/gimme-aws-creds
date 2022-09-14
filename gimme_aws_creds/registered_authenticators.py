@@ -39,11 +39,21 @@ class RegisteredAuthenticators(object):
         :param user: a user identifier (email, name, uid, ...)
         :type user: str
         """
+        found = False
+        new_authenticators = []
         authenticators = self._get_authenticators()
-        authenticators.append(RegisteredAuthenticator(credential_id=credential_id, user=user))
+        for authenticator in authenticators:
+            if authenticator.matches(credential_id):
+                found = True
+                new_authenticators.append(RegisteredAuthenticator(credential_id=credential_id, user=user))
+            else:
+                new_authenticators.append(authenticator)
+
+        if found is False:
+            new_authenticators.append(RegisteredAuthenticator(credential_id=credential_id, user=user))
 
         with open(self._json_path, 'w') as f:
-            json.dump(authenticators, f)
+            json.dump(new_authenticators, f)
 
     def get_authenticator_user(self, credential_id):
         """
