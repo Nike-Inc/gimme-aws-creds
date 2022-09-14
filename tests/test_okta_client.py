@@ -1063,7 +1063,7 @@ class TestOktaClient(unittest.TestCase):
         assert result == "webauthn: " + authenticator_name
 
     @patch('gimme_aws_creds.registered_authenticators.RegisteredAuthenticators.get_authenticator_user',
-           return_value='jane.doe@example.com')
+           return_value=['jane.doe@example.com', None])
     def test_build_factor_name_webauthn_registered(self, mock_input):
         """ Test building a display name for a registered webauthn factor """
         result = self.client._build_factor_name(self.webauthn_factor)
