@@ -12,7 +12,6 @@ import requests
 import responses
 from fido2.attestation import PackedAttestation
 from fido2.ctap2 import AttestationObject, AuthenticatorData, AttestedCredentialData
-from nose.tools import assert_equals
 
 from gimme_aws_creds import errors, ui
 from gimme_aws_creds.okta import OktaClient
@@ -338,7 +337,7 @@ class TestOktaClient(unittest.TestCase):
 
         responses.add(responses.POST, self.okta_org_url + '/api/v1/authn', status=200, body=json.dumps(auth_response))
         result = self.client._login_username_password(self.state_token, self.okta_org_url + '/api/v1/authn')
-        assert_equals(result, {'stateToken': self.state_token, 'apiResponse': auth_response})
+        assert result == {'stateToken': self.state_token, 'apiResponse': auth_response}
 
     @responses.activate
     def test_login_send_sms(self):
@@ -429,7 +428,7 @@ class TestOktaClient(unittest.TestCase):
 
         responses.add(responses.POST, 'https://example.okta.com/api/v1/authn/factors/sms9hmdk2qvhjOQQ30h7/verify', status=200, body=json.dumps(verify_response))
         result = self.client._login_send_sms(self.state_token, self.sms_factor)
-        assert_equals(result, {'stateToken': self.state_token, 'apiResponse': verify_response})
+        assert result == {'stateToken': self.state_token, 'apiResponse': verify_response}
 
     @responses.activate
     def test_login_send_push(self):
@@ -535,7 +534,7 @@ class TestOktaClient(unittest.TestCase):
 
         responses.add(responses.POST, 'https://example.okta.com/api/v1/authn/factors/opf9ei43pbAgb2qgc0h7/verify', status=200, body=json.dumps(verify_response))
         result = self.client._login_send_push(self.state_token, self.push_factor)
-        assert_equals(result, {'stateToken': self.state_token, 'apiResponse': verify_response})
+        assert result == {'stateToken': self.state_token, 'apiResponse': verify_response}
 
     @responses.activate
     @patch('getpass.getpass', return_value='1234qwert')
@@ -585,7 +584,7 @@ class TestOktaClient(unittest.TestCase):
         }
         responses.add(responses.POST, 'https://example.okta.com/api/v1/authn/factors/sms9hmdk2qvhjOQQ30h7/verify', status=200, body=json.dumps(verify_response))
         result = self.client._login_input_mfa_challenge(self.state_token, 'https://example.okta.com/api/v1/authn/factors/sms9hmdk2qvhjOQQ30h7/verify')
-        assert_equals(result, {'stateToken': self.state_token, 'apiResponse': verify_response})
+        assert result == {'stateToken': self.state_token, 'apiResponse': verify_response}
 
 
     @responses.activate
@@ -692,7 +691,7 @@ class TestOktaClient(unittest.TestCase):
 
         responses.add(responses.POST, 'https://example.okta.com/api/v1/authn/factors/opf9ei43pbAgb2qgc0h7/verify', status=200, body=json.dumps(verify_response))
         result = self.client._login_send_push(self.state_token, self.push_factor)
-        assert_equals(result, {'stateToken': self.state_token, 'apiResponse': verify_response})
+        assert result == {'stateToken': self.state_token, 'apiResponse': verify_response}
 
     @responses.activate
     @patch('builtins.input', return_value='ann@example.com')
@@ -967,7 +966,7 @@ class TestOktaClient(unittest.TestCase):
         """Test that the SAML reponse was successful"""
         responses.add(responses.GET, 'https://example.okta.com/app/gimmecreds/exkatg7u9g6LJfFrZ0h7/sso/saml', status=200, body=self.login_saml)
         result = self.client.get_saml_response('https://example.okta.com/app/gimmecreds/exkatg7u9g6LJfFrZ0h7/sso/saml')
-        assert_equals(result['TargetUrl'], 'https://localhost:8443/saml/SSO')
+        assert result['TargetUrl'] == 'https://localhost:8443/saml/SSO'
 
     @responses.activate
     def test_missing_saml_response(self):
@@ -984,25 +983,25 @@ class TestOktaClient(unittest.TestCase):
     #     # The SAMLResponse value doesn't matter because the API response is mocked
     #     saml_data = {'SAMLResponse': 'BASE64_String', 'RelayState': '', 'TargetUrl': 'https://localhost:8443/saml/SSO'}
     #     result = self.client._get_aws_account_info(self.gimme_creds_server, saml_data)
-    #     assert_equals(self.client.aws_access, self.api_results)
+    #     assert self.client.aws_access == self.api_results
 
     @patch('builtins.input', return_value='0')
     def test_choose_factor_sms(self, mock_input):
         """ Test selecting SMS as a MFA"""
         result = self.client._choose_factor(self.factor_list)
-        assert_equals(result, self.sms_factor)
+        assert result == self.sms_factor
 
     @patch('builtins.input', return_value='1')
     def test_choose_factor_push(self, mock_input):
         """ Test selecting Okta Verify as a MFA"""
         result = self.client._choose_factor(self.factor_list)
-        assert_equals(result, self.push_factor)
+        assert result == self.push_factor
 
     @patch('builtins.input', return_value='2')
     def test_choose_factor_totp(self, mock_input):
         """ Test selecting TOTP code as a MFA"""
         result = self.client._choose_factor(self.factor_list)
-        assert_equals(result, self.totp_factor)
+        assert result == self.totp_factor
 
     @patch('builtins.input', return_value='12')
     def test_choose_bad_factor_totp(self, mock_input):
@@ -1014,7 +1013,7 @@ class TestOktaClient(unittest.TestCase):
     def test_choose_factor_webauthn(self, mock_input):
         """ Test selecting webauthn code as a MFA"""
         result = self.client._choose_factor(self.factor_list)
-        assert_equals(result, self.webauthn_factor)
+        assert result == self.webauthn_factor
 
     @patch('builtins.input', return_value='a')
     def test_choose_non_number_factor_totp(self, mock_input):
@@ -1025,33 +1024,33 @@ class TestOktaClient(unittest.TestCase):
     def test_build_factor_name_sms(self):
         """ Test building a display name for SMS"""
         result = self.client._build_factor_name(self.sms_factor)
-        assert_equals(result, "sms: +1 XXX-XXX-1234")
+        assert result == "sms: +1 XXX-XXX-1234"
 
     def test_build_factor_name_push(self):
         """ Test building a display name for push"""
         result = self.client._build_factor_name(self.push_factor)
-        assert_equals(result, "Okta Verify App: SmartPhone_IPhone: Jane.Doe iPhone")
+        assert result == "Okta Verify App: SmartPhone_IPhone: Jane.Doe iPhone"
 
     def test_build_factor_name_totp(self):
         """ Test building a display name for TOTP"""
         result = self.client._build_factor_name(self.totp_factor)
-        assert_equals(result, "token:software:totp( OKTA ) : jane.doe@example.com")
+        assert result == "token:software:totp( OKTA ) : jane.doe@example.com"
 
     def test_build_factor_name_hardware(self):
         """ Test building a display name for hardware"""
         result = self.client._build_factor_name(self.hardware_factor)
-        assert_equals(result, "token:hardware: YUBICO")
+        assert result == "token:hardware: YUBICO"
 
     def test_build_factor_name_unknown(self):
         """ Handle an unknown MFA factor"""
         with self.captured_output() as (out, err):
             result = self.client._build_factor_name(self.unknown_factor)
-            assert_equals(result, "Unknown MFA type: UNKNOWN_FACTOR")
+            assert result == "Unknown MFA type: UNKNOWN_FACTOR"
 
     def test_build_factor_name_webauthn_unregistered(self):
         """ Test building a display name for an unregistered webauthn factor """
         result = self.client._build_factor_name(self.webauthn_factor)
-        assert_equals(result, "webauthn: webauthn")
+        assert result == "webauthn: webauthn"
 
     def test_build_factor_name_webauthn_unregistered_with_authenticator_name(self):
         """ Test building a display name for an unregistered webauthn factor with a specified authenticator name """
@@ -1061,36 +1060,36 @@ class TestOktaClient(unittest.TestCase):
         webauthn_factor_with_authenticator_name['profile']['authenticatorName'] = authenticator_name
 
         result = self.client._build_factor_name(self.webauthn_factor)
-        assert_equals(result, "webauthn: " + authenticator_name)
+        assert result == "webauthn: " + authenticator_name
 
     @patch('gimme_aws_creds.registered_authenticators.RegisteredAuthenticators.get_authenticator_user',
            return_value='jane.doe@example.com')
     def test_build_factor_name_webauthn_registered(self, mock_input):
         """ Test building a display name for a registered webauthn factor """
         result = self.client._build_factor_name(self.webauthn_factor)
-        assert_equals(result, "webauthn: jane.doe@example.com")
+        assert result == "webauthn: jane.doe@example.com"
 
     # def test_get_app_by_name(self):
     #     """ Test selecting app by name"""
     #     self.client.aws_access = self.api_results
     #     result = self.client.get_app_by_name('Sample AWS Account')
-    #     assert_equals(result['name'], 'Sample AWS Account')
+    #     assert result['name'] == 'Sample AWS Account'
     #
     # def test_get_role_by_name(self):
     #     """ Test selecting app by name"""
     #     self.client.aws_access = self.api_results
     #     result = self.client.get_role_by_name(self.api_results[0], 'ReadOnly')
-    #     assert_equals(result['name'], 'ReadOnly')
+    #     assert result['name'] == 'ReadOnly'
 
     # @patch('builtins.input', return_value='0')
     # def test_choose_role(self, mock_input):
     #     """ Test selecting role with user input"""
     #     result = self.client.choose_role(self.api_results[0])
-    #     assert_equals(result['name'], 'ReadOnly')
+    #     assert result['name'] == 'ReadOnly'
     #
     # @patch('builtins.input', return_value='0')
     # def test_choose_app(self, mock_input):
     #     """ Test selecting app with user input"""
     #     self.client.aws_access = self.api_results
     #     result = self.client.choose_app()
-    #     assert_equals(result['name'], 'Sample AWS Account')
+    #     assert result['name'] == 'Sample AWS Account'

@@ -5,4 +5,4 @@ docker-build:
 	docker build -t gimme-aws-creds .
 
 test: docker-build
-	nosetests -vv tests
+	pytest -v tests
