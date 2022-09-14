@@ -122,6 +122,7 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - include_path - (optional) Includes full role path to the role name in AWS credential profile name. (default: n).  If `y`: `<acct>-/some/path/administrator`. If `n`: `<acct>-administrator`
 - remember_device - y or n. If yes, the MFA device will be remembered by Okta service for a limited time. This option can also be set interactively in the command line using `-m` or `--remember-device`
 - output_format - `json` or `export`, determines default credential output format, can be also specified by `--output-format FORMAT` and `-o FORMAT`.
+- use_keyring - y or n.  Defaults to y.  If n, use of the system keyring for password storage is disabled.
 
 ## Configuration File
 
