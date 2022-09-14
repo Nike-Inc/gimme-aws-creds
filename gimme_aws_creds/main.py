@@ -556,6 +556,12 @@ class GimmeAWSCreds(object):
 
         okta.set_remember_device(self.config.remember_device
                                  or self.conf_dict.get('remember_device', False))
+
+        if self.conf_dict.get('use_keyring') in ('n', 'false', 'False'):
+            okta.set_use_keyring(False)
+        else:
+            okta.set_use_keyring(True)
+
         return okta
 
     def get_resolver(self):

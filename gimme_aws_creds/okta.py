@@ -65,6 +65,7 @@ class OktaClient(object):
         self._preferred_mfa_type = None
         self._mfa_code = None
         self._remember_device = None
+        self._use_keyring = self.KEYRING_ENABLED
 
         self._use_oauth_access_token = False
         self._use_oauth_id_token = False
@@ -107,6 +108,12 @@ class OktaClient(object):
 
     def set_remember_device(self, remember_device):
         self._remember_device = bool(remember_device)
+
+    def set_use_keyring(self, use_keyring):
+        if self.KEYRING_ENABLED:
+            self._use_keyring = bool(use_keyring)
+        else:
+            self._use_keyring = False
 
     def use_oauth_access_token(self, val=True):
         self._use_oauth_access_token = val
@@ -351,7 +358,7 @@ class OktaClient(object):
         # ref: https://developer.okta.com/docs/reference/error-codes/#example-errors-listed-by-http-return-code
         elif response.status_code in [400, 401, 403, 404, 409, 429, 500, 501, 503]:
             if response_data['errorCode'] == "E0000004":
-                if self.KEYRING_ENABLED:
+                if self._use_keyring:
                     try:
                         self.ui.info("Stored password is invalid, clearing.  Please try again")
                         keyring.delete_password(self.KEYRING_SERVICE, creds['username'])
@@ -881,7 +888,7 @@ class OktaClient(object):
         username = self._username
 
         password = self._password
-        if not password and self.KEYRING_ENABLED:
+        if not password and self._use_keyring:
             try:
                 # If the OS supports a keyring, offer to save the password
                 password = keyring.get_password(self.KEYRING_SERVICE, username)
@@ -897,7 +904,7 @@ class OktaClient(object):
                 if len(password) > 0:
                     break
 
-            if self.KEYRING_ENABLED:
+            if self._use_keyring:
                 # If the OS supports a keyring, offer to save the password
                 if self.ui.input("Do you want to save this password in the keyring? (y/N) ") == 'y':
                     try:

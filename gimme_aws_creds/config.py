@@ -225,6 +225,7 @@ class Config(object):
                 aws_default_duration = Default AWS session duration (3600)
                 preferred_mfa_type = Select this MFA device type automatically
                 include_path - (optional) includes that full role path to the role name for profile
+                use_keyring - Enables or disables use of the system keyring
 
         """
         config = configparser.ConfigParser()
@@ -249,6 +250,7 @@ class Config(object):
             'aws_default_duration': '3600',
             'device_token': '',
             'output_format': 'export',
+            'use_keyring': 'y',
         }
 
         # See if a config file already exists.
@@ -292,6 +294,8 @@ class Config(object):
             config_dict['cred_profile'] = self._get_cred_profile(defaults['cred_profile'])
         else:
             config_dict['cred_profile'] = defaults['cred_profile']
+
+        config_dict['use_keyring'] = self.get_use_keyring(defaults['use_keyring'])
 
         self.write_config_file(config_dict)
 
@@ -527,6 +531,18 @@ class Config(object):
                     "Remember device", default_entry)
             except ValueError:
                 ui.default.warning("Remember the MFA device must be either y or n.")
+
+    def _get_use_keyring(self, default_entry):
+        """Option to use the system keyring"""
+        ui.default.message(
+            "Do you want to use the system keyring?\n"
+            "Please answer y or n.")
+        while True:
+            try:
+                return self._get_user_input_yes_no(
+                    "Use system keyring", default_entry)
+            except ValueError:
+                ui.default.warning("Remember the value must be either y or n.")
 
     def _get_user_input(self, message, default=None):
         """formats message to include default and then prompts user for input
