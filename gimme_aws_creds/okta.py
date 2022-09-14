@@ -681,6 +681,14 @@ class OktaClient(object):
 
         response_data = response.json()
         if 'status' in response_data and response_data['status'] == 'SUCCESS':
+            decoded = websafe_decode(credential_id)
+            registered_authenticators = RegisteredAuthenticators(self.ui)
+            user_name, alias = registered_authenticators.get_authenticator_user(decoded)
+            if alias is None:
+                alias = self.ui.input('Alias for webauthn token: ')
+                if alias is not None and alias != "":
+                    registered_authenticators.add_authenticator(decoded, user_name, alias)
+
             if 'stateToken' in response_data:
                 return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
             if 'sessionToken' in response_data:
@@ -843,8 +851,15 @@ class OktaClient(object):
             try:
                 registered_authenticators = RegisteredAuthenticators(self.ui)
                 credential_id = websafe_decode(factor['profile']['credentialId'])
-                factor_name = registered_authenticators.get_authenticator_user(credential_id)
-            except Exception:
+                user_name, alias = registered_authenticators.get_authenticator_user(credential_id)
+                if user_name is not None and alias is not None:
+                    factor_name = "{}: {}".format(user_name, alias)
+                elif user_name is not None:
+                    factor_name = user_name
+                elif alias is not None:
+                    factor_name = alias
+            except Exception as e:
+                self.ui.info("Error getting authenticator name: {}".format(e))
                 pass
 
             default_factor_name = factor['profile'].get('authenticatorName') or factor['factorType']

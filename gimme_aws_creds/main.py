@@ -895,7 +895,10 @@ class GimmeAWSCreds(object):
 
             self.okta.set_preferred_mfa_type(None)
             credential_id, user = self.okta.setup_fido_authenticator()
+            alias = self.ui.input('Alias for webauthn token: ')
+            if alias == "":
+                alias = None
 
             registered_authenticators = RegisteredAuthenticators(self.ui)
-            registered_authenticators.add_authenticator(credential_id, user)
+            registered_authenticators.add_authenticator(credential_id, user, alias)
             raise errors.GimmeAWSCredsExitSuccess()
