@@ -1069,6 +1069,20 @@ class TestOktaClient(unittest.TestCase):
         result = self.client._build_factor_name(self.webauthn_factor)
         assert result == "webauthn: jane.doe@example.com"
 
+    @patch('gimme_aws_creds.registered_authenticators.RegisteredAuthenticators.get_authenticator_user',
+           return_value=[None, "desktop"])
+    def test_build_factor_name_webauthn_registered_alias(self, mock_input):
+        """ Test building a display name for a registered webauthn factor with just an alias """
+        result = self.client._build_factor_name(self.webauthn_factor)
+        assert result == "webauthn: desktop"
+
+    @patch('gimme_aws_creds.registered_authenticators.RegisteredAuthenticators.get_authenticator_user',
+           return_value=['jane.doe@example.com', "desktop"])
+    def test_build_factor_name_webauthn_registered_name_alias(self, mock_input):
+        """ Test building a display name for a registered webauthn factor with user and alias """
+        result = self.client._build_factor_name(self.webauthn_factor)
+        assert result == "webauthn: jane.doe@example.com: desktop"
+
     # def test_get_app_by_name(self):
     #     """ Test selecting app by name"""
     #     self.client.aws_access = self.api_results
