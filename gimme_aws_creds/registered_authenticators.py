@@ -32,12 +32,14 @@ class RegisteredAuthenticators(object):
         with open(path, 'w') as f:
             json.dump([], f)
 
-    def add_authenticator(self, credential_id, user):
+    def add_authenticator(self, credential_id, user, alias):
         """
         :param credential_id: the id of added authenticator credential
         :type credential_id: bytes
         :param user: a user identifier (email, name, uid, ...)
+        :param alias: a user provided alias for the authenticator
         :type user: str
+        :type alias: str
         """
         found = False
         new_authenticators = []
@@ -45,12 +47,12 @@ class RegisteredAuthenticators(object):
         for authenticator in authenticators:
             if authenticator.matches(credential_id):
                 found = True
-                new_authenticators.append(RegisteredAuthenticator(credential_id=credential_id, user=user))
+                new_authenticators.append(RegisteredAuthenticator(credential_id=credential_id, user=user, alias=alias))
             else:
                 new_authenticators.append(authenticator)
 
         if found is False:
-            new_authenticators.append(RegisteredAuthenticator(credential_id=credential_id, user=user))
+            new_authenticators.append(RegisteredAuthenticator(credential_id=credential_id, user=user, alias=alias))
 
         with open(self._json_path, 'w') as f:
             json.dump(new_authenticators, f)
@@ -59,15 +61,17 @@ class RegisteredAuthenticators(object):
         """
         :param credential_id: the id of the authenticator's credential
         :type credential_id: bytes
-        :return: user identifier, if credential id was registered by gimme-aws-creds, or None
-        :rtype: str
+        :returns:
+            -user (:py:class:`str`) - user identifier, if credential id was registered by gimme-aws-creds, or None
+            -alias (:py:class:`str`) - user provided alias for authenticator, or None
+        :rtype: (str, str)
         """
         authenticators = self._get_authenticators()
         for authenticator in authenticators:
             if authenticator.matches(credential_id):
-                return authenticator.user
+                return authenticator.user, authenticator.alias
 
-        return None
+        return None, None
 
     def _get_authenticators(self):
         with open(self._json_path) as f:
@@ -80,16 +84,18 @@ class RegisteredAuthenticator(dict):
     An entry in the registered authenticators json file, which holds a hashed credential id, and its user id.
     """
 
-    def __init__(self, credential_id=None, credential_id_hash=None, user=None):
+    def __init__(self, credential_id=None, credential_id_hash=None, user=None, alias=None):
         """
         :type credential_id: bytes
         :type user: str
+        :type alias: str
         """
         credential_id_hash = credential_id_hash or self._hash_credential_id(credential_id)
-        super().__init__(credential_id_hash=credential_id_hash, user=user)
+        super().__init__(credential_id_hash=credential_id_hash, user=user, alias=alias)
 
         self.credential_id_hash = credential_id_hash
         self.user = user
+        self.alias = alias
 
     def matches(self, credential_id):
         return self.credential_id_hash == self._hash_credential_id(credential_id)
