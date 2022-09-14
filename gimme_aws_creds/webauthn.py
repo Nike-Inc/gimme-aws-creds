@@ -85,6 +85,7 @@ class WebAuthnClient(object):
             assertion_selection = client.get_assertion(options, event=self._event,
                                                        on_keepalive=self.on_keepalive,
                                                        pin=pin)
+            self.ui.info('Processing...\n')
             self._assertions = assertion_selection.get_assertions()
             assert len(self._assertions) >= 0
 
