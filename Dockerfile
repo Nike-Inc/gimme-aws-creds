@@ -1,4 +1,4 @@
-FROM python:3.8-alpine
+FROM python:3.10-alpine
 
 WORKDIR /opt/gimme-aws-creds
 
