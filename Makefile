@@ -5,4 +5,6 @@ docker-build:
 	docker build -t gimme-aws-creds .
 
 test: docker-build
+
+local_test:
 	pytest -v tests
