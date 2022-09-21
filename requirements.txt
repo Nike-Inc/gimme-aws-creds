@@ -4,5 +4,5 @@ configparser>=3.5.0,<4.0.0
 keyring>=21.4.0
 requests>=2.13.0,<3.0.0
 fido2>=0.9.1,<0.10.0
-okta>=0.0.4,<1.0.0
+okta>=2.0.0
 ctap-keyring-device>=1.0.6

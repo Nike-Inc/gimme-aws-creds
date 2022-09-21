@@ -21,8 +21,8 @@ import sys
 # extras
 import boto3
 from botocore.exceptions import ClientError
-from okta.framework.ApiClient import ApiClient
-from okta.framework.OktaError import OktaError
+from okta.api_client import APIClient
+from okta.errors.error import Error as OktaError
 
 # local imports
 from . import errors, ui
@@ -239,8 +239,8 @@ class GimmeAWSCreds(object):
         """ Call the Okta User API and process the results to return
         just the information we need for gimme_aws_creds"""
         # We need access to the entire JSON response from the Okta APIs, so we need to
-        # use the low-level ApiClient instead of UsersClient and AppInstanceClient
-        users_client = ApiClient(okta_org_url, okta_api_key, pathname='/api/v1/users')
+        # use the low-level APIClient instead of UsersClient and AppInstanceClient
+        users_client = APIClient(okta_org_url, okta_api_key, pathname='/api/v1/users')
 
         # Get User information
         try:
