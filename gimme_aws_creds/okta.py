@@ -688,13 +688,12 @@ class OktaClient(object):
 
         response_data = response.json()
         if 'status' in response_data and response_data['status'] == 'SUCCESS':
-            decoded = websafe_decode(credential_id)
             registered_authenticators = RegisteredAuthenticators(self.ui)
-            user_name, alias = registered_authenticators.get_authenticator_user(decoded)
+            user_name, alias = registered_authenticators.get_authenticator_user(assertion.credential['id'])
             if alias is None:
                 alias = self.ui.input('Alias for webauthn token: ')
                 if alias is not None and alias != "":
-                    registered_authenticators.add_authenticator(decoded, user_name, alias)
+                    registered_authenticators.add_authenticator(assertion.credential['id'], user_name, alias)
 
             if 'stateToken' in response_data:
                 return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
