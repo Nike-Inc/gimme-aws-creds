@@ -39,7 +39,7 @@ class WebAuthnClient(object):
         """
         :param okta_org_url: Base URL string for Okta IDP.
         :param challenge: Challenge
-        :param credential_id: FIDO credential ID
+        :param credential_id: FIDO credential ID, or list of FIDO credential IDs.
         """
         self.ui = ui
         self._okta_org_url = okta_org_url
@@ -51,11 +51,16 @@ class WebAuthnClient(object):
         self._assertions = None
         self._client_data = None
         self._rp = {'id': okta_org_url[8:], 'name': okta_org_url[8:]}
+        self._allow_list = []
 
         if credential_id:
-            self._allow_list = [
-                PublicKeyCredentialDescriptor(PublicKeyCredentialType.PUBLIC_KEY, websafe_decode(credential_id))
-            ]
+            if type(credential_id) is list:
+                for id in credential_id:
+                    self._allow_list.append(PublicKeyCredentialDescriptor(PublicKeyCredentialType.PUBLIC_KEY, websafe_decode(id)))
+            else:
+                self._allow_list = [
+                    PublicKeyCredentialDescriptor(PublicKeyCredentialType.PUBLIC_KEY, websafe_decode(credential_id))
+                ]
 
     def locate_device(self):
         # Locate a device
