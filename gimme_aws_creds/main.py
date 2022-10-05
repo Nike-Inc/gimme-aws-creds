@@ -562,8 +562,9 @@ class GimmeAWSCreds(object):
         else:
             okta.set_use_keyring(True)
 
-        if self.conf_dict.get('session_token') is not None and self.conf_dict.get('session_username') is not None:
-            okta.set_session_token(self.conf_dict.get('session_username'), self.conf_dict.get('session_token'))
+        if self.conf_dict.get('disable_session', 'False') not in ('n', 'false', 'False'):
+            if self.conf_dict.get('session_token') is not None and self.conf_dict.get('session_username') is not None:
+                okta.set_session_token(self.conf_dict.get('session_username'), self.conf_dict.get('session_token'))
 
         return okta
 

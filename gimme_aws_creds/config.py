@@ -226,6 +226,7 @@ class Config(object):
                 preferred_mfa_type = Select this MFA device type automatically
                 include_path - (optional) includes that full role path to the role name for profile
                 use_keyring - Enables or disables use of the system keyring
+                disable_session - Disables persistent sessions.
 
         """
         config = configparser.ConfigParser()
@@ -251,6 +252,7 @@ class Config(object):
             'device_token': '',
             'output_format': 'export',
             'use_keyring': 'y',
+            'disable_session': 'n',
         }
 
         # See if a config file already exists.
@@ -296,6 +298,7 @@ class Config(object):
             config_dict['cred_profile'] = defaults['cred_profile']
 
         config_dict['use_keyring'] = self.get_use_keyring(defaults['use_keyring'])
+        config_dict['disable_session'] = self.get_disable_session(defaults['disable_session'])
 
         self.write_config_file(config_dict)
 
@@ -541,6 +544,18 @@ class Config(object):
             try:
                 return self._get_user_input_yes_no(
                     "Use system keyring", default_entry)
+            except ValueError:
+                ui.default.warning("Remember the value must be either y or n.")
+
+    def _get_disable_session(self, default_entry):
+        """Option to disable storing and using the session token between invocations."""
+        ui.default.message(
+            "Do you want to disable storing and using the session token between invocations?\n"
+            "Please answer y or n.")
+        while True:
+            try:
+                return self._get_user_input_yes_no(
+                    "Disable session token storage", default_entry)
             except ValueError:
                 ui.default.warning("Remember the value must be either y or n.")
 

@@ -109,7 +109,7 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - aws_default_duration = This is optional. Lifetime for temporary credentials, in seconds. Defaults to 1 hour (3600)
 - app_url - If using 'appurl' setting for gimme_creds_server, this sets the url to the aws application configured in Okta. It is typically something like <https://something.okta[preview].com/home/amazon_aws/app_instance_id/something>
 - okta_username - use this username to authenticate
-- preferred_mfa_type - automatically select a particular  device when prompted for MFA:
+- preferred_mfa_type - automatically select a particular device when prompted for MFA:
   - push - Okta Verify App push or DUO push (depends on okta supplied provider type)
   - token:software:totp - OTP using the Okta Verify App
   - token:hardware - OTP using hardware like Yubikey
@@ -123,6 +123,7 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - remember_device - y or n. If yes, the MFA device will be remembered by Okta service for a limited time. This option can also be set interactively in the command line using `-m` or `--remember-device`
 - output_format - `json` or `export`, determines default credential output format, can be also specified by `--output-format FORMAT` and `-o FORMAT`.
 - use_keyring - y or n.  Defaults to y.  If n, use of the system keyring for password storage is disabled.
+- disable_session - y or n.  Defaults to n.  If y, disables using the session token between gimmie-aws-creds invocations.
 
 ## Configuration File
 
