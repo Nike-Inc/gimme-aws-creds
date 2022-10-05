@@ -823,11 +823,14 @@ class OktaClient(object):
             # prompting to select another.
             if not preferred_factors:
                 self.ui.notify('Preferred factor type of {} not available.'.format(self._preferred_mfa_type))
+            else:
+                factors = preferred_factors
 
-        if len(preferred_factors) == 1:
-            factor_name = self._build_factor_name(preferred_factors[0])
+        # Don't bother prompting if we only have a single factor option.
+        if len(factors) == 1:
+            factor_name = self._build_factor_name(factors[0])
             self.ui.info(factor_name + ' selected')
-            selection = factors.index(preferred_factors[0])
+            selection = 0
         else:
             self.ui.info("Pick a factor:")
             # print out the factors and let the user select
