@@ -48,7 +48,7 @@ class AwsResolver(object):
             'SAMLResponse': saml_token,
             'RelayState': ''
         }
-        
+
         response = self._http_client.post(
             saml_target_url,
             data=payload,
@@ -58,7 +58,7 @@ class AwsResolver(object):
 
     def _enumerate_saml_roles(self, assertion, saml_target_url):
         signin_page = self.get_signinpage(assertion, saml_target_url)
-        
+
         """ using the assertion to fetch aws sign-in page, parse it and return aws sts creds """
         role_pairs = []
         root = ET.fromstring(base64.b64decode(assertion))
@@ -80,10 +80,10 @@ class AwsResolver(object):
                 raise errors.GimmeAWSCredsError('Parsing error on {}'.format(role_pair))
             else:
                 table[role] = idp
-        
+
         # init parser
         soup = BeautifulSoup(signin_page, 'html.parser')
-        
+
         # find all roles
         roles = soup.find_all("div", attrs={"class": "saml-role"})
         # Normalize pieces of string;
@@ -120,7 +120,7 @@ class AwsResolver(object):
             if not current_account == last_account:
                 role_strs.append(current_account)
                 last_account = current_account
-                
+
             role_strs.append('      [ {} ]: {}'.format(i, role.friendly_role_name))
 
         return role_strs
