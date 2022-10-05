@@ -87,7 +87,9 @@ class WebAuthnClient(object):
                                                        pin=pin)
             self.ui.info('Processing...\n')
             self._assertions = assertion_selection.get_assertions()
-            assert len(self._assertions) >= 0
+            if len(self._assertions) < 0:
+                self.ui.info('No assertions from key.')
+                raise
 
             assertion_res = assertion_selection.get_response(0)
             self._client_data = assertion_res.client_data
