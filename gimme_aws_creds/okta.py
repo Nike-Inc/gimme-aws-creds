@@ -1050,7 +1050,7 @@ class OktaClient(object):
     @staticmethod
     def _extract_state_token_from_http_response(http_res):
         saml_soup = BeautifulSoup(http_res.text, "html.parser")
-        
+
         mfa_string = (
             'Dodatečné ověření',
             'Ekstra verificering',
