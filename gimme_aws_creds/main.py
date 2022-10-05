@@ -505,7 +505,7 @@ class GimmeAWSCreds(object):
         :rtype: dict
         """
         # noinspection PyUnusedLocal
-        config = self.config
+        config = self.config # noqa
         return self._cache['conf_dict']
 
     @property
@@ -800,7 +800,7 @@ class GimmeAWSCreds(object):
         self.handle_action_store_json_creds()
         self.handle_action_list_roles()
         self.handle_setup_fido_authenticator()
-  
+
         # for each data item, if we have an override on output, prioritize that
         # if we do not, prioritize writing credentials to file if that is in our
         # configuration. If we are not writing to a credentials file, use whatever
@@ -836,7 +836,6 @@ class GimmeAWSCreds(object):
                            data['credentials']['aws_session_token'])
             self.ui.result("export AWS_SECURITY_TOKEN=" +
                            data['credentials']['aws_security_token'])
-
 
     def handle_action_configure(self):
         # Create/Update config when configure arg set
@@ -875,7 +874,7 @@ class GimmeAWSCreds(object):
                 self.ui.notify('*** You may be prompted for MFA more than once for this run.\n')
 
             auth_result = self.auth_session
-            base_config = self.config.get_config_dict(include_inherits = False)
+            base_config = self.config.get_config_dict(include_inherits=False)
             base_config['device_token'] = auth_result['device_token']
             self.config.write_config_file(base_config)
             self.okta.device_token = base_config['device_token']
