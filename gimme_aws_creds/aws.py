@@ -39,7 +39,7 @@ class AwsResolver(object):
         # Allow up to 5 retries on requests to AWS in case we have network issues
         self._http_client = requests.Session()
         retries = Retry(total=5, backoff_factor=1,
-                        method_whitelist=['POST'])
+                        allowed_methods=['POST'])
         self._http_client.mount('https://', HTTPAdapter(max_retries=retries))
 
     def get_signinpage(self, saml_token, saml_target_url):

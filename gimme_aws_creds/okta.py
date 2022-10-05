@@ -81,7 +81,7 @@ class OktaClient(object):
         self.device_token = device_token
 
         retries = Retry(total=5, backoff_factor=1,
-                        method_whitelist=['GET', 'POST'])
+                        allowed_methods=['GET', 'POST'])
         self._http_client.mount('https://', HTTPAdapter(max_retries=retries))
 
     @property
