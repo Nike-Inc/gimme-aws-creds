@@ -780,17 +780,43 @@ class OktaClient(object):
 
         self.ui.info("Multi-factor Authentication required.")
 
-        # filter the factor list down to just the types specified in preferred_mfa_type
-        preferred_factors = []
-        # even though duo supports both passcode and push, okta only lists web as an available factor. This if statement
-        # adds the additional supported factors only if the provider is duo, and the web factor is the only one provided
-        if len(factors) == 1 and factors[0].get('provider') == 'DUO' and factors[0].get('factorType') == 'web':
-            push = copy.deepcopy(factors[0])
+        new_factors = []
+        seen_duo_push = False
+        seen_duo_passcode = False
+        seen_duo_web = False
+        duo_web = None
+
+        for factor in factors:
+            skip = False
+            if factor['provider'] == 'DUO':
+                if factor['factorType'] == 'passcode':
+                    seen_duo_passcode = True
+                elif factor['factorType'] == 'push':
+                    seen_duo_push = True
+                elif factor['factorType'] == 'web':
+                    seen_duo_web = True
+                    duo_web = factor
+
+            if not skip:
+                new_factors.append(factor)
+
+        # Even though duo supports both passcode and push, okta only lists web as an available factor.
+
+        # If we received due web and not due push, add due push anyhow.
+        if seen_duo_web and not seen_duo_push:
+            push = copy.deepcopy(duo_web)
             push['factorType'] = "push"
-            factors.append(push)
-            passcode = copy.deepcopy(factors[0])
+            new_factors.append(push)
+
+        # If we received due web and not due push, add due passcode anyhow.
+        if seen_duo_web and not seen_duo_passcode:
+            passcode = copy.deepcopy(duo_web)
             passcode['factorType'] = "passcode"
-            factors.append(passcode)
+            new_factors.append(passcode)
+
+        factors = new_factors
+
+        # filter the factor list down to just the types specified in preferred_mfa_type
         if self._preferred_mfa_type is not None:
             preferred_factors = list(filter(lambda item: item['factorType'] == self._preferred_mfa_type, factors))
             # If the preferred factor isn't in the list of available factors, we'll let the user know before
