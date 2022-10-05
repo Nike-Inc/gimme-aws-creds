@@ -692,7 +692,8 @@ class OktaClient(object):
         auth_data = base64.b64encode(assertion.auth_data).decode('utf-8')
 
         response = self._http_client.post(
-            login_data['_links']['next']['href'] + "?rememberDevice=false",
+            login_data['_links']['next']['href'],
+            params={'rememberDevice': self._remember_device},
             json={'stateToken': state_token, 'clientData': client_data, 'signatureData': signature_data,
                   'authenticatorData': auth_data},
             headers=self._get_headers(),
