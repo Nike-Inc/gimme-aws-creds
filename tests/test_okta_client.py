@@ -11,7 +11,7 @@ from urllib.parse import quote
 import requests
 import responses
 from fido2.attestation import PackedAttestation
-from fido2.ctap2 import AttestationObject, AuthenticatorData, AttestedCredentialData
+from fido2.webauthn import AttestationObject, AuthenticatorData, AttestedCredentialData
 
 from gimme_aws_creds import errors, ui
 from gimme_aws_creds.okta import OktaClient

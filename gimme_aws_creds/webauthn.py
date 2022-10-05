@@ -18,12 +18,14 @@ from threading import Event, Thread
 from ctap_keyring_device.ctap_keyring_device import CtapKeyringDevice
 from ctap_keyring_device.ctap_strucs import CtapOptions
 from fido2 import cose
-from fido2.client import Fido2Client, ClientError
+from fido2.client import Fido2Client, ClientError, UserInteraction
+from fido2.ctap2.pin import ClientPin
 from fido2.hid import CtapHidDevice, STATUS
 from fido2.utils import websafe_decode
 from fido2.webauthn import PublicKeyCredentialCreationOptions, \
     PublicKeyCredentialType, PublicKeyCredentialParameters, PublicKeyCredentialDescriptor, UserVerificationRequirement
 from fido2.webauthn import PublicKeyCredentialRequestOptions
+from typing import Optional
 
 from gimme_aws_creds.errors import NoFIDODeviceFoundError, FIDODeviceTimeoutError
 
@@ -32,6 +34,34 @@ class FakeAssertion(object):
     def __init__(self):
         self.signature = b'fake'
         self.auth_data = b'fake'
+
+
+class UI(UserInteraction):
+    def __init__(self, ui):
+        self.ui = ui
+        self._has_prompted = False
+
+    def prompt_up(self) -> None:
+        if not self._has_prompted:
+            self.ui.info('\nTouch your authenticator device now...\n')
+            self._has_prompted = True
+
+    def request_pin(
+        self, permissions: ClientPin.PERMISSION, rp_id: Optional[str]
+    ) -> Optional[str]:
+        """Called when the client requires a PIN from the user.
+
+        Should return a PIN, or None/Empty to cancel."""
+        return pwinput.pwinput("Please enter PIN: ")
+
+    def request_uv(
+        self, permissions: ClientPin.PERMISSION, rp_id: Optional[str]
+    ) -> bool:
+        """Called when the client is about to request UV from the user.
+
+        Should return True if allowed, or False to cancel."""
+        self.ui.info("User Verification requested.")
+        return True
 
 
 class WebAuthnClient(object):
@@ -52,6 +82,7 @@ class WebAuthnClient(object):
         self._client_data = None
         self._rp = {'id': okta_org_url[8:], 'name': okta_org_url[8:]}
         self._allow_list = []
+        self.user_interaction = UI(ui=ui)
 
         if credential_id:
             if type(credential_id) is list:
@@ -68,7 +99,7 @@ class WebAuthnClient(object):
         if not devs:
             devs = CtapKeyringDevice.list_devices()
 
-        self._clients = [Fido2Client(d, self._okta_org_url) for d in devs]
+        self._clients = [Fido2Client(device=d, origin=self._okta_org_url, user_interaction=self.user_interaction) for d in devs]
 
     def on_keepalive(self, status):
         if status == STATUS.UPNEEDED and not self._has_prompted:
@@ -86,10 +117,7 @@ class WebAuthnClient(object):
                                                         allow_credentials=self._allow_list, timeout=self._timeout_ms,
                                                         user_verification=user_verification)
 
-            pin = self._get_pin_from_client(client)
-            assertion_selection = client.get_assertion(options, event=self._event,
-                                                       on_keepalive=self.on_keepalive,
-                                                       pin=pin)
+            assertion_selection = client.get_assertion(options, event=self._event)
             self.ui.info('Processing...\n')
             self._assertions = assertion_selection.get_assertions()
             if len(self._assertions) < 0:
@@ -119,10 +147,7 @@ class WebAuthnClient(object):
         options = PublicKeyCredentialCreationOptions(self._rp, user, self._challenge, pub_key_cred_params,
                                                      timeout=self._timeout_ms)
 
-        pin = self._get_pin_from_client(client)
-        attestation_res = client.make_credential(options, event=self._event,
-                                                 on_keepalive=self.on_keepalive,
-                                                 pin=pin)
+        attestation_res = client.make_credential(options, event=self._event)
 
         self._attestation, self._client_data = attestation_res.attestation_object, attestation_res.client_data
         self._event.set()
@@ -147,15 +172,6 @@ class WebAuthnClient(object):
         if not self._event.is_set():
             self.ui.info('Operation timed out or no valid Security Key found !')
             raise FIDODeviceTimeoutError
-
-    @staticmethod
-    def _get_pin_from_client(client):
-        if not client.info.options.get(CtapOptions.CLIENT_PIN):
-            return None
-
-        # Prompt for PIN if needed
-        pin = pwinput.pwinput("Please enter PIN: ")
-        return pin
 
     @staticmethod
     def _get_user_verification_requirement_from_client(client):
