@@ -259,14 +259,14 @@ class TestOktaClient(unittest.TestCase):
         result = self.client._get_initial_flow_state(self.server_embed_link)
         self.assertEqual(result, {'stateToken': self.state_token, 'apiResponse': auth_response})
 
-    @patch('getpass.getpass', return_value='1234qwert')
+    @patch('pwinput.pwinput', return_value='1234qwert')
     @patch('builtins.input', return_value='ann@example.com')
     def test_get_username_password_creds(self, mock_pass, mock_input):
         """Test that initial authentication works with Okta"""
         result = self.client._get_username_password_creds()
         self.assertDictEqual(result, {'username': 'ann@example.com', 'password': '1234qwert' })
 
-    @patch('getpass.getpass', return_value='1234qwert')
+    @patch('pwinput.pwinput', return_value='1234qwert')
     @patch('builtins.input', return_value='')
     def test_passed_username(self, mock_pass, mock_input):
         """Test that initial authentication works with Okta"""
@@ -274,14 +274,14 @@ class TestOktaClient(unittest.TestCase):
         result = self.client._get_username_password_creds()
         self.assertDictEqual(result, {'username': 'ann@example.com', 'password': '1234qwert' })
 
-#    @patch('getpass.getpass', return_value='1234qwert')
+#    @patch('pwinput.pwinput', return_value='1234qwert')
 #    @patch('builtins.input', return_value='ann')
 #    def test_bad_username(self, mock_pass, mock_input):
 #        """Test that initial authentication works with Okta"""
 #        with self.assertRaises(errors.GimmeAWSCredsExitBase):
 #            self.client._get_username_password_creds()
 
-    @patch('getpass.getpass', return_value='')
+    @patch('pwinput.pwinput', return_value='')
     @patch('builtins.input', return_value='ann@example.com')
     def test_missing_password(self, mock_pass, mock_input):
         """Test that initial authentication works with Okta"""
@@ -289,7 +289,7 @@ class TestOktaClient(unittest.TestCase):
             self.client._get_username_password_creds()
 
     @responses.activate
-    @patch('getpass.getpass', return_value='1234qwert')
+    @patch('pwinput.pwinput', return_value='1234qwert')
     @patch('builtins.input', return_value='ann@example.com')
     def test_login_username_password(self, mock_pass, mock_input):
         """Test that initial authentication works with Okta"""
@@ -537,7 +537,7 @@ class TestOktaClient(unittest.TestCase):
         assert result == {'stateToken': self.state_token, 'apiResponse': verify_response}
 
     @responses.activate
-    @patch('getpass.getpass', return_value='1234qwert')
+    @patch('pwinput.pwinput', return_value='1234qwert')
     def test_login_input_mfa_challenge(self, mock_pass):
         """Test that MFA works with Okta"""
 
@@ -695,7 +695,7 @@ class TestOktaClient(unittest.TestCase):
 
     @responses.activate
     @patch('builtins.input', return_value='ann@example.com')
-    @patch('getpass.getpass', return_value='1234qwert')
+    @patch('pwinput.pwinput', return_value='1234qwert')
     @patch('gimme_aws_creds.webauthn.WebAuthnClient.make_credential', return_value=(b'', AttestationObject.create(
         PackedAttestation.FORMAT, AuthenticatorData.create(
             hashlib.sha256(b'example.okta.com').digest(),

@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and* limitations
 """
 import base64
 import copy
-import getpass
+import pwinput
 import re
 import socket
 import time
@@ -900,7 +900,7 @@ class OktaClient(object):
             # via OKTA_USERNAME env and user might not remember.
             for x in range(0, 5):
                 passwd_prompt = "Okta Password for {}: ".format(username)
-                password = getpass.getpass(prompt=passwd_prompt)
+                password = pwinput.pwinput(prompt=passwd_prompt)
                 if len(password) > 0:
                     break
 

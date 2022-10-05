@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and* limitations
 
 from __future__ import print_function, absolute_import, unicode_literals
 
-from getpass import getpass
+import pwinput
 from threading import Event, Thread
 
 from ctap_keyring_device.ctap_keyring_device import CtapKeyringDevice
@@ -147,7 +147,7 @@ class WebAuthnClient(object):
             return None
 
         # Prompt for PIN if needed
-        pin = getpass("Please enter PIN: ")
+        pin = pwinput.pwinput("Please enter PIN: ")
         return pin
 
     @staticmethod
