@@ -314,10 +314,15 @@ class OktaClient(object):
         elif status == 'MFA_REQUIRED':
             return self._login_multi_factor(state_token, login_data)
         elif status == 'MFA_CHALLENGE':
-            if login_data['_embedded']['factor']['factorType'] == 'u2f':
-                return self._check_u2f_result(state_token, login_data)
-            if login_data['_embedded']['factor']['factorType'] == 'webauthn':
+            if 'factor' in login_data['_embedded']:
+                if login_data['_embedded']['factor']['factorType'] == 'u2f':
+                    return self._check_u2f_result(state_token, login_data)
+                if login_data['_embedded']['factor']['factorType'] == 'webauthn':
+                    return self._check_webauthn_result(state_token, login_data)
+            # This assumes that if there are multiple factors, they are all of the same type.
+            elif 'factors' in login_data['_embedded'] and login_data['_embedded']['factors'][0]['factorType'] == 'webauthn':
                 return self._check_webauthn_result(state_token, login_data)
+
             if 'factorResult' in login_data and login_data['factorResult'] == 'WAITING':
                 return self._check_push_result(state_token, login_data)
             else:
@@ -662,11 +667,19 @@ class OktaClient(object):
     def _check_webauthn_result(self, state_token, login_data):
         """ wait for webauthN challenge """
 
-        nonce = login_data['_embedded']['factor']['_embedded']['challenge']['challenge']
-        credential_id = login_data['_embedded']['factor']['profile']['credentialId']
+        cred_list = []
+        nonce = ''
+
+        if 'factor' in login_data['_embedded']:
+            cred_list.append(login_data['_embedded']['factor']['profile']['credentialId'])
+            nonce = login_data['_embedded']['factor']['_embedded']['challenge']['challenge']
+        elif 'factors' in login_data['_embedded']:
+            for factor in login_data['_embedded']['factors']:
+                cred_list.append(factor['profile']['credentialId'])
+            nonce = login_data['_embedded']['challenge']['challenge']
 
         """ Authenticator """
-        webauthn_client = WebAuthnClient(self.ui, self._okta_org_url, nonce, credential_id)
+        webauthn_client = WebAuthnClient(self.ui, self._okta_org_url, nonce, cred_list)
         # noinspection PyBroadException
         try:
             client_data, assertion = webauthn_client.verify()
@@ -781,6 +794,7 @@ class OktaClient(object):
         self.ui.info("Multi-factor Authentication required.")
 
         new_factors = []
+        seen_webauthn = False
         seen_duo_push = False
         seen_duo_passcode = False
         seen_duo_web = False
@@ -788,7 +802,17 @@ class OktaClient(object):
 
         for factor in factors:
             skip = False
-            if factor['provider'] == 'DUO':
+            # Collapse together multiple webauthn entries, so the user isn't
+            # asked to pick which webauthn key is plugged in.
+            if factor['provider'] == 'FIDO':
+                if factor['factorType'] == 'webauthn':
+                    if not seen_webauthn:
+                        seen_webauthn = True
+                        factor['profile']['authenticatorName'] = 'Any configured key'
+                        factor['_links']['verify']['href'] = self._okta_org_url + '/api/v1/authn/factors/webauthn/verify'
+                    else:
+                        skip = True
+            elif factor['provider'] == 'DUO':
                 if factor['factorType'] == 'passcode':
                     seen_duo_passcode = True
                 elif factor['factorType'] == 'push':
