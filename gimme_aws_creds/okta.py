@@ -72,6 +72,9 @@ class OktaClient(object):
         self._oauth_access_token = None
         self._oauth_id_token = None
 
+        self._session_username = None
+        self._session_token = None
+
         self._jar = requests.cookies.RequestsCookieJar()
 
         # Allow up to 5 retries on requests to Okta in case we have network issues
@@ -93,6 +96,13 @@ class OktaClient(object):
         if device_token is not None:
             match = re.search(r'^https://(.*)/?', self._okta_org_url)
             self._http_client.cookies.set('DT', device_token, domain=match.group(1), path='/')
+
+    def set_session_token(self, username, session):
+        if self._username is not None and self._username != username:
+            # If the username has changed, the session token is not valid.
+            return
+        self._session_username = username
+        self._session_token = session
 
     def set_username(self, username):
         self._username = username
@@ -164,6 +174,26 @@ class OktaClient(object):
 
     def auth_session(self, **kwargs):
         """ Authenticate the user and return the Okta Session ID and username"""
+        if self._session_username is not None and self._session_token is not None:
+            match = re.search(r'^https://(.*)/?', self._okta_org_url)
+            self._http_client.cookies.set('sid', self._session_token, domain=match.group(1), path='/')
+            session_url = self._okta_org_url + '/api/v1/sessions/me/lifecycle/refresh'
+            response = self._http_client.post(
+                session_url,
+                headers=self._get_headers(),
+                verify=self._verify_ssl_certs,
+                allow_redirects=False
+            )
+            if response.status_code == 200:
+                self.set_username(self._session_username)
+                return {
+                    "username": self._session_username,
+                    "session": self._session_token,
+                    "device_token": self._http_client.cookies['DT']
+                }
+            else:
+                self._http_client.cookies.clear(name='sid', domain=match.group(1), path='/')
+
         login_response = self.auth()
 
         session_url = self._okta_org_url + '/login/sessionCookieRedirect'

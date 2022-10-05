@@ -562,6 +562,9 @@ class GimmeAWSCreds(object):
         else:
             okta.set_use_keyring(True)
 
+        if self.conf_dict.get('session_token') is not None and self.conf_dict.get('session_username') is not None:
+            okta.set_session_token(self.conf_dict.get('session_username'), self.conf_dict.get('session_token'))
+
         return okta
 
     def get_resolver(self):
@@ -580,6 +583,13 @@ class GimmeAWSCreds(object):
 
     def set_auth_session(self, auth_session):
         self._cache['auth_session'] = auth_session
+
+        okta = self._cache['okta']
+        base_config = self.config.get_config_dict(include_inherits=False)
+        base_config['session_username'] = auth_session['username']
+        base_config['session_token'] = auth_session['session']
+        self.config.write_config_file(base_config)
+        okta.set_session_token(base_config.get('session_username'), base_config.get('session_token'))
 
     @property
     def auth_session(self):
