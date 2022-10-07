@@ -175,7 +175,7 @@ class Config(object):
             self.roles = [role.strip() for role in args.roles.split(',') if role.strip()]
         self.conf_profile = args.profile or 'DEFAULT'
 
-    def _handle_config(self, config, profile_config, include_inherits = True):
+    def _handle_config(self, config, profile_config, include_inherits=True):
         if "inherits" in profile_config.keys() and include_inherits:
             self.ui.message("Using inherited config: " + profile_config["inherits"])
             if profile_config["inherits"] not in config:
@@ -189,7 +189,7 @@ class Config(object):
         else:
             return profile_config
 
-    def get_config_dict(self, include_inherits = True):
+    def get_config_dict(self, include_inherits=True):
         """returns the conf dict from the okta config file"""
         # Check to see if config file exists, if not complain and exit
         # If config file does exist return config dict from file
