@@ -314,8 +314,13 @@ class Config(object):
             okta_org_url = self._get_user_input("Okta URL for your organization", default_entry).strip('/')
             # Validate that okta_org_url is a well formed okta URL
             url_parse_results = urlparse(okta_org_url)
+            allowlist = [
+                "okta.com",
+                "oktapreview.com",
+                "okta-emea.com",
+            ]
 
-            if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" or "okta-emea.com" in okta_org_url:
+            if url_parse_results.scheme == "https" and okta_org_url in allowlist:
                 okta_org_url_valid = True
             else:
                 ui.default.error(
@@ -355,8 +360,13 @@ class Config(object):
         while okta_org_url_valid is False:
             app_url = self._get_user_input("Application url", default_entry)
             url_parse_results = urlparse(app_url)
+            allowlist = [
+                "okta.com",
+                "oktapreview.com",
+                "okta-emea.com",
+            ]
 
-            if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" or "okta-emea.com" in app_url:
+            if url_parse_results.scheme == "https" and app_url in allowlist:
                 okta_org_url_valid = True
             else:
                 ui.default.warning(
