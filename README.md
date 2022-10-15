@@ -55,6 +55,66 @@ brew install gimme-aws-creds
 
 __OR__
 
+Use with nix flakes
+```bash
+# flake.nix
+# Use by running `nix develop`
+{
+  description = "Shell example";
+
+  inputs.flake-utils.url = "github:numtide/flake-utils";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+  inputs.gimme-aws-creds.url = "github:Nike-Inc/gimme-aws-creds";
+
+  outputs = {
+    self,
+    nixpkgs,
+    flake-utils,
+    gimme-aws-creds,
+    ...
+  } @ inputs:
+    flake-utils.lib.eachDefaultSystem
+    (
+      system: let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in {
+        devShells.default = pkgs.mkShell {
+          packages = [pkgs.bash gimme-aws-creds.defaultPackage.${system}];
+        };
+      }
+    );
+}
+```
+
+__OR__
+
+Use with original nix
+```bash
+# shell.nix
+# Use by running `nix-shell`
+{pkgs ? import <nixpkgs> {}, ...}:
+with pkgs; let
+  gimme-src = fetchgit {
+    name = "gimme-aws-creds";
+    url = "https://github.com/Nike-Inc/gimme-aws-creds";
+    branchName = "master";
+    sha256 = "<replace>"; #nix-prefetch-url --unpack https://github.com/Nike-Inc/gimme-aws-creds/archive/master.tar.gz
+  };
+
+  gimme-aws-creds = import gimme-src;
+in
+  mkShell rec {
+    name = "gimme-aws-creds";
+
+    buildInputs = [
+      bash
+      (gimme-aws-creds.default)
+    ];
+  }
+```
+
+__OR__
+
 Build the docker image locally:
 
 ```bash
