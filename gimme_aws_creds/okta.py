@@ -646,13 +646,13 @@ class OktaClient(object):
         response_data = response.json()
 
         # We could check for the existence of every layer...
-        # Or we can just catch AttributeError and pass, with a nosec comment.
+        # Or we can just catch KeyError and pass, with a nosec comment.
         try:
             if response_data['_embedded']['factor']['_embedded']['challenge']['correctAnswer']:
                 if self._print_correct_answer:
                     self._print_correct_answer(response_data['_embedded']['factor']['_embedded']['challenge']['correctAnswer'])
                     self._print_correct_answer = None
-        except AttributeError:  # nosec
+        except KeyError:  # nosec
             pass
 
         if 'stateToken' in response_data:
