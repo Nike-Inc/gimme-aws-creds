@@ -319,6 +319,10 @@ class GimmeAWSCreds(object):
         if len(aws_info) == 1:
             return aws_info[0]  # auto select when only 1 choice
 
+        if self.config.okta_app is not None:
+            self.ui.info("Detected app in config: {}".format(aws_info[self.config.okta_app]['name']))
+            return aws_info[self.config.okta_app]
+
         app_strs = []
         for i, app in enumerate(aws_info):
             app_strs.append('[{}] {}'.format(i, app["name"]))
@@ -414,6 +418,10 @@ class GimmeAWSCreds(object):
             single_role = roles[0].role
             self.ui.info("Detected single role: {}".format(single_role))
             return {single_role}
+
+        if self.config.okta_role is not None:
+            self.ui.info("Detected role in config: {}".format(roles[self.config.okta_role].role))
+            return {roles[self.config.okta_role].role}
 
         # Gather the roles available to the user.
         role_strs = self.resolver._display_role(roles)
@@ -548,6 +556,9 @@ class GimmeAWSCreds(object):
 
         if self.conf_dict.get('preferred_mfa_type'):
             okta.set_preferred_mfa_type(self.conf_dict['preferred_mfa_type'])
+
+        if self.conf_dict.get('preffered_mfa_provider'):
+            okta.set_preferred_mfa_provider(self.conf_dict['preffered_mfa_provider'])
 
         if self.config.mfa_code is not None:
             okta.set_mfa_code(self.config.mfa_code)

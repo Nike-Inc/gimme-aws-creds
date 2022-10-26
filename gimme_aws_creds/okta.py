@@ -63,6 +63,7 @@ class OktaClient(object):
         self._username = None
         self._password = None
         self._preferred_mfa_type = None
+        self._preferred_mfa_provider = None
         self._mfa_code = None
         self._remember_device = None
 
@@ -101,6 +102,9 @@ class OktaClient(object):
 
     def set_preferred_mfa_type(self, preferred_mfa_type):
         self._preferred_mfa_type = preferred_mfa_type
+
+    def set_preferred_mfa_provider(self, preferred_mfa_provider):
+        self._preferred_mfa_provider = preferred_mfa_provider
 
     def set_mfa_code(self, mfa_code):
         self._mfa_code = mfa_code
@@ -787,6 +791,9 @@ class OktaClient(object):
             factor_name = self._build_factor_name(preferred_factors[0])
             self.ui.info(factor_name + ' selected')
             selection = factors.index(preferred_factors[0])
+        elif self._preferred_mfa_provider is not None:
+            self.ui.info('Detected preferred provider in config: {}'.format(self._preferred_mfa_provider))
+            selection = factors.index([v for v in factors if v['provider'] == self._preferred_mfa_provider][0])
         else:
             self.ui.info("Pick a factor:")
             # print out the factors and let the user select
@@ -1028,7 +1035,7 @@ class OktaClient(object):
     @staticmethod
     def _extract_state_token_from_http_response(http_res):
         saml_soup = BeautifulSoup(http_res.text, "html.parser")
-        
+
         mfa_string = (
             'Dodatečné ověření',
             'Ekstra verificering',
