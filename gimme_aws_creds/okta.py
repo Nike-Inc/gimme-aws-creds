@@ -938,6 +938,10 @@ class OktaClient(object):
         elif factor['factorType'] == 'u2f':
             return factor['factorType'] + ": " + factor['factorType']
         elif factor['factorType'] == 'webauthn':
+            default_factor_name = factor['profile'].get('authenticatorName') or factor['factorType']
+            if default_factor_name == "Any configured key":
+                return factor['factorType'] + ": " + default_factor_name
+
             factor_name = None
             try:
                 registered_authenticators = RegisteredAuthenticators(self.ui)
@@ -953,7 +957,6 @@ class OktaClient(object):
                 self.ui.info("Error getting authenticator name: {}".format(e))
                 pass
 
-            default_factor_name = factor['profile'].get('authenticatorName') or factor['factorType']
             factor_name = factor_name or default_factor_name
 
             return factor['factorType'] + ": " + factor_name
