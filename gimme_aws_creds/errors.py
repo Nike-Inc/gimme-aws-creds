@@ -70,6 +70,10 @@ class NoFIDODeviceFoundError(Exception):
     pass
 
 
+class NoEligibleFIDODeviceFoundError(Exception):
+    pass
+
+
 class FIDODeviceTimeoutError(Exception):
     pass
 
