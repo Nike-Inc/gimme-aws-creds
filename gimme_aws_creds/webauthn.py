@@ -34,10 +34,14 @@ class UI(UserInteraction):
     def __init__(self, ui):
         self.ui = ui
         self._has_prompted = False
+        self._prompt_text = ""
+
+    def set_prompt_text(self, text):
+        self._prompt_text = text
 
     def prompt_up(self) -> None:
         if not self._has_prompted:
-            self.ui.info('\nTouch your authenticator device now...\n')
+            self.ui.info('\nTouch your {} now...\n'.format(self._prompt_text))
             self._has_prompted = True
 
     def request_pin(
@@ -101,6 +105,7 @@ class WebAuthnClient(object):
             self._has_prompted = True
 
     def verify(self):
+        self.user_interaction.set_prompt_text("registered authentication device")
         self._run_in_thread(self._verify)
         return self._client_data, self._assertions[0]
 
@@ -133,6 +138,7 @@ class WebAuthnClient(object):
                 return
 
     def make_credential(self, user):
+        self.user_interaction.set_prompt_text("new authentication device")
         self._run_in_thread(self._make_credential, user)
         return self._client_data, self._attestation.with_string_keys()
 
