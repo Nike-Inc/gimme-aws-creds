@@ -174,7 +174,7 @@ class OktaClient(object):
 
     def auth_session(self, **kwargs):
         """ Authenticate the user and return the Okta Session ID and username"""
-        if self._session_username is not None and self._session_token is not None:
+        if self._session_username is not None and self._session_token is not None and self._session_username == self._username:
             match = re.search(r'^https://(.*)/?', self._okta_org_url)
             self._http_client.cookies.set('sid', self._session_token, domain=match.group(1), path='/')
             session_url = self._okta_org_url + '/api/v1/sessions/me/lifecycle/refresh'
@@ -185,7 +185,6 @@ class OktaClient(object):
                 allow_redirects=False
             )
             if response.status_code == 200:
-                self.set_username(self._session_username)
                 return {
                     "username": self._session_username,
                     "session": self._session_token,
