@@ -120,19 +120,21 @@ class WebAuthnClient(object):
             self.ui.info('Processing...\n')
             self._assertions = assertion_selection.get_assertions()
             if len(self._assertions) < 0:
-                self.ui.info('No assertions from key.')
-                raise
+                self._exception.append(RuntimeError("No assertions from key."))
+                return
 
             assertion_res = assertion_selection.get_response(0)
             self._client_data = assertion_res.client_data
             self._event.set()
         except ClientError as e:
             if e.code == ClientError.ERR.DEVICE_INELIGIBLE:
-                self.ui.info('Security key is ineligible')  # TODO extract key info
+                self.ui.info('Security key is ineligible: {}\n'.format(e.cause))
+                self._exception.append(NoEligibleFIDODeviceFoundError("Security key is ineligible: {}".format(e.cause)))
                 return
 
             elif e.code != ClientError.ERR.TIMEOUT:
-                raise
+                self._exception.append(e)
+                return
 
             else:
                 return
