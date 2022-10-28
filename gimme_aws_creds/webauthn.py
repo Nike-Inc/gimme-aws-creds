@@ -193,7 +193,6 @@ class WebAuthnClient(object):
             elif e.code == ClientError.ERR.TIMEOUT:
                 return
             else:
-                self.ui.info("Exception: {}\n".format(e))
                 self._exception.append(e)
                 return
 
