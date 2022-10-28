@@ -30,12 +30,6 @@ from typing import Optional
 from gimme_aws_creds.errors import NoFIDODeviceFoundError, FIDODeviceTimeoutError
 
 
-class FakeAssertion(object):
-    def __init__(self):
-        self.signature = b'fake'
-        self.auth_data = b'fake'
-
-
 class UI(UserInteraction):
     def __init__(self, ui):
         self.ui = ui
