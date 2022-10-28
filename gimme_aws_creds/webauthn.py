@@ -94,8 +94,10 @@ class WebAuthnClient(object):
     def locate_device(self):
         # Locate a device
         devs = list(CtapHidDevice.list_devices())
-        if not devs:
-            devs = CtapKeyringDevice.list_devices()
+        try:
+            devs += list(CtapKeyringDevice.list_devices())
+        except (TypeError, ValueError):
+            self.ui.info("PR not yet merged, keyring devices will not be found.  https://github.com/dany74q/ctap-keyring-device/pull/10")
 
         self._clients = [Fido2Client(device=d, origin=self._okta_org_url, user_interaction=self.user_interaction) for d in devs]
 
