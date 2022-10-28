@@ -27,7 +27,7 @@ from fido2.webauthn import PublicKeyCredentialCreationOptions, \
 from fido2.webauthn import PublicKeyCredentialRequestOptions
 from typing import Optional
 
-from gimme_aws_creds.errors import NoFIDODeviceFoundError, FIDODeviceTimeoutError
+from gimme_aws_creds.errors import NoFIDODeviceFoundError, FIDODeviceTimeoutError, NoEligibleFIDODeviceFoundError, FIDODeviceError
 
 
 class UI(UserInteraction):
@@ -80,6 +80,7 @@ class WebAuthnClient(object):
         self._client_data = None
         self._rp = {'id': okta_org_url[8:], 'name': okta_org_url[8:]}
         self._allow_list = []
+        self._exception = None
         self.user_interaction = UI(ui=ui)
 
         if credential_id:
@@ -151,24 +152,36 @@ class WebAuthnClient(object):
 
     def _run_in_thread(self, method, *args, **kwargs):
         # If authenticator is not found, prompt
-        try:
-            self.locate_device()
-        except NoFIDODeviceFoundError:
+        self.locate_device()
+
+        if self._clients == []:
             self.ui.input('Please insert your security key and press enter...')
             self.locate_device()
 
+        if self._clients == []:
+            raise NoFIDODeviceFoundError("No authentication device found.")
+
+        self._exception = []
         threads = []
         for client in self._clients:
             t = Thread(target=method, args=(client,) + args, kwargs=kwargs)
+            self.ui.info("Added client.")
             threads.append(t)
             t.start()
 
         for t in threads:
             t.join()
-
         if not self._event.is_set():
-            self.ui.info('Operation timed out or no valid Security Key found !')
-            raise FIDODeviceTimeoutError
+            main_error = FIDODeviceTimeoutError('Operation timed out')
+
+            for e in self._exception:
+                if isinstance(e, NoEligibleFIDODeviceFoundError) and not isinstance(main_error, FIDODeviceError):
+                    main_error = NoEligibleFIDODeviceFoundError('No eligible authentication devices found.')
+                elif not isinstance(e, FIDODeviceTimeoutError):
+                    main_error = FIDODeviceError("Error: {}".format(e))
+                    self.ui.info("Error from Webauthn key: {}".format(e))
+
+            raise main_error
 
     @staticmethod
     def _get_user_verification_requirement_from_client(client):
