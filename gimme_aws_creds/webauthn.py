@@ -13,17 +13,19 @@ See the License for the specific language governing permissions and* limitations
 from __future__ import print_function, absolute_import, unicode_literals
 
 import pwinput
+import humps
+
 from threading import Event, Thread
 
 from ctap_keyring_device.ctap_keyring_device import CtapKeyringDevice
 from ctap_keyring_device.ctap_strucs import CtapOptions
-from fido2 import cose
 from fido2.client import Fido2Client, ClientError, UserInteraction
 from fido2.ctap2.pin import ClientPin
-from fido2.hid import CtapHidDevice, STATUS
+from fido2.hid import CtapHidDevice
 from fido2.utils import websafe_decode
 from fido2.webauthn import PublicKeyCredentialCreationOptions, \
-    PublicKeyCredentialType, PublicKeyCredentialParameters, PublicKeyCredentialDescriptor, UserVerificationRequirement
+    PublicKeyCredentialType, PublicKeyCredentialParameters, PublicKeyCredentialDescriptor, UserVerificationRequirement, \
+    PublicKeyCredentialUserEntity, AuthenticatorSelectionCriteria
 from fido2.webauthn import PublicKeyCredentialRequestOptions
 from typing import Optional
 
@@ -135,17 +137,63 @@ class WebAuthnClient(object):
             else:
                 return
 
-    def make_credential(self, user):
+    def make_credential(self, activation):
         self.user_interaction.set_prompt_text("new authentication device")
-        self._run_in_thread(self._make_credential, user)
-        return self._client_data, self._attestation.with_string_keys()
+        self._run_in_thread(self._make_credential, activation)
+        return self._client_data, self._attestation
 
-    def _make_credential(self, client, user):
-        pub_key_cred_params = [PublicKeyCredentialParameters(PublicKeyCredentialType.PUBLIC_KEY, cose.ES256.ALGORITHM)]
-        options = PublicKeyCredentialCreationOptions(self._rp, user, self._challenge, pub_key_cred_params,
-                                                     timeout=self._timeout_ms)
+    def _make_credential(self, client, activation):
+        # Generate the list of acceptable key parameters from the Okta JSON.
+        pub_key_cred_params = []
+        for param in activation['pubKeyCredParams']:
+            pub_key_cred_params.append(PublicKeyCredentialParameters(**param))
 
-        attestation_res = client.make_credential(options, event=self._event)
+        # Generate the list of excluded key IDs, if any, from the Okta JSON.
+        # This will generally include all currently enrolled keys.
+        exclude = []
+        for id in activation['excludeCredentials']:
+            exclude.append(PublicKeyCredentialDescriptor(id['type'], websafe_decode(id['id'])))
+
+        # Generate the user entity from the Okta JSON.
+        # Note:
+        # display_name has a different name in the JSON, I'm not sure if it can be absent entirely.
+        # id must be converted to bytes, not passed directly, otherwise things will fail.
+        user_json = humps.decamelize(activation['user'])
+        user_json['id'] = bytes(user_json['id'], encoding='utf-8')
+        user = PublicKeyCredentialUserEntity(**user_json)
+
+        # Generate the authn selection from the Okta JSON, decamelized.
+        selection_json = humps.decamelize(activation['authenticatorSelection'])
+        # Work around https://github.com/Yubico/python-fido2/issues/162
+        if not (client.info.options.get("uv") or client.info.options.get("pinUvAuthToken")):
+            selection_json['user_verification'] = None
+
+        auth_selection = AuthenticatorSelectionCriteria(**selection_json)
+
+        # And build the public key credential creation options.
+        options = PublicKeyCredentialCreationOptions(
+            rp=self._rp,
+            user=user,
+            challenge=self._challenge,
+            pub_key_cred_params=activation['pubKeyCredParams'],
+            timeout=self._timeout_ms,
+            exclude_credentials=exclude,
+            attestation=activation['attestation'],
+            authenticator_selection=auth_selection)
+
+        try:
+            attestation_res = client.make_credential(options, event=self._event)
+        except ClientError as e:
+            if e.code == ClientError.ERR.DEVICE_INELIGIBLE:
+                self.ui.info('Security key is ineligible: {}\n'.format(e.cause))
+                self._exception.append(NoEligibleFIDODeviceFoundError("Security key is ineligible: {}".format(e.cause)))
+                return
+            elif e.code == ClientError.ERR.TIMEOUT:
+                return
+            else:
+                self.ui.info("Exception: {}\n".format(e))
+                self._exception.append(e)
+                return
 
         self._attestation, self._client_data = attestation_res.attestation_object, attestation_res.client_data
         self._event.set()
