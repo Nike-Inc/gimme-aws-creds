@@ -31,9 +31,9 @@ from keyring.errors import PasswordDeleteError
 from requests.adapters import HTTPAdapter, Retry
 
 from gimme_aws_creds.u2f import FactorU2F
-from gimme_aws_creds.webauthn import WebAuthnClient, FakeAssertion
+from gimme_aws_creds.webauthn import WebAuthnClient
 from . import errors, version, duo
-from .errors import GimmeAWSCredsMFAEnrollStatus
+from .errors import GimmeAWSCredsMFAEnrollStatus, NoFIDODeviceFoundError, FIDODeviceTimeoutError, GimmeAWSCredsExitError, FIDODeviceError, NoEligibleFIDODeviceFoundError
 from .registered_authenticators import RegisteredAuthenticators
 
 
@@ -710,12 +710,16 @@ class OktaClient(object):
 
         """ Authenticator """
         webauthn_client = WebAuthnClient(self.ui, self._okta_org_url, nonce, cred_list)
-        # noinspection PyBroadException
         try:
             client_data, assertion = webauthn_client.verify()
-        except Exception:
-            client_data = b'fake'
-            assertion = FakeAssertion()
+        except (NoFIDODeviceFoundError, FIDODeviceTimeoutError, FIDODeviceError, NoEligibleFIDODeviceFoundError) as e:
+            response = self._http_client.post(
+                login_data['_links']['cancel']['href'],
+                json={"stateToken": state_token},
+                headers=self._get_headers(), verify=self._verify_ssl_certs)
+            response.raise_for_status()
+
+            raise GimmeAWSCredsExitError(e)
 
         client_data = str(base64.urlsafe_b64encode(client_data), "utf-8")
         signature_data = base64.b64encode(assertion.signature).decode('utf-8')
@@ -1083,7 +1087,17 @@ class OktaClient(object):
         user_obj = activation_obj.get('user', {})
 
         webauthn_client = WebAuthnClient(self.ui, self._okta_org_url, challenge)
-        client_data_json, attestation = webauthn_client.make_credential(user_obj)
+        try:
+            client_data_json, attestation = webauthn_client.make_credential(user_obj)
+        except (NoFIDODeviceFoundError, FIDODeviceTimeoutError, FIDODeviceError, NoEligibleFIDODeviceFoundError) as e:
+            response = self._http_client.post(
+                response_json['_links']['cancel']['href'],
+                json={"stateToken": state_token},
+                headers=self._get_headers(), verify=self._verify_ssl_certs)
+            response.raise_for_status()
+
+            raise GimmeAWSCredsExitError(e)
+
         client_data = str(base64.urlsafe_b64encode(client_data_json), 'utf-8')
         attestation_data = str(base64.urlsafe_b64encode(attestation), 'utf-8')
 
