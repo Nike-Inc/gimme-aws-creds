@@ -1087,7 +1087,7 @@ class OktaClient(object):
 
         webauthn_client = WebAuthnClient(self.ui, self._okta_org_url, challenge)
         try:
-            client_data_json, attestation = webauthn_client.make_credential(user_obj)
+            client_data_json, attestation = webauthn_client.make_credential(activation_obj)
         except (NoFIDODeviceFoundError, FIDODeviceTimeoutError, FIDODeviceError, NoEligibleFIDODeviceFoundError) as e:
             response = self._http_client.post(
                 response_json['_links']['cancel']['href'],

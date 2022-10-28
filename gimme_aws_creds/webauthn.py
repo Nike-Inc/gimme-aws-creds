@@ -99,11 +99,6 @@ class WebAuthnClient(object):
 
         self._clients = [Fido2Client(device=d, origin=self._okta_org_url, user_interaction=self.user_interaction) for d in devs]
 
-    def on_keepalive(self, status):
-        if status == STATUS.UPNEEDED and not self._has_prompted:
-            self.ui.info('\nTouch your authenticator device now...\n')
-            self._has_prompted = True
-
     def verify(self):
         self.user_interaction.set_prompt_text("registered authentication device")
         self._run_in_thread(self._verify)
