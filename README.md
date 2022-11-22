@@ -287,8 +287,10 @@ Then, you can choose the newly registered authenticator from the factors list.
 ## Running Tests
 
 You can run all the unit tests using nosetests. Most of the tests are mocked.
+Make sure to install the dev requirements before running nosetests.
 
 ```bash
+pip3 install -r requirements_dev.txt
 nosetests --verbosity=2 tests/
 ```
 

@@ -127,5 +127,5 @@ aws_rolename = myrole
         config.conf_profile = "DEFAULT"
         with self.assertRaises(errors.GimmeAWSCredsError) as context:
             config.get_config_dict()
-        self.assertTrue('DEFAULT profile is missing! This is profile is required when not using --profile' == context.exception.message)
+        self.assertTrue('No profile found and DEFAULT profile is missing. Please specify a profile or run again with `--action-configure` to generate a profile' == context.exception.message)
 
