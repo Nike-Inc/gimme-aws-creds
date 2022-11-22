@@ -787,6 +787,10 @@ class OktaClient(object):
             factor_name = self._build_factor_name(preferred_factors[0])
             self.ui.info(factor_name + ' selected')
             selection = factors.index(preferred_factors[0])
+        elif len(factors) == 1:
+            factor_name = self._build_factor_name(factors[0])
+            print("Using the only authentication factor configured: {}.".format(factor_name))
+            selection = factors.index(factors[0])
         else:
             self.ui.info("Pick a factor:")
             # print out the factors and let the user select
@@ -1028,8 +1032,38 @@ class OktaClient(object):
     @staticmethod
     def _extract_state_token_from_http_response(http_res):
         saml_soup = BeautifulSoup(http_res.text, "html.parser")
+        
+        mfa_string = (
+            'Dodatečné ověření',
+            'Ekstra verificering',
+            'Zusätzliche Bestätigung',
+            'Πρόσθετη επαλήθευση',
+            'Extra Verification',
+            'Verificación adicional',
+            'Lisätodennus',
+            'Vérification supplémentaire',
+            'Extra ellenőrzés',
+            'Verifikasi Tambahan',
+            'Verifica aggiuntiva',
+            '追加認証',
+            '추가 확인',
+            'Penentusahan Tambahan',
+            'Ekstra verifisering',
+            'Extra verificatie',
+            'Dodatkowa weryfikacja',
+            'Verificação extra',
+            'Verificare suplimentară',
+            'Дополнительная проверка',
+            'Extra verifiering',
+            'การตรวจสอบพิเศษ',
+            'Ekstra Doğrulama',
+            'Додаткова верифікація',
+            'Xác minh bổ sung',
+            '额外验证',
+            '額外驗證'
+        )
 
-        if hasattr(saml_soup.title, 'string') and re.match(".* - (Extra Verification|Vérification supplémentaire)$", saml_soup.title.string):
+        if hasattr(saml_soup.title, 'string') and saml_soup.title.string.endswith(mfa_string):
             # extract the stateToken from the Javascript code in the page and step up to MFA
             # noinspection PyTypeChecker
             state_token = decode(re.search(r"var stateToken = '(.*)';", http_res.text).group(1), "unicode-escape")
