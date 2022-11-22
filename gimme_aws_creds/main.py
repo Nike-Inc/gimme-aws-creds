@@ -819,6 +819,16 @@ class GimmeAWSCreds(object):
         if action == "json":
             self.ui.result(json.dumps(data))
             return
+        elif action == "windows":
+            self.ui.result("$env:AWS_ROLE_ARN=\"" + data['role']['arn']+"\"")
+            self.ui.result("$env:AWS_ACCESS_KEY_ID=\"" +
+                           data['credentials']['aws_access_key_id']+"\"")
+            self.ui.result("$env:AWS_SECRET_ACCESS_KEY=\"" +
+                           data['credentials']['aws_secret_access_key']+"\"")
+            self.ui.result("$env:AWS_SESSION_TOKEN=\"" +
+                           data['credentials']['aws_session_token']+"\"")
+            self.ui.result("$env:AWS_SECURITY_TOKEN=\"" +
+                           data['credentials']['aws_security_token']+"\"")
         else:
             # Defaults to `export` format
             self.ui.result("export AWS_ROLE_ARN=" + data['role']['arn'])

@@ -509,9 +509,9 @@ class Config(object):
 
     def _get_output_format(self, default_entry):
         """Get the user's preferred output format [Optional]"""
-        ui.default.message("Set the tools' output format:[export, json]")
+        ui.default.message("Set the tools' output format:[export, json, windows]")
         output_format = None
-        while output_format not in ('export', 'json'):
+        while output_format not in ('export', 'json', 'windows'):
             output_format = self._get_user_input(
                 "Preferred output format", default_entry)
         return output_format
