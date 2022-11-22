@@ -787,6 +787,10 @@ class OktaClient(object):
             factor_name = self._build_factor_name(preferred_factors[0])
             self.ui.info(factor_name + ' selected')
             selection = factors.index(preferred_factors[0])
+        elif len(factors) == 1:
+            factor_name = self._build_factor_name(factors[0])
+            print("Using the only authentication factor configured: {}.".format(factor_name))
+            selection = factors.index(factors[0])
         else:
             self.ui.info("Pick a factor:")
             # print out the factors and let the user select
