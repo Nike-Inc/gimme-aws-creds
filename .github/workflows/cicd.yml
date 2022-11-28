@@ -22,6 +22,8 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install git
+        run: sudo apt-get -y install git
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
