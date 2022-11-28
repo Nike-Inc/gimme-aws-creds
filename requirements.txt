@@ -11,3 +11,4 @@ okta>=2.0.0
 ctap-keyring-device@git+https://github.com/dany74q/ctap-keyring-device@de144921c6a0fb005422a6e3dc80966f01663e0a
 pwinput>=1.0.2
 defusedxml
+humps
