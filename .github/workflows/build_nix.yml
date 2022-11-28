@@ -7,12 +7,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Install git
+        run: sudo apt-get -y install git
       - uses: actions/checkout@v3
       - uses: cachix/install-nix-action@v17
         with:
           extra_nix_config: |
             access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
-      - name: Install git
-        run: apt-get -y install git
       - name: Building package
         run: nix build .
