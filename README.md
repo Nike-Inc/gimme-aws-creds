@@ -55,6 +55,66 @@ brew install gimme-aws-creds
 
 __OR__
 
+Use with nix flakes
+```bash
+# flake.nix
+# Use by running `nix develop`
+{
+  description = "Shell example";
+
+  inputs.flake-utils.url = "github:numtide/flake-utils";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+  inputs.gimme-aws-creds.url = "github:Nike-Inc/gimme-aws-creds";
+
+  outputs = {
+    self,
+    nixpkgs,
+    flake-utils,
+    gimme-aws-creds,
+    ...
+  } @ inputs:
+    flake-utils.lib.eachDefaultSystem
+    (
+      system: let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in {
+        devShells.default = pkgs.mkShell {
+          packages = [pkgs.bash gimme-aws-creds.defaultPackage.${system}];
+        };
+      }
+    );
+}
+```
+
+__OR__
+
+Use with original nix
+```bash
+# shell.nix
+# Use by running `nix-shell`
+{pkgs ? import <nixpkgs> {}, ...}:
+with pkgs; let
+  gimme-src = fetchgit {
+    name = "gimme-aws-creds";
+    url = "https://github.com/Nike-Inc/gimme-aws-creds";
+    branchName = "master";
+    sha256 = "<replace>"; #nix-prefetch-url --unpack https://github.com/Nike-Inc/gimme-aws-creds/archive/master.tar.gz
+  };
+
+  gimme-aws-creds = import gimme-src;
+in
+  mkShell rec {
+    name = "gimme-aws-creds";
+
+    buildInputs = [
+      bash
+      (gimme-aws-creds.default)
+    ];
+  }
+```
+
+__OR__
+
 Build the docker image locally:
 
 ```bash
@@ -121,7 +181,7 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - resolve_aws_alias - y or n. If yes, gimme-aws-creds will try to resolve AWS account ids with respective alias names (default: n). This option can also be set interactively in the command line using `-r` or `--resolve` parameter
 - include_path - (optional) Includes full role path to the role name in AWS credential profile name. (default: n).  If `y`: `<acct>-/some/path/administrator`. If `n`: `<acct>-administrator`
 - remember_device - y or n. If yes, the MFA device will be remembered by Okta service for a limited time. This option can also be set interactively in the command line using `-m` or `--remember-device`
-- output_format - `json` or `export`, determines default credential output format, can be also specified by `--output-format FORMAT` and `-o FORMAT`.
+- output_format - `json` , `export` or `windows`, determines default credential output format, can be also specified by `--output-format FORMAT` and `-o FORMAT`.
 - use_keyring - y or n.  Defaults to y.  If n, use of the system keyring for password storage is disabled.
 - disable_session - y or n.  Defaults to n.  If y, disables using the session token between gimmie-aws-creds invocations.
 
@@ -176,7 +236,7 @@ export AWS_ACCESS_KEY_ID=AQWERTYUIOP
 export AWS_SECRET_ACCESS_KEY=T!#$JFLOJlsoddop1029405-P
 ```
 
-You can automate the environment variable creation by running `$(gimme-aws-creds)` on linux or `iex (gimme-aws-creds)` using Windows Powershell
+You can automate the environment variable creation by running `$(gimme-aws-creds)` on linux or `gimme-aws-creds | iex` using Windows Powershell
 
 You can run a specific configuration profile with the `--profile` parameter:
 
