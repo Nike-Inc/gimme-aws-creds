@@ -191,7 +191,10 @@ class OktaClient(object):
                     "device_token": self._http_client.cookies['DT']
                 }
             else:
-                self._http_client.cookies.clear(name='sid', domain=match.group(1), path='/')
+                try:
+                    self._http_client.cookies.clear(name='sid', domain=match.group(1), path='/')
+                except KeyError:
+                    pass
 
         login_response = self.auth()
 
