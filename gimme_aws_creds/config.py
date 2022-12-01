@@ -320,7 +320,7 @@ class Config(object):
                 "okta-emea.com",
             ]
 
-            if url_parse_results.scheme == "https" and okta_org_url in allowlist:
+            if url_parse_results.scheme == "https" and any(urlelement in url_parse_results.hostname for urlelement in allowlist):
                 okta_org_url_valid = True
             else:
                 ui.default.error(
@@ -366,7 +366,7 @@ class Config(object):
                 "okta-emea.com",
             ]
 
-            if url_parse_results.scheme == "https" and app_url in allowlist:
+            if url_parse_results.scheme == "https" and any(urlelement in url_parse_results.hostname for urlelement in allowlist):
                 okta_org_url_valid = True
             else:
                 ui.default.warning(
