@@ -30,8 +30,10 @@ gimme-aws-creds_autocomplete()
   elif [ "${_prev}" == "--profile" ] || [ "${_prev}" == "-p" ] ; then
     local IFS=$'\n'
     local _creds_cfg_file=${HOME}/.okta_aws_login_config
-    local _profiles=$(grep "^\[" ${_creds_cfg_file} | sed -e 's/\[//' -e 's/\]//')
-    _suggestions=($(compgen -W "${_profiles}" "${_cur}"))
+    if [ -f ${_creds_cfg_file} ] ; then
+      local _profiles=$(grep "^\[" ${_creds_cfg_file} | sed -e 's/\[//' -e 's/\]//')
+      _suggestions=($(compgen -W "${_profiles}" "${_cur}"))
+    fi
   elif [ "${_prev}" == "--output-format" ] || [ "${_prev}" == "-o" ] ; then
     _suggestions=($(compgen -W "export json" "${_cur}"))
   fi
