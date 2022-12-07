@@ -12,7 +12,7 @@ class gimme_aws_creds_installer(install):
 
     def run(self):
         install.run(self)
-        self.execute(self.__post_install, (self.install_lib,), msg="installing autocomplete")
+        self.execute(self.__post_install, (self.install_lib,), msg="Installing autocomplete")
 
 
 with open('requirements.txt') as f:
