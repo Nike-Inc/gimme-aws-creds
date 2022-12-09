@@ -28,11 +28,12 @@ gimme-aws-creds_autocomplete()
   elif [[ "${_cur}" =~ "--" ]] ; then
     _suggestions=($(compgen -W "${_opts}" -- "${_cur}"))
   elif [ "${_prev}" == "--profile" ] || [ "${_prev}" == "-p" ] ; then
+    # Get a list of profiles from the okta config-file (if we have some):
     local IFS=$'\n'
     local _creds_cfg_file=${HOME}/.okta_aws_login_config
     if [ -f ${_creds_cfg_file} ] ; then
       local _profiles=$(grep "^\[" ${_creds_cfg_file} | sed -e 's/\[//' -e 's/\]//')
-      _suggestions=($(compgen -W "${_profiles}" "${_cur}"))
+      [ ! -z "${_profiles}" ] && _suggestions=($(compgen -W "${_profiles}" "${_cur}"))
     fi
   elif [ "${_prev}" == "--output-format" ] || [ "${_prev}" == "-o" ] ; then
     _suggestions=($(compgen -W "export json" "${_cur}"))
