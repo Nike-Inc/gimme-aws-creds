@@ -20,7 +20,7 @@ class TestConfig(unittest.TestCase):
 
     def test_add_authenticator_sanity(self):
         cred_id, user = b'my-credential-id', 'my-user'
-        self.registered_authenticators.add_authenticator(cred_id, user)
+        self.registered_authenticators.add_authenticator(cred_id, user, None)
 
         with open(self.file_path) as f:
             data = json.load(f)
@@ -34,7 +34,7 @@ class TestConfig(unittest.TestCase):
 
     def test_get_authenticator_user_sanity(self):
         cred_id, user = b'my-credential-id', 'my-user'
-        self.registered_authenticators.add_authenticator(cred_id, user)
+        self.registered_authenticators.add_authenticator(cred_id, user, None)
 
-        authenticator_user = self.registered_authenticators.get_authenticator_user(cred_id)
+        authenticator_user, alias = self.registered_authenticators.get_authenticator_user(cred_id)
         assert authenticator_user == user

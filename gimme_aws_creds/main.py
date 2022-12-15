@@ -23,8 +23,8 @@ import concurrent.futures
 # extras
 import boto3
 from botocore.exceptions import ClientError
-from okta.framework.ApiClient import ApiClient
-from okta.framework.OktaError import OktaError
+from okta.api_client import APIClient
+from okta.errors.error import Error as OktaError
 
 # local imports
 from . import errors, ui
@@ -241,8 +241,8 @@ class GimmeAWSCreds(object):
         """ Call the Okta User API and process the results to return
         just the information we need for gimme_aws_creds"""
         # We need access to the entire JSON response from the Okta APIs, so we need to
-        # use the low-level ApiClient instead of UsersClient and AppInstanceClient
-        users_client = ApiClient(okta_org_url, okta_api_key, pathname='/api/v1/users')
+        # use the low-level APIClient instead of UsersClient and AppInstanceClient
+        users_client = APIClient(okta_org_url, okta_api_key, pathname='/api/v1/users')
 
         # Get User information
         try:
@@ -507,7 +507,7 @@ class GimmeAWSCreds(object):
         :rtype: dict
         """
         # noinspection PyUnusedLocal
-        config = self.config
+        config = self.config # noqa
         return self._cache['conf_dict']
 
     @property
@@ -558,6 +558,16 @@ class GimmeAWSCreds(object):
 
         okta.set_remember_device(self.config.remember_device
                                  or self.conf_dict.get('remember_device', False))
+
+        if self.conf_dict.get('use_keyring') in ('n', 'false', 'False'):
+            okta.set_use_keyring(False)
+        else:
+            okta.set_use_keyring(True)
+
+        if self.conf_dict.get('disable_session', 'False') not in ('y', 'true', 'True'):
+            if self.conf_dict.get('session_token') is not None and self.conf_dict.get('session_username') is not None:
+                okta.set_session_token(self.conf_dict.get('session_username'), self.conf_dict.get('session_token'))
+
         return okta
 
     def get_resolver(self):
@@ -576,6 +586,13 @@ class GimmeAWSCreds(object):
 
     def set_auth_session(self, auth_session):
         self._cache['auth_session'] = auth_session
+
+        okta = self._cache['okta']
+        base_config = self.config.get_config_dict(include_inherits=False)
+        base_config['session_username'] = auth_session['username']
+        base_config['session_token'] = auth_session['session']
+        self.config.write_config_file(base_config)
+        okta.set_session_token(base_config.get('session_username'), base_config.get('session_token'))
 
     @property
     def auth_session(self):
@@ -804,7 +821,7 @@ class GimmeAWSCreds(object):
         self.handle_action_store_json_creds()
         self.handle_action_list_roles()
         self.handle_setup_fido_authenticator()
-  
+
         # for each data item, if we have an override on output, prioritize that
         # if we do not, prioritize writing credentials to file if that is in our
         # configuration. If we are not writing to a credentials file, use whatever
@@ -851,7 +868,6 @@ class GimmeAWSCreds(object):
             self.ui.result("export AWS_SECURITY_TOKEN=" +
                            data['credentials']['aws_security_token'])
 
-
     def handle_action_configure(self):
         # Create/Update config when configure arg set
         if not self.config.action_configure:
@@ -889,7 +905,7 @@ class GimmeAWSCreds(object):
                 self.ui.notify('*** You may be prompted for MFA more than once for this run.\n')
 
             auth_result = self.auth_session
-            base_config = self.config.get_config_dict(include_inherits = False)
+            base_config = self.config.get_config_dict(include_inherits=False)
             base_config['device_token'] = auth_result['device_token']
             self.config.write_config_file(base_config)
             self.okta.device_token = base_config['device_token']
@@ -915,7 +931,10 @@ class GimmeAWSCreds(object):
 
             self.okta.set_preferred_mfa_type(None)
             credential_id, user = self.okta.setup_fido_authenticator()
+            alias = self.ui.input('Alias for webauthn token: ')
+            if alias == "":
+                alias = None
 
             registered_authenticators = RegisteredAuthenticators(self.ui)
-            registered_authenticators.add_authenticator(credential_id, user)
+            registered_authenticators.add_authenticator(credential_id, user, alias)
             raise errors.GimmeAWSCredsExitSuccess()

@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and* limitations
 """
 import base64
 import copy
-import getpass
+import pwinput
 import re
 import socket
 import time
@@ -31,9 +31,9 @@ from keyring.errors import PasswordDeleteError
 from requests.adapters import HTTPAdapter, Retry
 
 from gimme_aws_creds.u2f import FactorU2F
-from gimme_aws_creds.webauthn import WebAuthnClient, FakeAssertion
-from . import errors, ui, version, duo
-from .errors import GimmeAWSCredsMFAEnrollStatus
+from gimme_aws_creds.webauthn import WebAuthnClient
+from . import errors, version, duo
+from .errors import GimmeAWSCredsMFAEnrollStatus, NoFIDODeviceFoundError, FIDODeviceTimeoutError, GimmeAWSCredsExitError, FIDODeviceError, NoEligibleFIDODeviceFoundError
 from .registered_authenticators import RegisteredAuthenticators
 
 
@@ -65,11 +65,15 @@ class OktaClient(object):
         self._preferred_mfa_type = None
         self._mfa_code = None
         self._remember_device = None
+        self._use_keyring = self.KEYRING_ENABLED
 
         self._use_oauth_access_token = False
         self._use_oauth_id_token = False
         self._oauth_access_token = None
         self._oauth_id_token = None
+
+        self._session_username = None
+        self._session_token = None
 
         self._jar = requests.cookies.RequestsCookieJar()
 
@@ -80,7 +84,7 @@ class OktaClient(object):
         self.device_token = device_token
 
         retries = Retry(total=5, backoff_factor=1,
-                        method_whitelist=['GET', 'POST'])
+                        allowed_methods=['GET', 'POST'])
         self._http_client.mount('https://', HTTPAdapter(max_retries=retries))
 
     @property
@@ -92,6 +96,13 @@ class OktaClient(object):
         if device_token is not None:
             match = re.search(r'^https://(.*)/?', self._okta_org_url)
             self._http_client.cookies.set('DT', device_token, domain=match.group(1), path='/')
+
+    def set_session_token(self, username, session):
+        if self._username is not None and self._username != username:
+            # If the username has changed, the session token is not valid.
+            return
+        self._session_username = username
+        self._session_token = session
 
     def set_username(self, username):
         self._username = username
@@ -107,6 +118,12 @@ class OktaClient(object):
 
     def set_remember_device(self, remember_device):
         self._remember_device = bool(remember_device)
+
+    def set_use_keyring(self, use_keyring):
+        if self.KEYRING_ENABLED:
+            self._use_keyring = bool(use_keyring)
+        else:
+            self._use_keyring = False
 
     def use_oauth_access_token(self, val=True):
         self._use_oauth_access_token = val
@@ -157,6 +174,28 @@ class OktaClient(object):
 
     def auth_session(self, **kwargs):
         """ Authenticate the user and return the Okta Session ID and username"""
+        if self._session_username is not None and self._session_token is not None and self._session_username == self._username:
+            match = re.search(r'^https://(.*)/?', self._okta_org_url)
+            self._http_client.cookies.set('sid', self._session_token, domain=match.group(1), path='/')
+            session_url = self._okta_org_url + '/api/v1/sessions/me/lifecycle/refresh'
+            response = self._http_client.post(
+                session_url,
+                headers=self._get_headers(),
+                verify=self._verify_ssl_certs,
+                allow_redirects=False
+            )
+            if response.status_code == 200:
+                return {
+                    "username": self._session_username,
+                    "session": self._session_token,
+                    "device_token": self._http_client.cookies['DT']
+                }
+            else:
+                try:
+                    self._http_client.cookies.clear(name='sid', domain=match.group(1), path='/')
+                except KeyError:
+                    pass
+
         login_response = self.auth()
 
         session_url = self._okta_org_url + '/login/sessionCookieRedirect'
@@ -307,10 +346,15 @@ class OktaClient(object):
         elif status == 'MFA_REQUIRED':
             return self._login_multi_factor(state_token, login_data)
         elif status == 'MFA_CHALLENGE':
-            if login_data['_embedded']['factor']['factorType'] == 'u2f':
-                return self._check_u2f_result(state_token, login_data)
-            if login_data['_embedded']['factor']['factorType'] == 'webauthn':
+            if 'factor' in login_data['_embedded']:
+                if login_data['_embedded']['factor']['factorType'] == 'u2f':
+                    return self._check_u2f_result(state_token, login_data)
+                if login_data['_embedded']['factor']['factorType'] == 'webauthn':
+                    return self._check_webauthn_result(state_token, login_data)
+            # This assumes that if there are multiple factors, they are all of the same type.
+            elif 'factors' in login_data['_embedded'] and login_data['_embedded']['factors'][0]['factorType'] == 'webauthn':
                 return self._check_webauthn_result(state_token, login_data)
+
             if 'factorResult' in login_data and login_data['factorResult'] == 'WAITING':
                 return self._check_push_result(state_token, login_data)
             else:
@@ -351,7 +395,7 @@ class OktaClient(object):
         # ref: https://developer.okta.com/docs/reference/error-codes/#example-errors-listed-by-http-return-code
         elif response.status_code in [400, 401, 403, 404, 409, 429, 500, 501, 503]:
             if response_data['errorCode'] == "E0000004":
-                if self.KEYRING_ENABLED:
+                if self._use_keyring:
                     try:
                         self.ui.info("Stored password is invalid, clearing.  Please try again")
                         keyring.delete_password(self.KEYRING_SERVICE, creds['username'])
@@ -603,13 +647,14 @@ class OktaClient(object):
 
         response_data = response.json()
 
+        # We could check for the existence of every layer...
+        # Or we can just catch KeyError and pass, with a nosec comment.
         try:
-            if '_embedded' in response_data['_embedded']['factor']:
-                if response_data['_embedded']['factor']['_embedded']['challenge']['correctAnswer']:
-                    if self._print_correct_answer:
-                        self._print_correct_answer(response_data['_embedded']['factor']['_embedded']['challenge']['correctAnswer'])
-                        self._print_correct_answer = None
-        except:
+            if response_data['_embedded']['factor']['_embedded']['challenge']['correctAnswer']:
+                if self._print_correct_answer:
+                    self._print_correct_answer(response_data['_embedded']['factor']['_embedded']['challenge']['correctAnswer'])
+                    self._print_correct_answer = None
+        except KeyError:  # nosec
             pass
 
         if 'stateToken' in response_data:
@@ -654,24 +699,37 @@ class OktaClient(object):
     def _check_webauthn_result(self, state_token, login_data):
         """ wait for webauthN challenge """
 
-        nonce = login_data['_embedded']['factor']['_embedded']['challenge']['challenge']
-        credential_id = login_data['_embedded']['factor']['profile']['credentialId']
+        cred_list = []
+        nonce = ''
+
+        if 'factor' in login_data['_embedded']:
+            cred_list.append(login_data['_embedded']['factor']['profile']['credentialId'])
+            nonce = login_data['_embedded']['factor']['_embedded']['challenge']['challenge']
+        elif 'factors' in login_data['_embedded']:
+            for factor in login_data['_embedded']['factors']:
+                cred_list.append(factor['profile']['credentialId'])
+            nonce = login_data['_embedded']['challenge']['challenge']
 
         """ Authenticator """
-        webauthn_client = WebAuthnClient(self.ui, self._okta_org_url, nonce, credential_id)
-        # noinspection PyBroadException
+        webauthn_client = WebAuthnClient(self.ui, self._okta_org_url, nonce, cred_list)
         try:
             client_data, assertion = webauthn_client.verify()
-        except Exception:
-            client_data = b'fake'
-            assertion = FakeAssertion()
+        except (NoFIDODeviceFoundError, FIDODeviceTimeoutError, FIDODeviceError, NoEligibleFIDODeviceFoundError) as e:
+            response = self._http_client.post(
+                login_data['_links']['cancel']['href'],
+                json={"stateToken": state_token},
+                headers=self._get_headers(), verify=self._verify_ssl_certs)
+            response.raise_for_status()
+
+            raise GimmeAWSCredsExitError(e)
 
         client_data = str(base64.urlsafe_b64encode(client_data), "utf-8")
         signature_data = base64.b64encode(assertion.signature).decode('utf-8')
         auth_data = base64.b64encode(assertion.auth_data).decode('utf-8')
 
         response = self._http_client.post(
-            login_data['_links']['next']['href'] + "?rememberDevice=false",
+            login_data['_links']['next']['href'],
+            params={'rememberDevice': self._remember_device},
             json={'stateToken': state_token, 'clientData': client_data, 'signatureData': signature_data,
                   'authenticatorData': auth_data},
             headers=self._get_headers(),
@@ -681,6 +739,13 @@ class OktaClient(object):
 
         response_data = response.json()
         if 'status' in response_data and response_data['status'] == 'SUCCESS':
+            registered_authenticators = RegisteredAuthenticators(self.ui)
+            user_name, alias = registered_authenticators.get_authenticator_user(assertion.credential['id'])
+            if alias is None:
+                alias = self.ui.input('Alias for webauthn token: ')
+                if alias is not None and alias != "":
+                    registered_authenticators.add_authenticator(assertion.credential['id'], user_name, alias)
+
             if 'stateToken' in response_data:
                 return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
             if 'sessionToken' in response_data:
@@ -765,32 +830,68 @@ class OktaClient(object):
 
         self.ui.info("Multi-factor Authentication required.")
 
-        # filter the factor list down to just the types specified in preferred_mfa_type
-        preferred_factors = []
-        # even though duo supports both passcode and push, okta only lists web as an available factor. This if statement
-        # adds the additional supported factors only if the provider is duo, and the web factor is the only one provided
-        if len(factors) == 1 and factors[0].get('provider') == 'DUO' and factors[0].get('factorType') == 'web':
-            push = copy.deepcopy(factors[0])
+        new_factors = []
+        seen_webauthn = False
+        seen_duo_push = False
+        seen_duo_passcode = False
+        seen_duo_web = False
+        duo_web = None
+
+        for factor in factors:
+            skip = False
+            # Collapse together multiple webauthn entries, so the user isn't
+            # asked to pick which webauthn key is plugged in.
+            if factor['provider'] == 'FIDO':
+                if factor['factorType'] == 'webauthn':
+                    if not seen_webauthn:
+                        seen_webauthn = True
+                        factor['profile']['authenticatorName'] = 'Any configured key'
+                        factor['_links']['verify']['href'] = self._okta_org_url + '/api/v1/authn/factors/webauthn/verify'
+                    else:
+                        skip = True
+            elif factor['provider'] == 'DUO':
+                if factor['factorType'] == 'passcode':
+                    seen_duo_passcode = True
+                elif factor['factorType'] == 'push':
+                    seen_duo_push = True
+                elif factor['factorType'] == 'web':
+                    seen_duo_web = True
+                    duo_web = factor
+
+            if not skip:
+                new_factors.append(factor)
+
+        # Even though duo supports both passcode and push, okta only lists web as an available factor.
+
+        # If we received due web and not due push, add due push anyhow.
+        if seen_duo_web and not seen_duo_push:
+            push = copy.deepcopy(duo_web)
             push['factorType'] = "push"
-            factors.append(push)
-            passcode = copy.deepcopy(factors[0])
+            new_factors.append(push)
+
+        # If we received due web and not due push, add due passcode anyhow.
+        if seen_duo_web and not seen_duo_passcode:
+            passcode = copy.deepcopy(duo_web)
             passcode['factorType'] = "passcode"
-            factors.append(passcode)
+            new_factors.append(passcode)
+
+        factors = new_factors
+
+        # filter the factor list down to just the types specified in preferred_mfa_type
         if self._preferred_mfa_type is not None:
             preferred_factors = list(filter(lambda item: item['factorType'] == self._preferred_mfa_type, factors))
             # If the preferred factor isn't in the list of available factors, we'll let the user know before
             # prompting to select another.
             if not preferred_factors:
                 self.ui.notify('Preferred factor type of {} not available.'.format(self._preferred_mfa_type))
+            else:
+                factors = preferred_factors
 
-        if len(preferred_factors) == 1:
-            factor_name = self._build_factor_name(preferred_factors[0])
-            self.ui.info(factor_name + ' selected')
-            selection = factors.index(preferred_factors[0])
-        elif len(factors) == 1:
+        # Don't bother prompting if we only have a single factor option.
+        if len(factors) == 1:
             factor_name = self._build_factor_name(factors[0])
-            print("Using the only authentication factor configured: {}.".format(factor_name))
-            selection = factors.index(factors[0])
+            self.ui.info(factor_name + ' selected')
+            selection = 0
         else:
             self.ui.info("Pick a factor:")
             # print out the factors and let the user select
@@ -843,15 +944,25 @@ class OktaClient(object):
         elif factor['factorType'] == 'u2f':
             return factor['factorType'] + ": " + factor['factorType']
         elif factor['factorType'] == 'webauthn':
+            default_factor_name = factor['profile'].get('authenticatorName') or factor['factorType']
+            if default_factor_name == "Any configured key":
+                return factor['factorType'] + ": " + default_factor_name
+
             factor_name = None
             try:
                 registered_authenticators = RegisteredAuthenticators(self.ui)
                 credential_id = websafe_decode(factor['profile']['credentialId'])
-                factor_name = registered_authenticators.get_authenticator_user(credential_id)
-            except Exception:
+                user_name, alias = registered_authenticators.get_authenticator_user(credential_id)
+                if user_name is not None and alias is not None:
+                    factor_name = "{}: {}".format(user_name, alias)
+                elif user_name is not None:
+                    factor_name = user_name
+                elif alias is not None:
+                    factor_name = alias
+            except Exception as e:
+                self.ui.info("Error getting authenticator name: {}".format(e))
                 pass
 
-            default_factor_name = factor['profile'].get('authenticatorName') or factor['factorType']
             factor_name = factor_name or default_factor_name
 
             return factor['factorType'] + ": " + factor_name
@@ -870,7 +981,7 @@ class OktaClient(object):
         username = self._username
 
         password = self._password
-        if not password and self.KEYRING_ENABLED:
+        if not password and self._use_keyring:
             try:
                 # If the OS supports a keyring, offer to save the password
                 password = keyring.get_password(self.KEYRING_SERVICE, username)
@@ -882,11 +993,11 @@ class OktaClient(object):
             # via OKTA_USERNAME env and user might not remember.
             for x in range(0, 5):
                 passwd_prompt = "Okta Password for {}: ".format(username)
-                password = getpass.getpass(prompt=passwd_prompt)
+                password = pwinput.pwinput(prompt=passwd_prompt)
                 if len(password) > 0:
                     break
 
-            if self.KEYRING_ENABLED:
+            if self._use_keyring:
                 # If the OS supports a keyring, offer to save the password
                 if self.ui.input("Do you want to save this password in the keyring? (y/N) ") == 'y':
                     try:
@@ -978,7 +1089,17 @@ class OktaClient(object):
         user_obj = activation_obj.get('user', {})
 
         webauthn_client = WebAuthnClient(self.ui, self._okta_org_url, challenge)
-        client_data_json, attestation = webauthn_client.make_credential(user_obj)
+        try:
+            client_data_json, attestation = webauthn_client.make_credential(activation_obj)
+        except (NoFIDODeviceFoundError, FIDODeviceTimeoutError, FIDODeviceError, NoEligibleFIDODeviceFoundError) as e:
+            response = self._http_client.post(
+                response_json['_links']['cancel']['href'],
+                json={"stateToken": state_token},
+                headers=self._get_headers(), verify=self._verify_ssl_certs)
+            response.raise_for_status()
+
+            raise GimmeAWSCredsExitError(e)
+
         client_data = str(base64.urlsafe_b64encode(client_data_json), 'utf-8')
         attestation_data = str(base64.urlsafe_b64encode(attestation), 'utf-8')
 
@@ -1032,7 +1153,7 @@ class OktaClient(object):
     @staticmethod
     def _extract_state_token_from_http_response(http_res):
         saml_soup = BeautifulSoup(http_res.text, "html.parser")
-        
+
         mfa_string = (
             'Dodatečné ověření',
             'Ekstra verificering',

@@ -175,7 +175,7 @@ class Config(object):
             self.roles = [role.strip() for role in args.roles.split(',') if role.strip()]
         self.conf_profile = args.profile or 'DEFAULT'
 
-    def _handle_config(self, config, profile_config, include_inherits = True):
+    def _handle_config(self, config, profile_config, include_inherits=True):
         if "inherits" in profile_config.keys() and include_inherits:
             self.ui.message("Using inherited config: " + profile_config["inherits"])
             if profile_config["inherits"] not in config:
@@ -189,7 +189,7 @@ class Config(object):
         else:
             return profile_config
 
-    def get_config_dict(self, include_inherits = True):
+    def get_config_dict(self, include_inherits=True):
         """returns the conf dict from the okta config file"""
         # Check to see if config file exists, if not complain and exit
         # If config file does exist return config dict from file
@@ -225,6 +225,8 @@ class Config(object):
                 aws_default_duration = Default AWS session duration (3600)
                 preferred_mfa_type = Select this MFA device type automatically
                 include_path - (optional) includes that full role path to the role name for profile
+                use_keyring - Enables or disables use of the system keyring
+                disable_session - Disables persistent sessions.
 
         """
         config = configparser.ConfigParser()
@@ -249,6 +251,8 @@ class Config(object):
             'aws_default_duration': '3600',
             'device_token': '',
             'output_format': 'export',
+            'use_keyring': 'y',
+            'disable_session': 'n',
         }
 
         # See if a config file already exists.
@@ -292,6 +296,9 @@ class Config(object):
             config_dict['cred_profile'] = self._get_cred_profile(defaults['cred_profile'])
         else:
             config_dict['cred_profile'] = defaults['cred_profile']
+
+        config_dict['use_keyring'] = self.get_use_keyring(defaults['use_keyring'])
+        config_dict['disable_session'] = self.get_disable_session(defaults['disable_session'])
 
         self.write_config_file(config_dict)
 
@@ -537,6 +544,30 @@ class Config(object):
                     "Remember device", default_entry)
             except ValueError:
                 ui.default.warning("Remember the MFA device must be either y or n.")
+
+    def _get_use_keyring(self, default_entry):
+        """Option to use the system keyring"""
+        ui.default.message(
+            "Do you want to use the system keyring?\n"
+            "Please answer y or n.")
+        while True:
+            try:
+                return self._get_user_input_yes_no(
+                    "Use system keyring", default_entry)
+            except ValueError:
+                ui.default.warning("Remember the value must be either y or n.")
+
+    def _get_disable_session(self, default_entry):
+        """Option to disable storing and using the session token between invocations."""
+        ui.default.message(
+            "Do you want to disable storing and using the session token between invocations?\n"
+            "Please answer y or n.")
+        while True:
+            try:
+                return self._get_user_input_yes_no(
+                    "Disable session token storage", default_entry)
+            except ValueError:
+                ui.default.warning("Remember the value must be either y or n.")
 
     def _get_user_input(self, message, default=None):
         """formats message to include default and then prompts user for input

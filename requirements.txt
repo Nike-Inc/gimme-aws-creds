@@ -3,6 +3,13 @@ beautifulsoup4>=4.6.0,<5.0.0
 configparser>=3.5.0,<4.0.0
 keyring>=21.4.0
 requests>=2.13.0,<3.0.0
-fido2>=0.9.1,<0.10.0
-okta>=0.0.4,<1.0.0
-ctap-keyring-device==1.0.6
+urllib3>=1.26
+fido2>=1.0.0,<2.0.0
+okta>=2.0.0
+# ctap-keyring-device>=1.0.6
+# We need ctap-keyring-device>=2.0.0, but that hasn't been released yet.
+# So we're grabbing the git release with the applicable fixes.
+ctap-keyring-device@git+https://github.com/dany74q/ctap-keyring-device@de144921c6a0fb005422a6e3dc80966f01663e0a
+pwinput>=1.0.2
+defusedxml
+humps

@@ -61,7 +61,7 @@ class FactorU2F(object):
         for _ in range(30):
             try:
                 self._signature = client.authenticate(
-                    self._nonce, self._appId, self._credentialId )
+                    self._nonce, self._appId, self._credentialId)
             except ApduError as e:
                 if e.code == APDU.USE_NOT_SATISFIED:
                     if not self._has_prompted:

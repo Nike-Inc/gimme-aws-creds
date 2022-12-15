@@ -10,7 +10,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
 import builtins
-import getpass
+import pwinput
 import os
 import sys
 
@@ -112,7 +112,7 @@ class CLIUserInterface(UserInterface):
         builtins.print(message, file=sys.stderr)
 
     def read_input(self, hidden=False):
-        return getpass.getpass('') if hidden else builtins.input()
+        return pwinput.pwinput('') if hidden else builtins.input()
 
     def notify(self, message):
         builtins.print(message, file=sys.stderr)
