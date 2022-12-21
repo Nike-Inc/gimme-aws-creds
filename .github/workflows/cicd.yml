@@ -11,7 +11,9 @@ on:
 jobs:
   test:
     name: Unit Tests
-    runs-on: ubuntu-latest
+     # Python 3.6 is currently only available in Ubuntu 20.
+     # https://github.com/actions/setup-python/issues/544
+    runs-on: ubuntu-20.04
     strategy:
       matrix:
         python-version: [ 3.6, 3.7, 3.8, 3.9 ]
