@@ -5,6 +5,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# nix flake init -t template#python
+.direnv
+result
+.envrc
+
 # C extensions
 *.so
 
@@ -70,7 +75,7 @@ docs/_build/
 target/
 
 # Jupyter Notebook
-.ipynb_checkpoints
+.ipynb_*
 
 # pyenv
 .python-version

@@ -314,8 +314,13 @@ class Config(object):
             okta_org_url = self._get_user_input("Okta URL for your organization", default_entry).strip('/')
             # Validate that okta_org_url is a well formed okta URL
             url_parse_results = urlparse(okta_org_url)
+            allowlist = [
+                "okta.com",
+                "oktapreview.com",
+                "okta-emea.com",
+            ]
 
-            if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" or "okta-emea.com" in okta_org_url:
+            if url_parse_results.scheme == "https" and any(urlelement in url_parse_results.hostname for urlelement in allowlist):
                 okta_org_url_valid = True
             else:
                 ui.default.error(
@@ -355,8 +360,13 @@ class Config(object):
         while okta_org_url_valid is False:
             app_url = self._get_user_input("Application url", default_entry)
             url_parse_results = urlparse(app_url)
+            allowlist = [
+                "okta.com",
+                "oktapreview.com",
+                "okta-emea.com",
+            ]
 
-            if url_parse_results.scheme == "https" and "okta.com" or "oktapreview.com" or "okta-emea.com" in app_url:
+            if url_parse_results.scheme == "https" and any(urlelement in url_parse_results.hostname for urlelement in allowlist):
                 okta_org_url_valid = True
             else:
                 ui.default.warning(
@@ -509,9 +519,9 @@ class Config(object):
 
     def _get_output_format(self, default_entry):
         """Get the user's preferred output format [Optional]"""
-        ui.default.message("Set the tools' output format:[export, json]")
+        ui.default.message("Set the tools' output format:[export, json, windows]")
         output_format = None
-        while output_format not in ('export', 'json'):
+        while output_format not in ('export', 'json', 'windows'):
             output_format = self._get_user_input(
                 "Preferred output format", default_entry)
         return output_format
