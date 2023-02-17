@@ -116,13 +116,15 @@ class OktaClient(object):
 
     def stepup_auth(self, embed_link, state_token=None):
         """ Login to Okta using the Step-up authentication flow"""
+        self.ui.info("Additional login is needed")
         flow_state = self._get_initial_flow_state(embed_link, state_token)
 
         while flow_state.get('apiResponse', {}).get('status') != 'SUCCESS':
             time.sleep(0.5)
             flow_state = self._next_login_step(
                 flow_state.get('stateToken'), flow_state.get('apiResponse'))
-
+        self._old_answer = None
+        self._answer = None
         return flow_state['apiResponse']
 
     def stepup_auth_saml(self, embed_link, state_token=None):
@@ -153,6 +155,8 @@ class OktaClient(object):
             flow_state = self._next_login_step(
                 flow_state.get('apiResponse', {}).get('stateToken'), flow_state.get('apiResponse'))
 
+        self._old_answer = None
+        self._answer = None
         return flow_state['apiResponse']
 
     def auth_session(self, **kwargs):
@@ -590,6 +594,8 @@ class OktaClient(object):
         else:
             return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
 
+    _old_answer = None
+    _answer = None
     def _check_push_result(self, state_token, login_data):
         """ Check Okta API to see if the push request has been responded to"""
         time.sleep(1)
@@ -606,9 +612,11 @@ class OktaClient(object):
         try:
             if '_embedded' in response_data['_embedded']['factor']:
                 if response_data['_embedded']['factor']['_embedded']['challenge']['correctAnswer']:
-                    if self._print_correct_answer:
-                        self._print_correct_answer(response_data['_embedded']['factor']['_embedded']['challenge']['correctAnswer'])
-                        self._print_correct_answer = None
+                    self._answer = response_data['_embedded']['factor']['_embedded']['challenge']['correctAnswer']
+                    if self._old_answer != self._answer:
+                        self._print_correct_answer(self._answer)
+                        self._old_answer = self._answer
+
         except:
             pass
 
