@@ -31,7 +31,7 @@ from . import errors, ui
 from .aws import AwsResolver
 from .config import Config
 from .default import DefaultResolver
-from .okta import OktaClient
+from .okta_classic import OktaClassicClient
 from .registered_authenticators import RegisteredAuthenticators
 
 
@@ -513,6 +513,13 @@ class GimmeAWSCreds(object):
     @property
     def output_format(self):
         return self.conf_dict.setdefault('output_format', self.config.output_format)
+    
+    @property
+    def okta_platform(self):
+        ret = self.conf_dict.get('okta_platform')
+        if not ret:
+            raise errors.GimmeAWSCredsError('No Okta Platform in configuration.  Try running --config again.')
+        return ret
 
     @property
     def okta_org_url(self):
@@ -533,12 +540,16 @@ class GimmeAWSCreds(object):
         if 'okta' in self._cache:
             return self._cache['okta']
 
-        okta = self._cache['okta'] = OktaClient(
-            self.ui,
-            self.okta_org_url,
-            self.config.verify_ssl_certs,
-            self.device_token,
-        )
+        if self.conf_dict.get('okta_platform') == 'identity_engine':
+            print('OIE')
+            sys.exit()
+        else:
+            okta = self._cache['okta'] = OktaClassicClient(
+                self.ui,
+                self.okta_org_url,
+                self.config.verify_ssl_certs,
+                self.device_token,
+            )
 
         if self.config.username is not None:
             okta.set_username(self.config.username)

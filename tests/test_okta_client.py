@@ -15,10 +15,10 @@ from fido2.ctap2 import AttestationObject, AuthenticatorData, AttestedCredential
 from nose.tools import assert_equals
 
 from gimme_aws_creds import errors, ui
-from gimme_aws_creds.okta import OktaClient
+from gimme_aws_creds.okta_classic import OktaClassicClient
 
 
-class TestOktaClient(unittest.TestCase):
+class TestOktaClassicClient(unittest.TestCase):
     """Class to test Okta Client Class.
        Mock is used to mock external calls"""
 
@@ -198,7 +198,7 @@ class TestOktaClient(unittest.TestCase):
         self.factor_list = [self.sms_factor, self.push_factor, self.totp_factor, self.webauthn_factor]
 
     def setUp_client(self, okta_org_url, verify_ssl_certs):
-        client = OktaClient(ui.default, okta_org_url, verify_ssl_certs)
+        client = OktaClassicClient(ui.default, okta_org_url, verify_ssl_certs)
         client.req_session = requests
         return client
 
