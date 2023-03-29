@@ -35,6 +35,11 @@ class OktaIdentityEngine(object):
         self._okta_org_url = okta_org_url
         self._client_id = client_id
         self._verify_ssl_certs = verify_ssl_certs
+        
+        self._use_oauth_access_token = False
+        self._use_oauth_id_token = False
+        self._oauth_access_token = None
+        self._oauth_id_token = None
 
         if verify_ssl_certs is False:
             requests.packages.urllib3.disable_warnings()
@@ -48,6 +53,12 @@ class OktaIdentityEngine(object):
         retries = Retry(total=5, backoff_factor=1,
                         method_whitelist=['GET', 'POST'])
         self._http_client.mount('https://', HTTPAdapter(max_retries=retries))
+    
+    def use_oauth_access_token(self, val=True):
+        self._use_oauth_access_token = val
+
+    def use_oauth_id_token(self, val=True):
+        self._use_oauth_id_token = val
 
     def auth_session(self, **kwargs):
         """ Authenticate the user and return the Okta Idneity and access token"""
@@ -98,20 +109,10 @@ class OktaIdentityEngine(object):
         response_data = response.json()
 
         if response.status_code == 200:
-            pass
-
-        # Handle known Okta error codes
-        # ref: https://developer.okta.com/docs/reference/error-codes/#example-errors-listed-by-http-return-code
-        elif response.status_code in [400, 401, 403, 404, 409, 429, 500, 501, 503]:
-            raise errors.GimmeAWSCredsError(
-                "LOGIN ERROR: {} | Error Code: {}".format(response_data['errorSummary'], response_data['errorCode']), 2)
-
-        # If the error code isn't one we know how to handle, raise an exception
+            func_result = {'apiResponse': response_data}
+            return func_result
         else:
             response.raise_for_status()
-
-        func_result = {'apiResponse': response_data}
-        return func_result
     
     def _get_user_tokens(self, device_code):
         response = self._http_client.post(
@@ -124,15 +125,11 @@ class OktaIdentityEngine(object):
         response_data = response.json()
 
         if response.status_code == 200:
+            self._oauth_access_token = response_data['access_token']
+            self._oauth_id_token = response_data['id_token'] 
             return response_data
         elif response.status_code == 400 and response_data['error'] == 'authorization_pending':
             return
-        # Handle known Okta error codes
-        # ref: https://developer.okta.com/docs/reference/error-codes/#example-errors-listed-by-http-return-code
-        elif response.status_code in [400, 401, 403, 404, 409, 429, 500, 501, 503]:
-            raise errors.GimmeAWSCredsError(
-                "LOGIN ERROR: {} | Error Code: {}".format(response_data['errorSummary'], response_data['errorCode']), 2)
-        # If the error code isn't one we know how to handle, raise an exception
         else:
             response.raise_for_status()
     
@@ -157,12 +154,6 @@ class OktaIdentityEngine(object):
 
         if response.status_code == 200:
             return response_data
-        # Handle known Okta error codes
-        # ref: https://developer.okta.com/docs/reference/error-codes/#example-errors-listed-by-http-return-code
-        elif response.status_code in [400, 401, 403, 404, 409, 429, 500, 501, 503]:
-            raise errors.GimmeAWSCredsError(
-                "LOGIN ERROR: {} | Error Code: {}".format(response_data['errorSummary'], response_data['errorCode']), 2)
-        # If the error code isn't one we know how to handle, raise an exception
         else:
             response.raise_for_status()
 
@@ -213,3 +204,36 @@ class OktaIdentityEngine(object):
             'Accept': 'application/json'
         }
         return headers
+    
+    def check_kwargs(self, kwargs):
+        if self._use_oauth_access_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
+
+        if self._use_oauth_id_token is True:
+            if 'headers' not in kwargs:
+                kwargs['headers'] = {}
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
+
+        return kwargs
+
+    def get(self, url, **kwargs):
+        """ Retrieve resource that is protected by Okta """
+        parameters = self.check_kwargs(kwargs)
+        return self._http_client.get(url, **parameters)
+
+    def post(self, url, **kwargs):
+        """ Create resource that is protected by Okta """
+        parameters = self.check_kwargs(kwargs)
+        return self._http_client.post(url, **parameters)
+
+    def put(self, url, **kwargs):
+        """ Modify resource that is protected by Okta """
+        parameters = self.check_kwargs(kwargs)
+        return self._http_client.put(url, **parameters)
+
+    def delete(self, url, **kwargs):
+        """ Delete resource that is protected by Okta """
+        parameters = self.check_kwargs(kwargs)
+        return self._http_client.delete(url, **parameters)

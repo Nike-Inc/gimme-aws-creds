@@ -514,6 +514,9 @@ class GimmeAWSCreds(object):
     @property
     def output_format(self):
         return self.conf_dict.setdefault('output_format', self.config.output_format)
+
+    def set_okta_platform(self, okta_platform):
+        self._cache['okta_platform'] = okta_platform
     
     @property
     def okta_platform(self):
@@ -532,14 +535,17 @@ class GimmeAWSCreds(object):
 
         if response.status_code == 200:
             if response_data['pipeline'] == 'v1':
-                ret = self._cache['okta_platform'] = 'classic'
+                ret = 'classic'
             elif response_data['pipeline'] == 'idx':
-                ret = self._cache['okta_platform'] = 'identity_engine'
+                ret = 'identity_engine'
+                if not self.conf_dict.get('client_id'):
+                    raise errors.GimmeAWSCredsError('OAuth Client ID is required for Okta Identity Engine domains.  Try running --config again.')
             else:
                 raise RuntimeError('Unknown Okta platform type: {}'.format(response_data['pipeline']))
         else:
             response.raise_for_status()
 
+        self.set_okta_platform(ret)
         return ret
 
     @property
@@ -652,7 +658,6 @@ class GimmeAWSCreds(object):
                 'links': {'appLink': self.config.app_url}
             }
             aws_results.append(new_app_entry)
-            self.ui.info("Authentication Success!")
 
         # Use the gimme_creds_lambda service
         else:
@@ -662,14 +667,17 @@ class GimmeAWSCreds(object):
                 raise errors.GimmeAWSCredsError(
                     'No OAuth Authorization server in configuration.  Try running --config again.')
 
-            # Authenticate with Okta and get an OAuth access token
-            self.okta.auth_oauth(
-                self.conf_dict['client_id'],
-                authorization_server=self.conf_dict['okta_auth_server'],
-                access_token=True,
-                id_token=False,
-                scopes=['openid']
-            )
+            if self.okta_platform == 'classic':
+                # Authenticate with Okta and get an OAuth access token
+                self.okta.auth_oauth(
+                    self.conf_dict['client_id'],
+                    authorization_server=self.conf_dict['okta_auth_server'],
+                    access_token=True,
+                    id_token=False,
+                    scopes=['openid']
+                )
+            elif self.okta_platform == 'identity_engine':
+                auth_result = self.auth_session
 
             # Add Access Tokens to Okta-protected requests
             self.okta.use_oauth_access_token(True)

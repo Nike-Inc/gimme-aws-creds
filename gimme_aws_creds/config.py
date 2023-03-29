@@ -221,7 +221,7 @@ class Config(object):
            Config Options:
                 okta_org_url = Okta URL
                 gimme_creds_server = URL of the gimme-creds-server or 'internal' for local processing or 'appurl' when app url available
-                client_id = OAuth Client id for the gimme-creds-server
+                client_id = OAuth Client ID - used for the gimme-creds-server in Okta classic and user authentication in Okta Identity Engine
                 okta_auth_server = Server ID for the OAuth authorization server used by gimme-creds-server
                 write_aws_creds = Option to write creds to ~/.aws/credentials
                 cred_profile = Use DEFAULT or Role-based name as the profile in ~/.aws/credentials
@@ -349,7 +349,7 @@ class Config(object):
     def _get_client_id_entry(self, default_entry):
         """ Get and validate client_id """
         ui.default.message(
-            "Enter the OAuth client id for the gimme-creds-server. If you do not know this value, contact your Okta admin")
+            "Enter the OAuth Client ID for the gimme-aws-creds. This value is REQUIRED for Okta Identity Engine domains. If you do not know this value, contact your Okta admin")
 
         client_id = self._get_user_input("Client ID", default_entry)
         self._client_id = client_id
