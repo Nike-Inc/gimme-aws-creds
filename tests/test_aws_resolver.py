@@ -6,7 +6,6 @@ from io import StringIO
 
 import requests
 import responses
-from nose.tools import assert_equals
 
 import gimme_aws_creds.common as common_def
 from gimme_aws_creds.aws import AwsResolver
@@ -2087,11 +2086,11 @@ a#lost_device{font-size:14px;font-weight:400;font-style:normal;color:#444;line-h
         """Test parsing the roles from SAML assrtion & AwsSigninPage"""
         responses.add(responses.POST, 'https://signin.aws.amazon.com/saml', status=200, body=self.aws_signinpage)
         result = self.resolver._enumerate_saml_roles(self.saml, 'https://signin.aws.amazon.com/saml')
-        assert_equals(result[0], self.roles[0])
-        assert_equals(result[1], self.roles[1])
-        assert_equals(result[2], self.roles[2])
-        assert_equals(result[3], self.roles[3])
-        assert_equals(result[4], self.roles[4])
+        self.assertEqual(result[0], self.roles[0])
+        self.assertEqual(result[1], self.roles[1])
+        self.assertEqual(result[2], self.roles[2])
+        self.assertEqual(result[3], self.roles[3])
+        self.assertEqual(result[4], self.roles[4])
 
     def test_display_role(self):
         """Test the roles are well displayed (grouped/indented by account)"""
@@ -2105,11 +2104,11 @@ a#lost_device{font-size:14px;font-weight:400;font-style:normal;color:#444;line-h
         self.display_role.append('      [ 4 ]: testrole5')
 
         result = self.resolver._display_role(self.roles)
-        assert_equals(result[0], self.display_role[0])
-        assert_equals(result[1], self.display_role[1])
-        assert_equals(result[2], self.display_role[2])
-        assert_equals(result[3], self.display_role[3])
-        assert_equals(result[4], self.display_role[4])
-        assert_equals(result[5], self.display_role[5])
-        assert_equals(result[6], self.display_role[6])
+        self.assertEqual(result[0], self.display_role[0])
+        self.assertEqual(result[1], self.display_role[1])
+        self.assertEqual(result[2], self.display_role[2])
+        self.assertEqual(result[3], self.display_role[3])
+        self.assertEqual(result[4], self.display_role[4])
+        self.assertEqual(result[5], self.display_role[5])
+        self.assertEqual(result[6], self.display_role[6])
 		
