@@ -292,6 +292,10 @@ For changing variables outside of this, you'd need to create a separate profile 
 
 `gimme-aws-creds --action-list-roles` will print all available roles to STDOUT without retrieving their credentials.
 
+### Credential expiration time
+
+Writing to the AWS credentials file will include the `x_security_token_expires` value in RFC3339 format. This allows tools to validate if the credentials are expiring or are expiring soon and warn the user or trigger a refresh.
+
 ### Generate credentials as json
 
 `gimme-aws-creds -o json` will print out credentials in JSON format - 1 entry per line

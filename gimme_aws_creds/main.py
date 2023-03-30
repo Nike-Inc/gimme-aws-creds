@@ -117,7 +117,7 @@ class GimmeAWSCreds(object):
         self._cache = {}
 
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
-    def _write_aws_creds(self, profile, access_key, secret_key, token, aws_config=None):
+    def _write_aws_creds(self, profile, access_key, secret_key, token, expiration, aws_config=None):
         """ Writes the AWS STS token into the AWS credential file"""
         # Check to see if the aws creds path exists, if not create it
         aws_config = aws_config or self.AWS_CONFIG
@@ -141,6 +141,7 @@ class GimmeAWSCreds(object):
         config.set(profile, 'aws_secret_access_key', secret_key)
         config.set(profile, 'aws_session_token', token)
         config.set(profile, 'aws_security_token', token)
+        config.set(profile, 'x_security_token_expires', expiration)
 
         # Write the updated config file
         with open(aws_config, 'w+') as configfile:
@@ -172,7 +173,8 @@ class GimmeAWSCreds(object):
         else:
             for key in ('aws_access_key_id',
                         'aws_secret_access_key',
-                        'aws_session_token'):
+                        'aws_session_token',
+                        'expiration'):
                 value = credentials.get(key, None)
                 if not value:
                     errs.append(
@@ -190,6 +192,7 @@ class GimmeAWSCreds(object):
             credentials['aws_access_key_id'],
             credentials['aws_secret_access_key'],
             credentials['aws_session_token'],
+            credentials['expiration'],
             aws_config=aws_config,
         )
 
