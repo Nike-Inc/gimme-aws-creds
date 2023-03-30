@@ -51,7 +51,7 @@ class OktaIdentityEngine(object):
         self._http_client.cookies = self._jar
 
         retries = Retry(total=5, backoff_factor=1,
-                        method_whitelist=['GET', 'POST'])
+                        allowed_methods=['GET', 'POST'])
         self._http_client.mount('https://', HTTPAdapter(max_retries=retries))
     
     def use_oauth_access_token(self, val=True):
