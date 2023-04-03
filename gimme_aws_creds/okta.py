@@ -354,7 +354,7 @@ class OktaClient(object):
                 if self.KEYRING_ENABLED:
                     try:
                         self.ui.info("Stored password is invalid, clearing.  Please try again")
-                        keyring.delete_password(self.KEYRING_SERVICE, creds['username'])
+                        keyring.delete_password(self.KEYRING_SERVICE, self._keyring_username)
                     except PasswordDeleteError:
                         pass
             raise errors.GimmeAWSCredsError(
@@ -861,6 +861,10 @@ class OktaClient(object):
         else:
             return "Unknown MFA type: " + factor['factorType']
 
+    @property
+    def _keyring_username(self):
+        return self._username + " @ " + self._okta_org_url
+
     def _get_username_password_creds(self):
         """Get's creds for Okta login from the user."""
 
@@ -873,7 +877,7 @@ class OktaClient(object):
         if not password and self.KEYRING_ENABLED:
             try:
                 # If the OS supports a keyring, offer to save the password
-                password = keyring.get_password(self.KEYRING_SERVICE, username)
+                password = keyring.get_password(self.KEYRING_SERVICE, self._keyring_username)
                 self.ui.info("Using password from keyring for {}".format(username))
             except RuntimeError:
                 self.ui.warning("Unable to get password from keyring.")
@@ -890,7 +894,7 @@ class OktaClient(object):
                 # If the OS supports a keyring, offer to save the password
                 if self.ui.input("Do you want to save this password in the keyring? (y/N) ") == 'y':
                     try:
-                        keyring.set_password(self.KEYRING_SERVICE, username, password)
+                        keyring.set_password(self.KEYRING_SERVICE, self._keyring_username, password)
                         self.ui.info("Password for {} saved in keyring.".format(username))
                     except RuntimeError as err:
                         self.ui.warning("Failed to save password in keyring: " + str(err))
