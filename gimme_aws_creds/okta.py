@@ -566,6 +566,25 @@ class OktaClient(object):
             return self._login_input_webauthn_challenge(state_token, factor)
         elif factor['factorType'] == 'token:hardware':
             return self._login_input_mfa_challenge(state_token, factor['_links']['verify']['href'])
+        elif factor['factorType'] == 'question':
+            return self._login_input_question(state_token, factor)
+
+    def _login_input_question(self, state_token, factor):
+        answer = self.ui.input("Enter secret answer: ", hidden=True)
+        response = self._http_client.post(
+            factor['_links']['verify']['href'],
+            params={'rememberDevice': self._remember_device},
+            json={'stateToken': state_token, 'answer': answer},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+        response.raise_for_status()
+        response_data = response.json()
+
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
     def _login_input_mfa_challenge(self, state_token, next_url):
         """ Submit verification code for SMS or TOTP authentication methods"""
@@ -857,6 +876,8 @@ class OktaClient(object):
             return factor['factorType'] + ": " + factor_name
         elif factor['factorType'] == 'token:hardware':
             return factor['factorType'] + ": " + factor['provider']
+        elif factor['factorType'] == 'question':
+            return factor['factorType']
 
         else:
             return "Unknown MFA type: " + factor['factorType']
