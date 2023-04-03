@@ -315,6 +315,14 @@ class OktaClient(object):
                 return self._check_push_result(state_token, login_data)
             else:
                 return self._login_input_mfa_challenge(state_token, login_data['_links']['next']['href'])
+        elif status == 'PASSWORD_EXPIRED':
+            if self.KEYRING_ENABLED:
+                try:
+                    creds = self._get_username_password_creds()
+                    keyring.delete_password(self.KEYRING_SERVICE, creds['username'])
+                    raise errors.GimmeAWSCredsError('Stored password is expired and has been cleared from keyring.  Please try again')
+                except PasswordDeleteError:
+                    raise errors.GimmeAWSCredsError('Stored password is expired but got error deleting it from keyring.  Please try again')
         else:
             raise RuntimeError('Unknown login status: ' + status)
 
