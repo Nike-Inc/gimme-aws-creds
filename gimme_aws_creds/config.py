@@ -248,6 +248,7 @@ class Config(object):
             'remember_device': 'n',
             'aws_default_duration': '3600',
             'device_token': '',
+            'jar': '',
             'output_format': 'export',
         }
 

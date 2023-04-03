@@ -538,6 +538,7 @@ class GimmeAWSCreds(object):
             self.okta_org_url,
             self.config.verify_ssl_certs,
             self.device_token,
+            self.conf_dict.get('jar')
         )
 
         if self.config.username is not None:
