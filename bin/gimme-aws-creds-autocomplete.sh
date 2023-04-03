@@ -19,7 +19,7 @@ gimme-aws-creds_autocomplete()
   local _cmd_line="${COMP_LINE}"
   local _cur="${COMP_WORDS[COMP_CWORD]}"
   local _prev="${COMP_WORDS[COMP_CWORD-1]}"
-  local _opts="--help --action-configure --configure --output-format --profile --resolve --insecure -keep --version --action-list-profiles --list-profiles --action-list-roles"
+  local _opts="--help --action-configure --configure --output-format --profile --resolve --insecure -keep --version --action-list-profiles --list-profiles --action-list-roles --open-browser"
   local _suggestions=""
   if [[ "${_prev}" == "gimme-aws-creds" && "${_cur}" == "" ]] ; then
     _suggestions=($(compgen -W "${_opts}" "${_cur}"))
