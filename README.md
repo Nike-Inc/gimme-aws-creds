@@ -137,6 +137,24 @@ alias gimme-aws-creds="docker run -it --rm \
 
 With this config, you will be able to run further commands seamlessly!
 
+## Command Auto Completion
+
+If you are using Bash or Zsh, you can add autocompletion for the gimme-aws-creds commandline options and profile names.  To add the autocomplete config, add the following to the end of your .bashrc or .zshrc:
+
+.bashrc
+```bash
+INSTALL_DIR=$(dirname $(which gimme-aws-creds))
+source ${INSTALL_DIR}/gimme-aws-creds-autocomplete.sh"
+```
+
+.zshrc
+```bash
+INSTALL_DIR=$(dirname $(which gimme-aws-creds))
+autoload bashcompinit
+bashcompinit
+source ${INSTALL_DIR}/gimme-aws-creds-autocomplete.sh
+```
+
 ## Using gimme-aws-creds with Okta Identity Engine
 
 To use gimme-aws-creds with an Okta Identity Engine (OIE) domain, you must create a new OIDC Native Application and connect it to your AWS integration app(s).
