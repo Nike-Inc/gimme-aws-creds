@@ -19,19 +19,20 @@ import re
 import sys
 import concurrent.futures
 
-
 # extras
 import boto3
+import requests
 from botocore.exceptions import ClientError
 from okta.framework.ApiClient import ApiClient
 from okta.framework.OktaError import OktaError
 
 # local imports
-from . import errors, ui
+from . import errors, ui, version
 from .aws import AwsResolver
 from .config import Config
 from .default import DefaultResolver
-from .okta import OktaClient
+from .okta_identity_engine import OktaIdentityEngine
+from .okta_classic import OktaClassicClient
 from .registered_authenticators import RegisteredAuthenticators
 
 
@@ -116,7 +117,7 @@ class GimmeAWSCreds(object):
         self._cache = {}
 
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
-    def _write_aws_creds(self, profile, access_key, secret_key, token, aws_config=None):
+    def _write_aws_creds(self, profile, access_key, secret_key, token, expiration, aws_config=None):
         """ Writes the AWS STS token into the AWS credential file"""
         # Check to see if the aws creds path exists, if not create it
         aws_config = aws_config or self.AWS_CONFIG
@@ -140,6 +141,7 @@ class GimmeAWSCreds(object):
         config.set(profile, 'aws_secret_access_key', secret_key)
         config.set(profile, 'aws_session_token', token)
         config.set(profile, 'aws_security_token', token)
+        config.set(profile, 'x_security_token_expires', expiration)
 
         # Write the updated config file
         with open(aws_config, 'w+') as configfile:
@@ -171,7 +173,8 @@ class GimmeAWSCreds(object):
         else:
             for key in ('aws_access_key_id',
                         'aws_secret_access_key',
-                        'aws_session_token'):
+                        'aws_session_token',
+                        'expiration'):
                 value = credentials.get(key, None)
                 if not value:
                     errs.append(
@@ -189,6 +192,7 @@ class GimmeAWSCreds(object):
             credentials['aws_access_key_id'],
             credentials['aws_secret_access_key'],
             credentials['aws_session_token'],
+            credentials['expiration'],
             aws_config=aws_config,
         )
 
@@ -514,6 +518,39 @@ class GimmeAWSCreds(object):
     def output_format(self):
         return self.conf_dict.setdefault('output_format', self.config.output_format)
 
+    def set_okta_platform(self, okta_platform):
+        self._cache['okta_platform'] = okta_platform
+    
+    @property
+    def okta_platform(self):
+        if 'okta_platform' in self._cache:
+            return self._cache['okta_platform']
+        
+        response = requests.get(
+            self.okta_org_url + '/.well-known/okta-organization',
+            headers={
+                'Accept': 'application/json',
+                'User-Agent': "gimme-aws-creds {}".format(version)
+            }
+        )
+
+        response_data = response.json()
+
+        if response.status_code == 200:
+            if response_data['pipeline'] == 'v1':
+                ret = 'classic'
+            elif response_data['pipeline'] == 'idx':
+                ret = 'identity_engine'
+                if not self.conf_dict.get('client_id'):
+                    raise errors.GimmeAWSCredsError('OAuth Client ID is required for Okta Identity Engine domains.  Try running --config again.')
+            else:
+                raise RuntimeError('Unknown Okta platform type: {}'.format(response_data['pipeline']))
+        else:
+            response.raise_for_status()
+
+        self.set_okta_platform(ret)
+        return ret
+
     @property
     def okta_org_url(self):
         ret = self.conf_dict.get('okta_org_url')
@@ -533,31 +570,39 @@ class GimmeAWSCreds(object):
         if 'okta' in self._cache:
             return self._cache['okta']
 
-        okta = self._cache['okta'] = OktaClient(
-            self.ui,
-            self.okta_org_url,
-            self.config.verify_ssl_certs,
-            self.device_token,
-        )
+        if self.okta_platform == 'identity_engine':
+            okta = self._cache['okta'] = OktaIdentityEngine(
+                self.ui,
+                self.okta_org_url,
+                self.conf_dict.get('client_id'),
+                self.config.verify_ssl_certs
+            )
+        else:
+            okta = self._cache['okta'] = OktaClassicClient(
+                self.ui,
+                self.okta_org_url,
+                self.config.verify_ssl_certs,
+                self.device_token,
+            )
 
-        if self.config.username is not None:
-            okta.set_username(self.config.username)
-        elif self.conf_dict.get('okta_username'):
-            okta.set_username(self.conf_dict['okta_username'])
+            if self.config.username is not None:
+                okta.set_username(self.config.username)
+            elif self.conf_dict.get('okta_username'):
+                okta.set_username(self.conf_dict['okta_username'])
 
-        if self.conf_dict.get('okta_password'):
-            okta.set_password(self.conf_dict['okta_password'])
+            if self.conf_dict.get('okta_password'):
+                okta.set_password(self.conf_dict['okta_password'])
 
-        if self.conf_dict.get('preferred_mfa_type'):
-            okta.set_preferred_mfa_type(self.conf_dict['preferred_mfa_type'])
+            if self.conf_dict.get('preferred_mfa_type'):
+                okta.set_preferred_mfa_type(self.conf_dict['preferred_mfa_type'])
 
-        if self.config.mfa_code is not None:
-            okta.set_mfa_code(self.config.mfa_code)
-        elif self.conf_dict.get('okta_mfa_code'):
-            okta.set_mfa_code(self.conf_dict.get('okta_mfa_code'))
+            if self.config.mfa_code is not None:
+                okta.set_mfa_code(self.config.mfa_code)
+            elif self.conf_dict.get('okta_mfa_code'):
+                okta.set_mfa_code(self.conf_dict.get('okta_mfa_code'))
 
-        okta.set_remember_device(self.config.remember_device
-                                 or self.conf_dict.get('remember_device', False))
+            okta.set_remember_device(self.config.remember_device
+                or self.conf_dict.get('remember_device', False))
         return okta
 
     def get_resolver(self):
@@ -581,8 +626,9 @@ class GimmeAWSCreds(object):
     def auth_session(self):
         if 'auth_session' in self._cache:
             return self._cache['auth_session']
-        auth_result = self.okta.auth_session(redirect_uri=self.conf_dict.get('app_url'))
+        auth_result = self.okta.auth_session(redirect_uri=self.conf_dict.get('app_url'), open_browser=self.config.open_browser)
         self.set_auth_session(auth_result)
+
         return auth_result
 
     @property
@@ -615,7 +661,6 @@ class GimmeAWSCreds(object):
                 'links': {'appLink': self.config.app_url}
             }
             aws_results.append(new_app_entry)
-            self.ui.info("Authentication Success!")
 
         # Use the gimme_creds_lambda service
         else:
@@ -625,14 +670,17 @@ class GimmeAWSCreds(object):
                 raise errors.GimmeAWSCredsError(
                     'No OAuth Authorization server in configuration.  Try running --config again.')
 
-            # Authenticate with Okta and get an OAuth access token
-            self.okta.auth_oauth(
-                self.conf_dict['client_id'],
-                authorization_server=self.conf_dict['okta_auth_server'],
-                access_token=True,
-                id_token=False,
-                scopes=['openid']
-            )
+            if self.okta_platform == 'classic':
+                # Authenticate with Okta and get an OAuth access token
+                self.okta.auth_oauth(
+                    self.conf_dict['client_id'],
+                    authorization_server=self.conf_dict['okta_auth_server'],
+                    access_token=True,
+                    id_token=False,
+                    scopes=['openid']
+                )
+            elif self.okta_platform == 'identity_engine':
+                auth_result = self.auth_session
 
             # Add Access Tokens to Okta-protected requests
             self.okta.use_oauth_access_token(True)
@@ -654,7 +702,7 @@ class GimmeAWSCreds(object):
     def saml_data(self):
         if 'saml_data' in self._cache:
             return self._cache['saml_data']
-        self._cache['saml_data'] = saml_data = self.okta.get_saml_response(self.aws_app['links']['appLink'])
+        self._cache['saml_data'] = saml_data = self.okta.get_saml_response(self.aws_app['links']['appLink'], self.auth_session)
         return saml_data
 
     @property
@@ -799,11 +847,12 @@ class GimmeAWSCreds(object):
     def _run(self):
         """ Pulling it all together to make the CLI """
         self.handle_action_configure()
-        self.handle_action_register_device()
         self.handle_action_list_profiles()
-        self.handle_action_store_json_creds()
-        self.handle_action_list_roles()
-        self.handle_setup_fido_authenticator()
+        if self.okta_platform == 'classic':
+            self.handle_action_register_device()
+            self.handle_action_store_json_creds()
+            self.handle_action_list_roles()
+            self.handle_setup_fido_authenticator()
   
         # for each data item, if we have an override on output, prioritize that
         # if we do not, prioritize writing credentials to file if that is in our
@@ -883,7 +932,7 @@ class GimmeAWSCreds(object):
 
     def handle_action_register_device(self):
         # Capture the Device Token and write it to the config file
-        if self.device_token is None or self.config.action_register_device is True:
+        if self.okta_platform == "classic" and ( self.device_token is None or self.config.action_register_device is True ):
             if not self.config.action_register_device:
                 self.ui.notify('\n*** No device token found in configuration file, it will be created.')
                 self.ui.notify('*** You may be prompted for MFA more than once for this run.\n')

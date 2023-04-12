@@ -36,6 +36,7 @@ class Config(object):
             'OKTA_CONFIG',
             os.path.join(self.FILE_ROOT, '.okta_aws_login_config')
         )
+        self.open_browser = False
         self.action_register_device = False
         self.username = None
         self.api_key = None
@@ -145,6 +146,10 @@ class Config(object):
             '--action-setup-fido-authenticator', action='store_true',
             help='Sets up a new FIDO WebAuthn authenticator in Okta'
         )
+        parser.add_argument(
+            '--open-browser', action='store_true',
+            help='Automatically open a webbrowser for device authorization (Okta Identity Engine only)'
+        )
         args = parser.parse_args(self.ui.args)
 
         self.action_configure = args.action_configure
@@ -153,6 +158,7 @@ class Config(object):
         self.action_store_json_creds = args.action_store_json_creds
         self.action_register_device = args.action_register_device
         self.action_setup_fido_authenticator = args.action_setup_fido_authenticator
+        self.open_browser = args.open_browser
 
         if args.insecure is True:
             ui.default.warning("Warning: SSL certificate validation is disabled!")
@@ -215,7 +221,7 @@ class Config(object):
            Config Options:
                 okta_org_url = Okta URL
                 gimme_creds_server = URL of the gimme-creds-server or 'internal' for local processing or 'appurl' when app url available
-                client_id = OAuth Client id for the gimme-creds-server
+                client_id = OAuth Client ID - used for the gimme-creds-server in Okta classic and user authentication in Okta Identity Engine
                 okta_auth_server = Server ID for the OAuth authorization server used by gimme-creds-server
                 write_aws_creds = Option to write creds to ~/.aws/credentials
                 cred_profile = Use DEFAULT or Role-based name as the profile in ~/.aws/credentials
@@ -343,7 +349,7 @@ class Config(object):
     def _get_client_id_entry(self, default_entry):
         """ Get and validate client_id """
         ui.default.message(
-            "Enter the OAuth client id for the gimme-creds-server. If you do not know this value, contact your Okta admin")
+            "Enter the OAuth Client ID for the gimme-aws-creds. This value is REQUIRED for Okta Identity Engine domains. If you do not know this value, contact your Okta admin")
 
         client_id = self._get_user_input("Client ID", default_entry)
         self._client_id = client_id
@@ -354,10 +360,10 @@ class Config(object):
         """ Get and validate app_url """
         ui.default.message(
             "Enter the application link. This is https://something.okta[preview].com/home/amazon_aws/<app_id>/something")
-        okta_org_url_valid = False
+        okta_app_url_valid = False
         app_url = default_entry
 
-        while okta_org_url_valid is False:
+        while okta_app_url_valid is False:
             app_url = self._get_user_input("Application url", default_entry)
             url_parse_results = urlparse(app_url)
             allowlist = [
@@ -367,7 +373,7 @@ class Config(object):
             ]
 
             if url_parse_results.scheme == "https" and any(urlelement in url_parse_results.hostname for urlelement in allowlist):
-                okta_org_url_valid = True
+                okta_app_url_valid = True
             else:
                 ui.default.warning(
                     "Okta organization URL must be HTTPS URL for okta.com or oktapreview.com or okta-emea.com domain")

@@ -37,11 +37,10 @@ from .errors import GimmeAWSCredsMFAEnrollStatus
 from .registered_authenticators import RegisteredAuthenticators
 
 
-class OktaClient(object):
+class OktaClassicClient(object):
     """
        The Okta Client Class performs the necessary API
-       calls to Okta to get temporary AWS credentials. An
-       Okta API key and URL must be provided.
+       calls to an Okta Classic domain to get temporary AWS credentials.
     """
 
     KEYRING_SERVICE = 'gimme-aws-creds'
@@ -52,6 +51,7 @@ class OktaClient(object):
         :type gac_ui: ui.UserInterface
         :param okta_org_url: Base URL string for Okta IDP.
         :param verify_ssl_certs: Enable/disable SSL verification
+        :param device_token: Device Token value for Okta device ID
         """
         self.ui = gac_ui
         self._okta_org_url = okta_org_url
@@ -80,7 +80,7 @@ class OktaClient(object):
         self.device_token = device_token
 
         retries = Retry(total=5, backoff_factor=1,
-                        method_whitelist=['GET', 'POST'])
+                        allowed_methods=['GET', 'POST'])
         self._http_client.mount('https://', HTTPAdapter(max_retries=retries))
 
     @property
@@ -688,7 +688,7 @@ class OktaClient(object):
         else:
             return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
 
-    def get_saml_response(self, url):
+    def get_saml_response(self, url, auth_session = None):
         """ return the base64 SAML value object from the SAML Response"""
         response = self._http_client.get(url, verify=self._verify_ssl_certs)
         response.raise_for_status()
