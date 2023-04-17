@@ -1,7 +1,7 @@
 # Gimme AWS Creds
 
 [![][license img]][license]
-[![Build Status](https://travis-ci.org/Nike-Inc/gimme-aws-creds.svg?branch=master)](https://travis-ci.org/Nike-Inc/gimme-aws-creds)
+[![][cicd img]][cicd]
 
 gimme-aws-creds is a CLI that utilizes an [Okta](https://www.okta.com/) IdP via SAML to acquire temporary AWS credentials via AWS STS.
 
@@ -414,3 +414,5 @@ Gimme AWS Creds is released under the [Apache License, Version 2.0](http://www.a
 
 [license]:LICENSE
 [license img]:https://img.shields.io/badge/License-Apache%202-blue.svg
+[cicd]:https://github.com/Nike-Inc/gimme-aws-creds/actions/workflows/cicd.yml
+[cicd img]:https://github.com/Nike-Inc/gimme-aws-creds/actions/workflows/cicd.yml/badge.svg
