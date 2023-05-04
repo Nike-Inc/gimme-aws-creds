@@ -8,9 +8,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: cachix/install-nix-action@v17
+
+      - uses: cachix/install-nix-action@v20
         with:
-          extra_nix_config: |
-            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Building package
         run: nix build .
+
+      - name: Write a gimme-aws-creds config file for testing
+        run: |
+          cat > ~/.okta_aws_login_config <<EOF
+          [default]
+          okta_org_url = https://foobar.okta.com
+          okta_auth_server =
+          client_id =
+          gimme_creds_server = appurl
+          aws_appname =
+          aws_rolename =
+          write_aws_creds = False
+          cred_profile = role
+          okta_username = foo@example.com
+          app_url = https://foobar.okta.com/home/amazon_aws/00000000000000000000/111
+          resolve_aws_alias = False
+          preferred_mfa_type =
+          aws_default_duration = 36000
+          device_token =
+          output_format = json
+          EOF
+
+      - name: Check gimme-aws-creds version
+        run: ./result/bin/gimme-aws-creds --version

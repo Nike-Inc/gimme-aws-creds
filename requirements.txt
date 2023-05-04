@@ -6,3 +6,5 @@ requests>=2.13.0,<3.0.0
 fido2>=0.9.1,<0.10.0
 okta>=0.0.4,<1.0.0
 ctap-keyring-device==1.0.6
+pyjwt>=2.4.0
+urllib3<1.27,>=1.25.4
