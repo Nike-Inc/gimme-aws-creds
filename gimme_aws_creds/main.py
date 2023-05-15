@@ -148,7 +148,7 @@ class GimmeAWSCreds(object):
             config.write(configfile)
         # Update file permissions to secure  sensitive credentials file
         os.chmod(aws_config, 0o600)
-        self.ui.result('Written profile {} to {}'.format(profile, aws_config))
+        self.ui.message('Written profile {} to {}'.format(profile, aws_config))
 
     def write_aws_creds_from_data(self, data, aws_config=None):
         if not isinstance(data, dict):
@@ -186,7 +186,7 @@ class GimmeAWSCreds(object):
             return
 
         arn = data.get('role', {}).get('arn', '<no-arn>')
-        self.ui.result('Saving {} as {}'.format(arn, profile['name']))
+        self.ui.message('Saving {} as {}'.format(arn, profile['name']))
         self._write_aws_creds(
             profile['name'],
             credentials['aws_access_key_id'],
