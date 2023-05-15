@@ -679,6 +679,10 @@ class GimmeAWSCreds(object):
                     id_token=False,
                     scopes=['openid']
                 )
+                
+                # auth_session isn't needed when using gimme_creds_lambda and Okta classic
+                self.set_auth_session(None)
+                
             elif self.okta_platform == 'identity_engine':
                 auth_result = self.auth_session
 
