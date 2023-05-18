@@ -157,6 +157,13 @@ source ${INSTALL_DIR}/gimme-aws-creds-autocomplete.sh
 
 ## Using gimme-aws-creds with Okta Identity Engine
 
+There are two options for using gimme-aws-creds with an OIE domain:
+* Device Authorization Flow
+* Forcing the use of the Okta Classic login flow
+
+### Okta Identity Engine and Device Authorization Flow
+This is the recommended method for authentication with OIE.  It matches the flow used by Okta's [AWS client](https://github.com/okta/okta-aws-cli).  When using gimme-aws-creds with the Device Authorization flow, you will authenticate using your browser.  Storing credentials in keychain or passing MFA codes through the command-line is NOT POSSIBLE.
+
 To use gimme-aws-creds with an Okta Identity Engine (OIE) domain, you must create a new OIDC Native Application and connect it to your AWS integration app(s).
 
 The OIDC Native Application requires Grant Types `Authorization Code`, `Device Authorization` , and `Token Exchange`. These settings are in the Okta Admin UI at `Applications > [the OIDC app] > General Settings > Grant type`.
@@ -165,7 +172,12 @@ The pairing with the AWS Federation Application is achieved in the Fed app's Sig
 
 Finally, set the Client ID in gimme-aws-creds (`gimme-aws-creds --action-configure` or update the `client_id` parameter in your config file)
 
-**When using gimme-aws-creds with an OIE domain, you will authenticate using your browser.  Storing credentials in keychain or passing MFA codes through the command-line is NOT POSSIBLE.**
+### Forcing the use of the Okta Classic login flow ###
+The login flow used in Okta Classic currently still works with Okta Identity Engine domains, BUT there are a couple caveats:
+* The Okta classic flow passes the `stateToken` parameter when requesting "step-up" authentication.  This capability was removed in OIE, so if the authentication policy on your AWS app(s) requires MFA but the Global Session Policy does not (or if a higher level of MFA factor is required to access AWS), you cannot authenticate using the classic login flow.
+* MFA using Okta Verify is only supported on mobile devices.  Okta Verify on macOS/Windows is not supported.
+* Passwordless authentication and endpoint security checks are not supported.
+
 
 ## Configuration
 
@@ -216,6 +228,7 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - remember_device - y or n. If yes, the MFA device will be remembered by Okta service for a limited time. This option can also be set interactively in the command line using `-m` or `--remember-device`
 - output_format - `json` , `export` or `windows`, determines default credential output format, can be also specified by `--output-format FORMAT` and `-o FORMAT`.
 - open-browser - Open the device authentication link in the default web browser automatically (Okta Identity Engine domains only)
+- force-classic - Force the use of the Okta Classic login process (Okta Identity Engine domains only)
 
 ## Configuration File
 

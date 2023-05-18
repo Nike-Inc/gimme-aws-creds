@@ -55,6 +55,7 @@ class Config(object):
         self.action_setup_fido_authenticator = False
         self.action_output_format = False
         self.output_format = 'export'
+        self.force_classic = False
         self.roles = []
 
         if self.ui.environ.get("OKTA_USERNAME") is not None:
@@ -150,6 +151,10 @@ class Config(object):
             '--open-browser', action='store_true',
             help='Automatically open a webbrowser for device authorization (Okta Identity Engine only)'
         )
+        parser.add_argument(
+            '--force-classic', action='store_true',
+            help='Force the use of the Okta Classic login process (Okta Identity Engine only)'
+        )
         args = parser.parse_args(self.ui.args)
 
         self.action_configure = args.action_configure
@@ -159,6 +164,7 @@ class Config(object):
         self.action_register_device = args.action_register_device
         self.action_setup_fido_authenticator = args.action_setup_fido_authenticator
         self.open_browser = args.open_browser
+        # self.force_classic = args.force_classic
 
         if args.insecure is True:
             ui.default.warning("Warning: SSL certificate validation is disabled!")
@@ -255,6 +261,7 @@ class Config(object):
             'aws_default_duration': '3600',
             'device_token': '',
             'output_format': 'export',
+            'force_classic': 'n'
         }
 
         # See if a config file already exists.
@@ -289,6 +296,7 @@ class Config(object):
         config_dict['aws_default_duration'] = self._get_aws_default_duration(defaults['aws_default_duration'])
         config_dict['preferred_mfa_type'] = self._get_preferred_mfa_type(defaults['preferred_mfa_type'])
         config_dict['remember_device'] = self._get_remember_device(defaults['remember_device'])
+        config_dict['force_classic'] = self._get_force_classic(defaults['force_classic'])
         config_dict["output_format"] = ''
         if not config_dict["write_aws_creds"]:
             config_dict['output_format'] = self._get_output_format(defaults['output_format'])
@@ -543,6 +551,18 @@ class Config(object):
                     "Remember device", default_entry)
             except ValueError:
                 ui.default.warning("Remember the MFA device must be either y or n.")
+
+    def _get_force_classic(self, default_entry):
+        """Option to force the Okta Classic login process"""
+        ui.default.message(
+            "Do you want to force the Okta Classic login flow? (Okta Identity Engine domains only)\n"
+            "Please answer y or n.")
+        while True:
+            try:
+                return self._get_user_input_yes_no(
+                    "Force classic login flow", default_entry)
+            except ValueError:
+                ui.default.warning("Force Classic login flow must be either y or n.")
 
     def _get_user_input(self, message, default=None):
         """formats message to include default and then prompts user for input
