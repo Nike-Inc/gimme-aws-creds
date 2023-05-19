@@ -164,7 +164,7 @@ class Config(object):
         self.action_register_device = args.action_register_device
         self.action_setup_fido_authenticator = args.action_setup_fido_authenticator
         self.open_browser = args.open_browser
-        # self.force_classic = args.force_classic
+        self.force_classic = args.force_classic
 
         if args.insecure is True:
             ui.default.warning("Warning: SSL certificate validation is disabled!")
