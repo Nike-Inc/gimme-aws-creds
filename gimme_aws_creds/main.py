@@ -633,7 +633,11 @@ class GimmeAWSCreds(object):
     def auth_session(self):
         if 'auth_session' in self._cache:
             return self._cache['auth_session']
-        auth_result = self.okta.auth_session(redirect_uri=self.conf_dict.get('app_url'), open_browser=self.config.open_browser)
+        if self.config.open_browser is True or self.conf_dict.get('open_browser') == "True":
+            open_browser = True
+        else:
+            open_browser = False
+        auth_result = self.okta.auth_session(redirect_uri=self.conf_dict.get('app_url'), open_browser=open_browser)
         self.set_auth_session(auth_result)
 
         return auth_result

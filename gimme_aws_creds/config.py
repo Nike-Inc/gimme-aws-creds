@@ -261,7 +261,8 @@ class Config(object):
             'aws_default_duration': '3600',
             'device_token': '',
             'output_format': 'export',
-            'force_classic': 'n'
+            'force_classic': 'n',
+            'open_browser': 'n'
         }
 
         # See if a config file already exists.
@@ -297,6 +298,8 @@ class Config(object):
         config_dict['preferred_mfa_type'] = self._get_preferred_mfa_type(defaults['preferred_mfa_type'])
         config_dict['remember_device'] = self._get_remember_device(defaults['remember_device'])
         config_dict['force_classic'] = self._get_force_classic(defaults['force_classic'])
+        if config_dict['force_classic'] == False:
+            config_dict['open_browser'] = self._get_open_browser(defaults['open_browser'])
         config_dict["output_format"] = ''
         if not config_dict["write_aws_creds"]:
             config_dict['output_format'] = self._get_output_format(defaults['output_format'])
@@ -563,6 +566,18 @@ class Config(object):
                     "Force classic login flow", default_entry)
             except ValueError:
                 ui.default.warning("Force Classic login flow must be either y or n.")
+    
+    def _get_open_browser(self, default_entry):
+        """Option to automatically open the default browser for OIE authentication"""
+        ui.default.message(
+            "Do you want to automatically open the default browser for authentication? (Okta Identity Engine domains only)\n"
+            "Please answer y or n.")
+        while True:
+            try:
+                return self._get_user_input_yes_no(
+                    "Open default browser automatically", default_entry)
+            except ValueError:
+                ui.default.warning("Open browser must be either y or n.")
 
     def _get_user_input(self, message, default=None):
         """formats message to include default and then prompts user for input
