@@ -7,7 +7,7 @@
       flake = false;
     };
     mach-nix = {
-      url = "github:DavHau/mach-nix/3.5.0";
+      url = "github:DavHau/mach-nix";
       inputs.pypi-deps-db.follows = "pypi-deps-db";
       inputs.nixpkgs.follows = "nixpkgs";
     };
