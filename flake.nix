@@ -2,7 +2,15 @@
   description = "Gimme AWS Creds";
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    mach-nix.url = "github:davhau/mach-nix";
+    pypi-deps-db = {
+      url = "github:DavHau/pypi-deps-db";
+      flake = false;
+    };
+    mach-nix = {
+      url = "github:DavHau/mach-nix/3.5.0";
+      inputs.pypi-deps-db.follows = "pypi-deps-db";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     flake-utils.url = "github:numtide/flake-utils";
     flake-compat.url = "github:edolstra/flake-compat";
     flake-compat.flake = false;
