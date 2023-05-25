@@ -287,7 +287,6 @@ class Config(object):
             config_dict['force_classic'] = self._get_force_classic(defaults['force_classic'])
             if config_dict['force_classic'] is False:
                 config_dict['open_browser'] = self._get_open_browser(defaults['open_browser'])
-            else:
                 config_dict['client_id'] = self._get_client_id_entry(defaults['client_id'])
                 client_id_set = True
 
