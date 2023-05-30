@@ -61,6 +61,26 @@ class TestOktaClassicClient(unittest.TestCase):
             }
         }
 
+        self.email_factor = {
+            "id": "ema9hmdk2qvhjOQQ30h7",
+            "factorType": "email",
+            "provider": "OKTA",
+            "vendorName": "OKTA",
+            "profile": {
+                "email": "example@example.com"
+            },
+            "_links": {
+                "verify": {
+                    "href": "https://example.okta.com/api/v1/authn/factors/ema9hmdk2qvhjOQQ30h7/verify",
+                    "hints": {
+                        "allow": [
+                            "POST"
+                        ]
+                    }
+                }
+            }
+        }
+
         self.push_factor = {
                 "id": "opf9ei43pbAgb2qgc0h7",
                 "factorType": "push",
@@ -194,7 +214,7 @@ class TestOktaClassicClient(unittest.TestCase):
 
         </html>"""
 
-        self.factor_list = [self.sms_factor, self.push_factor, self.totp_factor, self.webauthn_factor]
+        self.factor_list = [self.sms_factor, self.push_factor, self.totp_factor, self.webauthn_factor, self.email_factor]
 
     def setUp_client(self, okta_org_url, verify_ssl_certs):
         client = OktaClassicClient(ui.default, okta_org_url, verify_ssl_certs)
@@ -421,6 +441,97 @@ class TestOktaClassicClient(unittest.TestCase):
 
         responses.add(responses.POST, 'https://example.okta.com/api/v1/authn/factors/sms9hmdk2qvhjOQQ30h7/verify', status=200, body=json.dumps(verify_response))
         result = self.client._login_send_sms(self.state_token, self.sms_factor)
+        self.assertEqual(result, {'stateToken': self.state_token, 'apiResponse': verify_response})
+
+    @responses.activate
+    def test_login_send_email(self):
+        """Test that email messages can be requested for MFA"""
+
+        verify_response = {
+            "stateToken": "00Wf8xZJ79mSoTYnJqXbvRegT8QB1EX1IBVk1TU7KI",
+            "type": "SESSION_STEP_UP",
+            "expiresAt": "2017-06-15T15:06:10.000Z",
+            "status": "MFA_CHALLENGE",
+            "_embedded": {
+                "user": {
+                    "id": "00u8cakq7vQwtK7sR0h7",
+                    "profile": {
+                        "login": "Jane.Doe@example.com",
+                        "firstName": "Jane",
+                        "lastName": "Doe",
+                        "locale": "en",
+                        "timeZone": "America/Los_Angeles"
+                    }
+                },
+                "factor": {
+                    "id": "ema9hmdk2qvhjOQQ30h7",
+                    "factorType": "email",
+                    "provider": "OKTA",
+                    "vendorName": "OKTA",
+                    "profile": {
+                        "email": "example@example.com"
+                    }
+                },
+                "policy": {
+                    "allowRememberDevice": False,
+                    "rememberDeviceLifetimeInMinutes": 0,
+                    "rememberDeviceByDefault": False
+                },
+                "target": {
+                    "type": "APP",
+                    "name": "gimmecredsserver",
+                    "label": "Gimme-Creds-Server (Dev)",
+                    "_links": {
+                        "logo": {
+                            "name": "medium",
+                            "href": "https://op1static.oktacdn.com/bc/globalFileStoreRecord?id=gfsatgifysE8NG37F0h7",
+                            "type": "image/png"
+                        }
+                    }
+                }
+            },
+            "_links": {
+                "next": {
+                    "name": "verify",
+                    "href": "https://example.okta.com/api/v1/authn/factors/ema9hmdk2qvhjOQQ30h7/verify",
+                    "hints": {
+                        "allow": [
+                            "POST"
+                        ]
+                    }
+                },
+                "cancel": {
+                    "href": "https://example.okta.com/api/v1/authn/cancel",
+                    "hints": {
+                        "allow": [
+                            "POST"
+                        ]
+                    }
+                },
+                "prev": {
+                    "href": "https://example.okta.com/api/v1/authn/previous",
+                    "hints": {
+                        "allow": [
+                            "POST"
+                        ]
+                    }
+                },
+                "resend": [
+                    {
+                        "name": "sms",
+                        "href": "https://example.okta.com/api/v1/authn/factors/ema9hmdk2qvhjOQQ30h7/verify/resend",
+                        "hints": {
+                            "allow": [
+                                "POST"
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+
+        responses.add(responses.POST, 'https://example.okta.com/api/v1/authn/factors/ema9hmdk2qvhjOQQ30h7/verify', status=200, body=json.dumps(verify_response))
+        result = self.client._login_send_email(self.state_token, self.email_factor)
         self.assertEqual(result, {'stateToken': self.state_token, 'apiResponse': verify_response})
 
     @responses.activate
@@ -996,6 +1107,12 @@ class TestOktaClassicClient(unittest.TestCase):
         result = self.client._choose_factor(self.factor_list)
         self.assertEqual(result, self.totp_factor)
 
+    @patch('builtins.input', return_value='4')
+    def test_choose_factor_totp(self, mock_input):
+        """ Test selecting email as a MFA"""
+        result = self.client._choose_factor(self.factor_list)
+        self.assertEqual(result, self.email_factor)
+
     @patch('builtins.input', return_value='12')
     def test_choose_bad_factor_totp(self, mock_input):
         """ Test selecting an invalid MFA factor"""
@@ -1018,6 +1135,11 @@ class TestOktaClassicClient(unittest.TestCase):
         """ Test building a display name for SMS"""
         result = self.client._build_factor_name(self.sms_factor)
         self.assertEqual(result, "sms: +1 XXX-XXX-1234")
+
+    def test_build_factor_name_email(self):
+        """ Test building a display name for email"""
+        result = self.client._build_factor_name(self.email_factor)
+        self.assertEqual(result, "email: example@example.com")
 
     def test_build_factor_name_push(self):
         """ Test building a display name for push"""

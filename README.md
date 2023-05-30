@@ -129,8 +129,8 @@ To make it easier you can also create an alias for the gimme-aws-creds command w
 ```bash
 # make sure you have the "~/.okta_aws_login_config" locally first!
 touch ~/.okta_aws_login_config && \
-alias gimme-aws-creds="docker run -it --rm \
-  -v ~/.aws/credentials:/root/.aws/credentials \
+alias gimme-aws-creds-docker="docker run -it --rm \
+  -v ~/.aws/credentials2:/root/.aws/credentials \
   -v ~/.okta_aws_login_config:/root/.okta_aws_login_config \
   gimme-aws-creds"
 ```
@@ -208,6 +208,7 @@ A configuration wizard will prompt you to enter the necessary configuration para
   - token:hardware - OTP using hardware like Yubikey
   - call - OTP via Voice call
   - sms - OTP via SMS message
+  - email - OTP via email
   - web - DUO uses localhost webbrowser to support push|call|passcode
   - passcode - DUO uses `OKTA_MFA_CODE` or `--mfa-code` if set, or prompts user for passcode(OTP).
   
