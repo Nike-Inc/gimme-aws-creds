@@ -936,7 +936,7 @@ class GimmeAWSCreds(object):
 
     def handle_action_register_device(self):
         # Capture the Device Token and write it to the config file
-        if self.okta_platform == "classic" and ( self.device_token is None or self.config.action_register_device is True ):
+        if self.okta_platform == "classic" and ( not self.device_token or self.config.action_register_device is True ):
             if not self.config.action_register_device:
                 self.ui.notify('\n*** No device token found in configuration file, it will be created.')
                 self.ui.notify('*** You may be prompted for MFA more than once for this run.\n')
