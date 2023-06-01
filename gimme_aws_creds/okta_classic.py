@@ -389,6 +389,25 @@ class OktaClassicClient(object):
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
+    def _login_send_email(self, state_token, factor):
+        """ Send email message for second factor authentication"""
+        response = self._http_client.post(
+            factor['_links']['verify']['href'],
+            params={'rememberDevice': self._remember_device},
+            json={'stateToken': state_token},
+            headers=self._get_headers(),
+            verify=self._verify_ssl_certs
+        )
+        response.raise_for_status()
+
+        self.ui.info("A verification code has been sent to " + factor['profile']['email'])
+        response_data = response.json()
+
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+
     def _login_send_call(self, state_token, factor):
         """ Send Voice call for second factor authentication"""
         response = self._http_client.post(
@@ -554,6 +573,8 @@ class OktaClassicClient(object):
             return self._login_send_sms(state_token, factor)
         elif factor['factorType'] == 'call':
             return self._login_send_call(state_token, factor)
+        elif factor['factorType'] == 'email':
+            return self._login_send_email(state_token, factor)
         elif factor['factorType'] == 'token:software:totp':
             return self._login_input_mfa_challenge(state_token, factor['_links']['verify']['href'])
         elif factor['factorType'] == 'token':
@@ -834,6 +855,8 @@ class OktaClassicClient(object):
             return "Okta Verify App: " + factor['profile']['deviceType'] + ": " + factor['profile']['name']
         elif factor['factorType'] == 'sms':
             return factor['factorType'] + ": " + factor['profile']['phoneNumber']
+        elif factor['factorType'] == 'email':
+            return factor['factorType'] + ": " + factor['profile']['email']
         elif factor['factorType'] == 'call':
             return factor['factorType'] + ": " + factor['profile']['phoneNumber']
         elif factor['factorType'] == 'token:software:totp':
