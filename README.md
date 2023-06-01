@@ -129,8 +129,8 @@ To make it easier you can also create an alias for the gimme-aws-creds command w
 ```bash
 # make sure you have the "~/.okta_aws_login_config" locally first!
 touch ~/.okta_aws_login_config && \
-alias gimme-aws-creds-docker="docker run -it --rm \
-  -v ~/.aws/credentials2:/root/.aws/credentials \
+alias gimme-aws-creds="docker run -it --rm \
+  -v ~/.aws/credentials:/root/.aws/credentials \
   -v ~/.okta_aws_login_config:/root/.okta_aws_login_config \
   gimme-aws-creds"
 ```
