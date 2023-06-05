@@ -260,7 +260,6 @@ class Config(object):
             'preferred_mfa_type': '',
             'remember_device': 'n',
             'aws_default_duration': '3600',
-            'device_token': '',
             'output_format': 'export',
             'force_classic': '',
             'open_browser': ''
@@ -558,6 +557,7 @@ class Config(object):
             - token:hardware - OTP using hardware like Yubikey
             - call - OTP via Voice call
             - sms - OTP via SMS message
+            - email - OTP via email message
             - web - DUO uses localhost webbrowser to support push|call|passcode
             - passcode - DUO uses `OKTA_MFA_CODE` or `--mfa-code` if set, or prompts user for passcode(OTP).
             """
