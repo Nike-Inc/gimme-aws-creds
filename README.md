@@ -311,6 +311,7 @@ A list of values of to change with environment variables are:
 - `OKTA_MFA_CODE` - corresponds to `--mfa-code` CLI option
 - `OKTA_PASSWORD` - provides password during authentication, can be used in CI
 - `OKTA_USERNAME` - corresponds to `okta_username` configuration and `--username` CLI option
+- `AWS_STS_REGION` - force the use of the STS in a specific region (`us-east-1`, `eu-north-1`, etc.)
 
 Example: `GIMME_AWS_CREDS_CLIENT_ID='foobar' AWS_DEFAULT_DURATION=12345 gimme-aws-creds`
 
