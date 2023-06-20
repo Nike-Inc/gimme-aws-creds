@@ -39,48 +39,8 @@ from .registered_authenticators import RegisteredAuthenticators
 class GimmeAWSCreds(object):
     """
        This is a CLI tool that gets temporary AWS credentials
-       from Okta based the available AWS Okta Apps and roles
-       assigned to the user. The user is able to select the app
-       and role from the CLI or specify them in a config file by
-       passing --action-configure to the CLI too.
-       gimme_aws_creds will either write the credentials to stdout
-       or ~/.aws/credentials depending on what was specified when
-       --action-configure was ran.
-
-       Usage:
-          -h, --help            show this help message and exit
-          --username USERNAME, -u USERNAME
-                                The username to use when logging into Okta. The
-                                username can also be set via the OKTA_USERNAME env
-                                variable. If not provided you will be prompted to
-                                enter a username.
-          --action-configure, -c       If set, will prompt user for configuration parameters
-                                and then exit.
-          --profile PROFILE, -p PROFILE
-                                If set, the specified configuration profile will be
-                                used instead of the default.
-          --resolve, -r         If set, performs alias resolution.
-          --insecure, -k        Allow connections to SSL sites without cert
-                                verification.
-          --mfa-code MFA_CODE   The MFA verification code to be used with SMS or TOTP
-                                authentication methods. If not provided you will be
-                                prompted to enter an MFA verification code.
-          --remember-device, -m
-                                The MFA device will be remembered by Okta service for
-                                a limited time, otherwise, you will be prompted for it
-                                every time.
-          --version             gimme-aws-creds version
-
-        Config Options:
-           okta_org_url = Okta URL
-           gimme_creds_server = URL of the gimme-creds-server
-           client_id = OAuth Client id for the gimme-creds-server
-           okta_auth_server = Server ID for the OAuth authorization server used by gimme-creds-server
-           write_aws_creds = Option to write creds to ~/.aws/credentials
-           cred_profile = Use DEFAULT or Role-based name as the profile in ~/.aws/credentials
-           aws_appname = (optional) Okta AWS App Name
-           aws_rolename =  (optional) AWS Role ARN. 'ALL' will retrieve all roles, can be a CSV for multiple roles.
-           okta_username = (optional) Okta User Name
+       from Okta based on the available AWS Okta Apps and roles
+       assigned to the user. 
     """
     resolver = DefaultResolver()
     envvar_list = [
@@ -95,6 +55,7 @@ class GimmeAWSCreds(object):
         'OKTA_MFA_CODE',
         'OKTA_PASSWORD',
         'OKTA_USERNAME',
+        'AWS_STS_REGION'
     ]
 
     envvar_conf_map = {
@@ -102,6 +63,7 @@ class GimmeAWSCreds(object):
         'GIMME_AWS_CREDS_CRED_PROFILE': 'cred_profile',
         'GIMME_AWS_CREDS_OUTPUT_FORMAT': 'output_format',
         'OKTA_DEVICE_TOKEN': 'device_token',
+        'AWS_STS_REGION': 'aws_region'
     }
 
     def __init__(self, ui=ui.cli):
@@ -209,12 +171,16 @@ class GimmeAWSCreds(object):
             raise errors.GimmeAWSCredsError("{} is an unknown ACS URL".format(saml_acs_url))
 
     @staticmethod
-    def _get_sts_creds(partition, assertion, idp, role, duration=3600):
+    def _get_sts_creds(partition, region, assertion, idp, role, duration=3600):
         """ using the assertion and arns return aws sts creds """
 
-        # Use the first available region for partitions other than the public AWS
         session = boto3.session.Session(profile_name=None)
-        if partition != 'aws':
+
+        # If a region was passed, use that
+        if region is not None:
+            client = session.client('sts', region)
+        # Use the first available region for partitions other than the public AWS
+        elif partition != 'aws':
             regions = session.get_available_regions('sts', partition)
             client = session.client('sts', regions[0])
         else:
@@ -526,12 +492,19 @@ class GimmeAWSCreds(object):
         if 'okta_platform' in self._cache:
             return self._cache['okta_platform']
         
+        # Treat this domain as classic, even if it's OIE
+        if self.config.force_classic == True or self.conf_dict.get('force_classic') == "True":
+            self.ui.message('Okta Classic login flow enabled')
+            self.set_okta_platform('classic')
+            return 'classic'
+        
         response = requests.get(
             self.okta_org_url + '/.well-known/okta-organization',
             headers={
                 'Accept': 'application/json',
                 'User-Agent': "gimme-aws-creds {}".format(version)
-            }
+            },
+            timeout=30
         )
 
         response_data = response.json()
@@ -626,7 +599,11 @@ class GimmeAWSCreds(object):
     def auth_session(self):
         if 'auth_session' in self._cache:
             return self._cache['auth_session']
-        auth_result = self.okta.auth_session(redirect_uri=self.conf_dict.get('app_url'), open_browser=self.config.open_browser)
+        if self.config.open_browser is True or self.conf_dict.get('open_browser') == "True":
+            open_browser = True
+        else:
+            open_browser = False
+        auth_result = self.okta.auth_session(redirect_uri=self.conf_dict.get('app_url'), open_browser=open_browser)
         self.set_auth_session(auth_result)
 
         return auth_result
@@ -752,6 +729,7 @@ class GimmeAWSCreds(object):
             try:
                 aws_creds = self._get_sts_creds(
                     self.aws_partition,
+                    self.conf_dict.get('aws_region'),
                     self.saml_data['SAMLResponse'],
                     role.idp,
                     role.role,
@@ -763,6 +741,7 @@ class GimmeAWSCreds(object):
                         "The requested session duration was too long for the role {}.  Falling back to 1 hour.".format(role.role))
                     aws_creds = self._get_sts_creds(
                         self.aws_partition,
+                        self.conf_dict.get('aws_region'),
                         self.saml_data['SAMLResponse'],
                         role.idp,
                         role.role,
@@ -854,9 +833,10 @@ class GimmeAWSCreds(object):
         self.handle_action_list_profiles()
         if self.okta_platform == 'classic':
             self.handle_action_register_device()
-            self.handle_action_store_json_creds()
-            self.handle_action_list_roles()
             self.handle_setup_fido_authenticator()
+        self.handle_action_store_json_creds()
+        self.handle_action_list_roles()
+            
   
         # for each data item, if we have an override on output, prioritize that
         # if we do not, prioritize writing credentials to file if that is in our
