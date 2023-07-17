@@ -159,14 +159,26 @@ class GimmeAWSCreds(object):
         )
 
     @staticmethod
-    def _get_partition_from_saml_acs(saml_acs_url):
-        """ Determine the AWS partition by looking at the ACS endpoint URL"""
-        if saml_acs_url == 'https://signin.aws.amazon.com/saml':
-            return 'aws'
-        elif saml_acs_url == 'https://signin.amazonaws.cn/saml':
-            return 'aws-cn'
-        elif saml_acs_url == 'https://signin.amazonaws-us-gov.com/saml':
-            return 'aws-us-gov'
+    def _get_partition_and_region_from_saml_acs(saml_acs_url):
+        """ Determine the AWS partition and region by looking at the ACS endpoint URL. """
+        if saml_acs_url.endswith('signin.aws.amazon.com/saml'):
+            match = re.search(r"https:\/\/(.*)\.signin\.aws\.amazon\.com\/saml", saml_acs_url)
+            if match is None:
+                return('aws', 'us-east-1')
+            else:
+                return ('aws', match.group(1))
+        elif saml_acs_url.endswith('signin.amazonaws.cn/saml'):
+            match = re.search(r"https:\/\/(.*)\.signin\.amazonaws\.cn\/saml", saml_acs_url)
+            if match is None:
+                return('aws-cn', 'cn-north-1')
+            else:
+                return ('aws-cn', match.group(1))
+        elif saml_acs_url.endswith('signin.amazonaws-us-gov.com/saml'):
+            match = re.search(r"https:\/\/(.*)\.signin\.amazonaws-us-gov\.com\/saml", saml_acs_url)
+            if match is None:
+                return('aws-us-gov', 'us-gov-east-1')
+            else:
+                return ('aws-us-gov', match.group(1))
         else:
             raise errors.GimmeAWSCredsError("{} is an unknown ACS URL".format(saml_acs_url))
 
@@ -179,12 +191,10 @@ class GimmeAWSCreds(object):
         # If a region was passed, use that
         if region is not None:
             client = session.client('sts', region)
-        # Use the first available region for partitions other than the public AWS
-        elif partition != 'aws':
+        # Use the first available region
+        else:
             regions = session.get_available_regions('sts', partition)
             client = session.client('sts', regions[0])
-        else:
-            client = session.client('sts')
 
         response = client.assume_role_with_saml(
             RoleArn=role,
@@ -720,7 +730,11 @@ class GimmeAWSCreds(object):
     def aws_partition(self):
         if 'aws_partition' in self._cache:
             return self._cache['aws_partition']
-        self._cache['aws_partition'] = aws_partition = self._get_partition_from_saml_acs(self.saml_data['TargetUrl'])
+        aws_partition, aws_region = self._get_partition_and_region_from_saml_acs(self.saml_data['TargetUrl'])
+        self._cache['aws_partition'] = aws_partition
+        # use the region of the SAML ACS if one wasn't specified by the user
+        if self.conf_dict.get('aws_region') is None:
+            self.conf_dict['aws_region'] = aws_region
         return aws_partition
 
     def prepare_data(self, role, generate_credentials=False):
