@@ -655,6 +655,7 @@ class OktaClassicClient(object):
         verify = FactorU2F(self.ui, app_id, nonce, credential_id)
         try:
             client_data, signature = verify.verify()
+            self.ui.notify("Received U2F token response.")
         except Exception:
             signature = b'fake'
             client_data = b'fake'
@@ -690,6 +691,7 @@ class OktaClassicClient(object):
         # noinspection PyBroadException
         try:
             client_data, assertion = webauthn_client.verify()
+            self.ui.notify("Received WebAuthn token response")
         except Exception:
             client_data = b'fake'
             assertion = FakeAssertion()
