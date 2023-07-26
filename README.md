@@ -172,6 +172,8 @@ The pairing with the AWS Federation Application is achieved in the Fed app's Sig
 
 Finally, set the Client ID in gimme-aws-creds (`gimme-aws-creds --action-configure` or update the `client_id` parameter in your config file)
 
+Make sure to use the same authentication policy for both the AWS Federation Application and the OIDC application ( or at least use equivalent policy rules for both).  If not, you'll receive a `400 Bad Request` response when requesting the Web SSO token.
+
 ### Forcing the use of the Okta Classic login flow ###
 The login flow used in Okta Classic currently still works with Okta Identity Engine domains, BUT there are a couple caveats:
 * The Okta classic flow passes the `stateToken` parameter when requesting "step-up" authentication.  This capability was removed in OIE, so if the authentication policy on your AWS app(s) requires MFA but the Global Session Policy does not (or if a higher level of MFA factor is required to access AWS), you cannot authenticate using the classic login flow.
