@@ -10,6 +10,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
 import base64
+import json
 import xml.etree.ElementTree as ET
 
 import requests
@@ -84,22 +85,50 @@ class AwsResolver(object):
         # init parser
         soup = BeautifulSoup(signin_page, 'html.parser')
         
-        # find all roles
+        # find NextJS metadata
+        roles_meta_tag = soup.find('meta', {'name': 'data'})
+
+        if roles_meta_tag:
+            roles_meta = roles_meta_tag['content']
+            return self._parse_nextjs_saml_roles(roles_meta, table)
+
+        # Handle the case where the metadata content isn't present
+        # This is most likely due to AWS using their legacy SAML page
+        return self._parse_legacy_saml_roles(soup, table)
+
+    def _parse_nextjs_saml_roles(self, metadata, idp_table):
+        roles_accounts = json.loads(base64.b64decode(metadata).decode('utf-8'))['roles_accounts']
+
+        # Normalize pieces of string;
+        result = []
+
+        for account_name, roles in roles_accounts.items():
+            for role_arn in roles:
+                idp, role, friendly_account_name, friendly_role_name = None, None, None, None
+                role = role_arn.strip()  # To remove any extra spaces
+                idp = idp_table[role]
+                friendly_account_name = f'Account: {account_name}'
+                friendly_role_name = role_arn.split('/')[-1]
+                result.append(commondef.RoleSet(idp=idp, role=role, friendly_account_name=friendly_account_name, friendly_role_name=friendly_role_name))
+        return result
+    
+    def _parse_legacy_saml_roles(self, soup, idp_table):
         roles = soup.find_all("div", attrs={"class": "saml-role"})
+
         # Normalize pieces of string;
         result = []
 
         # Return role if no Roles are present
         if not roles:
-            role = next(iter(table))
-            idp = table[role]
+            role = next(iter(idp_table))
+            idp = idp_table[role]
             result.append(commondef.RoleSet(idp=idp, role=role, friendly_account_name='SingleAccountName', friendly_role_name='SingleRole'))
             return result
 
         for role_item in roles:
             idp, role, friendly_account_name, friendly_role_name = None, None, None, None
             role = role_item.label['for']
-            idp = table[role]
+            idp = idp_table[role]
             friendly_account_name = role_item.parent.parent.find("div").find("div").get_text()
             friendly_role_name = role_item.label.get_text()
             result.append(commondef.RoleSet(idp=idp, role=role, friendly_account_name=friendly_account_name, friendly_role_name=friendly_role_name))
