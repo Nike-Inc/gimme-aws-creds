@@ -84,8 +84,6 @@ class TestAwsResolver(unittest.TestCase):
         """Test parsing the roles from SAML assrtion & NextJS AwsSigninPage"""
         responses.add(responses.POST, 'https://signin.aws.amazon.com/saml', status=200, body=self.aws_nextsigninpage)
         result = self.resolver._enumerate_saml_roles(self.saml, 'https://signin.aws.amazon.com/saml')
-        print(result)
-        print(self.roles)
         self.assertEqual(result[0], self.roles[0])
         self.assertEqual(result[1], self.roles[1])
         self.assertEqual(result[2], self.roles[2])
