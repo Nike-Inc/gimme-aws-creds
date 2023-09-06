@@ -12,7 +12,6 @@ See the License for the specific language governing permissions and* limitations
 
 from __future__ import print_function, absolute_import, unicode_literals
 
-from getpass import getpass
 from threading import Event, Thread
 
 from ctap_keyring_device.ctap_keyring_device import CtapKeyringDevice
@@ -140,13 +139,12 @@ class WebAuthnClient(object):
             self.ui.info('Operation timed out or no valid Security Key found !')
             raise FIDODeviceTimeoutError
 
-    @staticmethod
-    def _get_pin_from_client(client):
+    def _get_pin_from_client(self, client):
         if not client.info.options.get(CtapOptions.CLIENT_PIN):
             return None
 
         # Prompt for PIN if needed
-        pin = getpass("Please enter PIN: ")
+        pin = self.ui.input(message="Please enter PIN: ", hidden=True)
         return pin
 
     @staticmethod
