@@ -812,6 +812,12 @@ class GimmeAWSCreds(object):
                 role_name = ''.join([path, role_name])
             profile_name = '-'.join([account,
                                      role_name])
+        elif cred_profile.lower() == 'acc':
+            profile_name = naming_data['account']
+            if resolve_alias == 'True':
+                account_alias = self._get_alias_from_friendly_name(role.friendly_account_name)
+                if account_alias:
+                    profile_name = account_alias
         else:
             profile_name = cred_profile
         return profile_name
