@@ -40,7 +40,7 @@ class GimmeAWSCreds(object):
     """
        This is a CLI tool that gets temporary AWS credentials
        from Okta based on the available AWS Okta Apps and roles
-       assigned to the user. 
+       assigned to the user.
     """
     resolver = DefaultResolver()
     envvar_list = [
@@ -496,18 +496,18 @@ class GimmeAWSCreds(object):
 
     def set_okta_platform(self, okta_platform):
         self._cache['okta_platform'] = okta_platform
-    
+
     @property
     def okta_platform(self):
         if 'okta_platform' in self._cache:
             return self._cache['okta_platform']
-        
+
         # Treat this domain as classic, even if it's OIE
         if self.config.force_classic == True or self.conf_dict.get('force_classic') == "True":
             self.ui.message('Okta Classic login flow enabled')
             self.set_okta_platform('classic')
             return 'classic'
-        
+
         response = requests.get(
             self.okta_org_url + '/.well-known/okta-organization',
             headers={
@@ -669,10 +669,10 @@ class GimmeAWSCreds(object):
                     id_token=False,
                     scopes=['openid']
                 )
-                
+
                 # auth_session isn't needed when using gimme_creds_lambda and Okta classic
                 self.set_auth_session(None)
-                
+
             elif self.okta_platform == 'identity_engine':
                 auth_result = self.auth_session
 
@@ -803,14 +803,12 @@ class GimmeAWSCreds(object):
             profile_name = 'default'
         elif cred_profile.lower() == 'role':
             profile_name = naming_data['role']
+        elif cred_profile.lower() == 'acc':
+            profile_name = self._get_account_name(naming_data['account'], role, resolve_alias)
         elif cred_profile.lower() == 'acc-role':
-            account = naming_data['account']
+            account = self._get_account_name(naming_data['account'], role, resolve_alias)
             role_name = naming_data['role']
             path = naming_data['path']
-            if resolve_alias == 'True':
-                account_alias = self._get_alias_from_friendly_name(role.friendly_account_name)
-                if account_alias:
-                    account = account_alias
             if include_path == 'True':
                 role_name = ''.join([path, role_name])
             profile_name = '-'.join([account,
@@ -818,6 +816,12 @@ class GimmeAWSCreds(object):
         else:
             profile_name = cred_profile
         return profile_name
+
+    def _get_account_name(self, account, role, resolve_alias):
+        if resolve_alias == "False":
+            return account
+        account_alias = self._get_alias_from_friendly_name(role.friendly_account_name)
+        return account_alias or account
 
     def iter_selected_aws_credentials(self):
         results = []
@@ -853,8 +857,8 @@ class GimmeAWSCreds(object):
             self.handle_setup_fido_authenticator()
         self.handle_action_store_json_creds()
         self.handle_action_list_roles()
-            
-  
+
+
         # for each data item, if we have an override on output, prioritize that
         # if we do not, prioritize writing credentials to file if that is in our
         # configuration. If we are not writing to a credentials file, use whatever
