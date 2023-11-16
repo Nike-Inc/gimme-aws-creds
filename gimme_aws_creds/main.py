@@ -460,6 +460,9 @@ class GimmeAWSCreds(object):
         config.get_args()
         self._cache['conf_dict'] = config.get_config_dict()
 
+        if config.disable_keychain is True:
+            self.conf_dict['enable_keychain'] = False
+
         for value in self.envvar_list:
             if self.ui.environ.get(value):
                 key = self.envvar_conf_map.get(value, value).lower()
@@ -566,6 +569,7 @@ class GimmeAWSCreds(object):
                 self.okta_org_url,
                 self.config.verify_ssl_certs,
                 self.device_token,
+                self.conf_dict.get('enable_keychain', True)
             )
 
             if self.config.username is not None:
