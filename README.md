@@ -217,6 +217,7 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - aws_default_duration = This is optional. Lifetime for temporary credentials, in seconds. Defaults to 1 hour (3600)
 - app_url - If using 'appurl' setting for gimme_creds_server, this sets the url to the aws application configured in Okta. It is typically something like <https://something.okta[preview].com/home/amazon_aws/app_instance_id/something>
 - okta_username - use this username to authenticate
+- enable_keychain - enable the use of the system keychain to store the user's password
 - preferred_mfa_type - automatically select a particular  device when prompted for MFA:
   - push - Okta Verify App push or DUO push (depends on okta supplied provider type)
   - token:software:totp - OTP using the Okta Verify App

@@ -38,7 +38,8 @@ class TestConfig(unittest.TestCase):
             action_store_json_creds=False,
             action_setup_fido_authenticator=False,
             open_browser=False,
-            force_classic=False
+            force_classic=False,
+            disable_keychain=False
         ),
     )
     def test_get_args_username(self, mock_arg):

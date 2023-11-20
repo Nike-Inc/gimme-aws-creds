@@ -37,6 +37,7 @@ class Config(object):
             'OKTA_CONFIG',
             os.path.join(self.FILE_ROOT, '.okta_aws_login_config')
         )
+        self.disable_keychain = False
         self.open_browser = False
         self.action_register_device = False
         self.username = None
@@ -153,6 +154,10 @@ class Config(object):
             help='Automatically open a webbrowser for device authorization (Okta Identity Engine only)'
         )
         parser.add_argument(
+            '--disable-keychain', action='store_true',
+            help="Disable the use of the system keychain to store the user's password"
+        )
+        parser.add_argument(
             '--force-classic', action='store_true',
             help='Force the use of the Okta Classic login process (Okta Identity Engine only)'
         )
@@ -165,6 +170,7 @@ class Config(object):
         self.action_register_device = args.action_register_device
         self.action_setup_fido_authenticator = args.action_setup_fido_authenticator
         self.open_browser = args.open_browser
+        self.disable_keychain = args.disable_keychain
         self.force_classic = args.force_classic
 
         if args.insecure is True:
@@ -189,6 +195,13 @@ class Config(object):
         self.conf_profile = args.profile or 'DEFAULT'
 
     def _handle_config(self, config, profile_config, include_inherits = True):
+        # Convert True/False strings to booleans
+        for key in profile_config:
+            if profile_config[key] == 'True':
+                profile_config[key] = True
+            elif profile_config[key] == 'False':
+                profile_config[key] = False
+
         if "inherits" in profile_config.keys() and include_inherits:
             self.ui.message("Using inherited config: " + profile_config["inherits"])
             if profile_config["inherits"] not in config:
@@ -238,6 +251,7 @@ class Config(object):
                 aws_default_duration = Default AWS session duration (3600)
                 preferred_mfa_type = Select this MFA device type automatically
                 include_path - (optional) includes that full role path to the role name for profile
+                enable_keychain = (optional) enable the use of the system keychain to store the user's password
 
         """
         config = configparser.ConfigParser()
@@ -262,7 +276,8 @@ class Config(object):
             'aws_default_duration': '3600',
             'output_format': 'export',
             'force_classic': '',
-            'open_browser': ''
+            'open_browser': '',
+            'enable_keychain': 'y'
         }
 
         # See if a config file already exists.
@@ -292,6 +307,7 @@ class Config(object):
         # These options are only used in the Classic authentication flow
         if self._okta_platform == 'classic' or config_dict['force_classic'] is True:
             config_dict['okta_username'] = self._get_okta_username(defaults['okta_username'])
+            config_dict['enable_keychain'] = self._get_enable_keychain(defaults['enable_keychain'])
             config_dict['preferred_mfa_type'] = self._get_preferred_mfa_type(defaults['preferred_mfa_type'])
             config_dict['remember_device'] = self._get_remember_device(defaults['remember_device'])
 
@@ -387,6 +403,15 @@ class Config(object):
         self._okta_auth_server = okta_auth_server
 
         return okta_auth_server
+    
+    def _get_enable_keychain(self, default_entry):
+        """ enable the use of the system keychain to store the user's password """
+
+        while True:
+            try:
+                return self._get_user_input_yes_no("Use the system keychain to store the user's password? (y/n)", default_entry)
+            except ValueError:
+                ui.default.warning("Enable keychain must be either y or n.")
 
     def _get_client_id_entry(self, default_entry):
         """ Get and validate client_id """
