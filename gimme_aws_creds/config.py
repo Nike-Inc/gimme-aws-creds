@@ -426,24 +426,19 @@ class Config(object):
     def _get_appurl_entry(self, default_entry):
         """ Get and validate app_url """
         ui.default.message(
-            "Enter the application link. This is https://something.okta[preview].com/home/amazon_aws/<app_id>/something")
+            "Enter the application link. This is {}/home/amazon_aws/<app_id>/something".format(self._okta_org_url))
         okta_app_url_valid = False
         app_url = default_entry
 
         while okta_app_url_valid is False:
             app_url = self._get_user_input("Application url", default_entry)
             url_parse_results = urlparse(app_url)
-            allowlist = [
-                "okta.com",
-                "oktapreview.com",
-                "okta-emea.com",
-            ]
-
-            if url_parse_results.scheme == "https" and any(urlelement in url_parse_results.hostname for urlelement in allowlist):
+            okta_org_parse = urlparse(self._okta_org_url)
+            if url_parse_results.scheme == "https" and url_parse_results.hostname == okta_org_parse.hostname:
                 okta_app_url_valid = True
             else:
                 ui.default.warning(
-                    "Okta organization URL must be HTTPS URL for okta.com or oktapreview.com or okta-emea.com domain")
+                    "Okta organization URL must be HTTPS URL for {}".format(self._okta_org_url))
 
         self._app_url = app_url
 
