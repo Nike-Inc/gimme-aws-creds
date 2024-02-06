@@ -9,7 +9,8 @@ RUN apk --update add libgcc
 ENV PACKAGES="gcc musl-dev python3-dev libffi-dev openssl-dev cargo"
 
 RUN apk --update add $PACKAGES \
-    && python -m pip install .\
+    && pip install --upgrade pip setuptools-rust build \
+    && pip install . \
     && apk del --purge $PACKAGES
 
 ENTRYPOINT ["/usr/local/bin/gimme-aws-creds"]
