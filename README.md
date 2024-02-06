@@ -45,7 +45,7 @@ __OR__
 Install the gimme-aws-creds package if you have already cloned the source:
 
 ```bash
-python3 setup.py install
+python -m pip install .
 ```
 
 __OR__
