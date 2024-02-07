@@ -32,6 +32,7 @@ from requests.adapters import HTTPAdapter, Retry
 from gimme_aws_creds.u2f import FactorU2F
 from gimme_aws_creds.webauthn import WebAuthnClient, FakeAssertion
 from . import errors, ui, version, duo
+from .duo_universal import OktaDuoUniversal
 from .errors import GimmeAWSCredsMFAEnrollStatus
 from .registered_authenticators import RegisteredAuthenticators
 
@@ -64,6 +65,7 @@ class OktaClassicClient(object):
         self._username = None
         self._password = None
         self._preferred_mfa_type = None
+        self._duo_universal_factor = 'Duo Push'
         self._mfa_code = None
         self._remember_device = None
 
@@ -105,6 +107,9 @@ class OktaClassicClient(object):
 
     def set_mfa_code(self, mfa_code):
         self._mfa_code = mfa_code
+
+    def set_duo_universal_factor(self, duo_universal_factor):
+        self._duo_universal_factor = duo_universal_factor
 
     def set_remember_device(self, remember_device):
         self._remember_device = bool(remember_device)
@@ -160,30 +165,33 @@ class OktaClassicClient(object):
         """ Authenticate the user and return the Okta Session ID and username"""
         login_response = self.auth()
 
-        session_url = self._okta_org_url + '/login/sessionCookieRedirect'
-
-        if 'redirect_uri' not in kwargs:
-            redirect_uri = 'http://localhost:8080/login'
+        if 'userSession' in login_response:
+            return login_response['userSession']
         else:
-            redirect_uri = kwargs['redirect_uri']
+            session_url = self._okta_org_url + '/login/sessionCookieRedirect'
 
-        params = {
-            'token': login_response['sessionToken'],
-            'redirectUrl': redirect_uri
-        }
+            if 'redirect_uri' not in kwargs:
+                redirect_uri = 'http://localhost:8080/login'
+            else:
+                redirect_uri = kwargs['redirect_uri']
 
-        response = self._http_client.get(
-            session_url,
-            params=params,
-            headers=self._get_headers(),
-            verify=self._verify_ssl_certs,
-            allow_redirects=False
-        )
-        return {
-            "username": login_response['_embedded']['user']['profile']['login'],
-            "session": response.cookies['sid'],
-            "device_token": self._http_client.cookies['DT']
-        }
+            params = {
+                'token': login_response['sessionToken'],
+                'redirectUrl': redirect_uri
+            }
+
+            response = self._http_client.get(
+                session_url,
+                params=params,
+                headers=self._get_headers(),
+                verify=self._verify_ssl_certs,
+                allow_redirects=False
+            )
+            return {
+                "username": login_response['_embedded']['user']['profile']['login'],
+                "session": response.cookies['sid'],
+                "device_token": self._http_client.cookies['DT']
+            }
 
     def auth_oauth(self, client_id, **kwargs):
         """ Login to Okta and retrieve access token, ID token or both """
@@ -453,6 +461,19 @@ class OktaClassicClient(object):
         if 'sessionToken' in response_data:
             return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
 
+    def _login_duo_universal(self, state_token, factor):
+        duo_passcode = None
+        if self._duo_universal_factor == 'Passcode':
+            duo_passcode = self.ui.input(message='Duo Passcode: ')
+        duo_client = OktaDuoUniversal(self.ui,
+                                      self._http_client,
+                                      state_token,
+                                      factor,
+                                      self._remember_device,
+                                      self._duo_universal_factor,
+                                      duo_passcode)
+        return duo_client.do_auth()
+
     def _login_input_webauthn_challenge(self, state_token, factor):
         """ Retrieve nonce """
         response = self._http_client.post(
@@ -595,6 +616,8 @@ class OktaClassicClient(object):
             return self._login_input_webauthn_challenge(state_token, factor)
         elif factor['factorType'] == 'token:hardware':
             return self._login_input_mfa_challenge(state_token, factor['_links']['verify']['href'])
+        elif factor['factorType'] == 'claims_provider':
+            return self._login_duo_universal(state_token, factor)
 
     def _login_input_mfa_challenge(self, state_token, next_url):
         """ Submit verification code for SMS or TOTP authentication methods"""
@@ -719,7 +742,7 @@ class OktaClassicClient(object):
         else:
             return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
 
-    def get_saml_response(self, url, auth_session = None):
+    def get_saml_response(self, url, auth_session=None):
         """ return the base64 SAML value object from the SAML Response"""
         response = self._http_client.get(url, verify=self._verify_ssl_certs)
         response.raise_for_status()
@@ -890,6 +913,8 @@ class OktaClassicClient(object):
             return factor['factorType'] + ": " + factor_name
         elif factor['factorType'] == 'token:hardware':
             return factor['factorType'] + ": " + factor['provider']
+        elif factor['factorType'] == 'claims_provider':
+            return factor['factorType'] + ": " + factor['vendorName']
 
         else:
             return "Unknown MFA type: " + factor['factorType']
@@ -1065,7 +1090,7 @@ class OktaClassicClient(object):
     @staticmethod
     def _extract_state_token_from_http_response(http_res):
         # extract the stateToken from a javascript variable
-        state_token_re =  re.search(r"var stateToken = '(.*)';", http_res.text)
+        state_token_re = re.search(r"var stateToken = '(.*)';", http_res.text)
         if state_token_re is not None:
             return decode(state_token_re.group(1), "unicode-escape")
 

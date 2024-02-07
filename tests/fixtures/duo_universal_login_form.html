@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<!--[if IE 8]> <html lang="en" class="ie ie8"> <![endif]-->
+<!--[if IE 9]> <html lang="en" class="ie ie9"> <![endif]-->
+<!--[if gt IE 9]><!--> <html lang="en"> <!--<![endif]-->
+<head>
+<meta charset="utf-8">
+
+<!-- Set latest compatibility for IE -->
+<meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0">
+
+<title>
+Two-Factor Authentication
+</title>
+<!-- Import for all versions of IE, in case the standards mode is downgraded to IE8 -->
+<!--[if IE]> <link rel="stylesheet" href="&#x2f;frame&#x2f;static&#x2f;css&#x2f;v3&#x2f;ie8.css&#x3f;v&#x3d;e9b26"> <![endif]-->
+
+<link rel="stylesheet" href="&#x2f;frame&#x2f;static&#x2f;css&#x2f;normalize.css&#x3f;v&#x3d;a674e">
+<link rel="stylesheet" href="&#x2f;frame&#x2f;static&#x2f;fonts&#x2f;ss-standard&#x2f;ss-standard.css&#x3f;v&#x3d;a8885">
+<link rel="stylesheet" href="&#x2f;frame&#x2f;static&#x2f;css&#x2f;fonts&#x2f;duo-admin.css&#x3f;v&#x3d;50a8a">
+<link rel="stylesheet" href="&#x2f;frame&#x2f;static&#x2f;css&#x2f;v3&#x2f;base.css&#x3f;v&#x3d;39c22">
+
+<link rel="stylesheet" href="&#x2f;frame&#x2f;static&#x2f;css&#x2f;tipsy.css&#x3f;v&#x3d;4217a">
+
+
+</head>
+<body>
+<div class="oidc-wrapper">
+<div class="base-wrapper ">
+
+<div class="base-main">
+<div role="main" class="base-body">
+
+<form action="/frame/prompt" method="post" id="login-form" class="inline login-form hidden">
+<input type="hidden" name="sid" value="frameless-aaaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaaaa">
+<input type="hidden" name="url" value="/frame/prompt">
+<input type="hidden" name="enrollment_message" value="">
+<input type="hidden" name="itype" value="okta">
+
+<input type="hidden" name="_xsrf" value="xsrfxsrfxsrfxsrfxsrfxsrfxsrfxsrfxsrfxs" />
+
+<input type="hidden" name="ukey" value="duoukeyvalue">
+
+<input type="hidden" name="out_of_date" value="False">
+<input type="hidden" name="days_out_of_date" value="0">
+<input type="hidden" name="should_update_dm" value="False">
+
+
+<input type="hidden" name="preferred_factor" value="Duo&#x20;Push">
+<input type="hidden" name="preferred_device" value="phone1">
+
+<input type="hidden" name="days_to_block" value="None">
+<input type="hidden" name="should_retry_u2f_timeouts" value="True">
+
+<input type="hidden" id="has_phone_that_requires_compliance_text" name="has_phone_that_requires_compliance_text" value="False">
+
+<fieldset class="device-selector ">
+<h1 class="cramped-frame-view">
+Device&#x3a;
+</h1>
+<div class="device-select-wrapper">
+<select name="device" aria-label="Device" tabindex=2>
+
+
+
+
+
+<option value="phone1">Phone 1 &#x28;XXX-XXX-1111&#x29;</option>
+
+
+<option value="phone2">Phone 2 &#x28;XXX-XXX-2222&#x29;</option>
+
+
+<option value="phone3">Phone 3 &#x28;XXX-XXX-3333&#x29;</option>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</select>
+
+</div>
+</fieldset>
+
+<div id="auth_methods">
+
+<fieldset data-device-index="phone1" class="hidden">
+<h2 class="medium-or-larger auth-method-header">
+Choose an authentication method
+</h2>
+
+
+<div class="row-label push-label">
+<input type="hidden" name="factor" value="Duo&#x20;Push">
+<span class="label factor-label">
+<i class="icon-smartphone-check"></i>
+Duo Push
+
+
+<small class="used-automatically">
+<i class="icon-check"></i>
+Used automatically
+</small>
+
+
+</span>
+<button tabindex="2" type="submit" class="positive&#x20;auth-button" ><!-- -->Send Me a Push </button>
+</div>
+
+
+
+
+<div class="row-label phone-label">
+<input type="hidden" name="factor" value="Phone&#x20;Call">
+<span class="label factor-label">
+<i class="icon-call-ringing" alt="" role="presentation"></i>
+Call Me
+
+</span>
+<button tabindex="2" type="submit" class="positive&#x20;auth-button" ><!-- -->Call Me </button>
+</div>
+
+<div class="passcode-label row-label">
+<input type="hidden" name="factor" value="Passcode">
+<span class="label factor-label">
+<i class="icon-smartphone-ellipsis" alt="" role="presentation"></i>
+Passcode
+</span>
+<div class="passcode-input-wrapper">
+<input type="text" name="passcode" autocomplete="off" data-index="phone1" class="hidden passcode-input" placeholder="ex.&#x20;867539" aria-label="passcode" tabindex=2>
+<div class="next-passcode-msg" role="alert" aria-live="polite"></div>
+</div>
+<button tabindex="2" type="submit" id="passcode" class="positive&#x20;auth-button" ><!-- -->Enter a Passcode </button>
+<input name="phone-smsable" type="hidden" value="True" />
+<input name="mobile-otpable" type="hidden" value="True" />
+<input name="next-passcode" type="hidden" value="None" />
+</div>
+
+</fieldset>
+
+<fieldset data-device-index="phone2" class="hidden">
+<h2 class="medium-or-larger auth-method-header">
+Choose an authentication method
+</h2>
+
+
+<div class="row-label push-label">
+<input type="hidden" name="factor" value="Duo&#x20;Push">
+<span class="label factor-label">
+<i class="icon-smartphone-check"></i>
+Duo Push
+
+
+
+</span>
+<button tabindex="2" type="submit" class="positive&#x20;auth-button" ><!-- -->Send Me a Push </button>
+</div>
+
+
+
+
+<div class="row-label phone-label">
+<input type="hidden" name="factor" value="Phone&#x20;Call">
+<span class="label factor-label">
+<i class="icon-call-ringing" alt="" role="presentation"></i>
+Call Me
+
+</span>
+<button tabindex="2" type="submit" class="positive&#x20;auth-button" ><!-- -->Call Me </button>
+</div>
+
+<div class="passcode-label row-label">
+<input type="hidden" name="factor" value="Passcode">
+<span class="label factor-label">
+<i class="icon-smartphone-ellipsis" alt="" role="presentation"></i>
+Passcode
+</span>
+<div class="passcode-input-wrapper">
+<input type="text" name="passcode" autocomplete="off" data-index="phone2" class="hidden passcode-input" placeholder="ex.&#x20;867539" aria-label="passcode" tabindex=2>
+<div class="next-passcode-msg" role="alert" aria-live="polite"></div>
+</div>
+<button tabindex="2" type="submit" id="passcode" class="positive&#x20;auth-button" ><!-- -->Enter a Passcode </button>
+<input name="phone-smsable" type="hidden" value="True" />
+<input name="mobile-otpable" type="hidden" value="True" />
+<input name="next-passcode" type="hidden" value="None" />
+</div>
+
+</fieldset>
+
+<fieldset data-device-index="phone3" class="hidden">
+<h2 class="medium-or-larger auth-method-header">
+Choose an authentication method
+</h2>
+
+
+<div class="row-label push-label">
+<input type="hidden" name="factor" value="Duo&#x20;Push">
+<span class="label factor-label">
+<i class="icon-smartphone-check"></i>
+Duo Push
+
+
+
+</span>
+<button tabindex="2" type="submit" class="positive&#x20;auth-button" ><!-- -->Send Me a Push </button>
+</div>
+
+
+
+
+<div class="row-label phone-label">
+<input type="hidden" name="factor" value="Phone&#x20;Call">
+<span class="label factor-label">
+<i class="icon-call-ringing" alt="" role="presentation"></i>
+Call Me
+
+</span>
+<button tabindex="2" type="submit" class="positive&#x20;auth-button" ><!-- -->Call Me </button>
+</div>
+
+<div class="passcode-label row-label">
+<input type="hidden" name="factor" value="Passcode">
+<span class="label factor-label">
+<i class="icon-smartphone-ellipsis" alt="" role="presentation"></i>
+Passcode
+</span>
+<div class="passcode-input-wrapper">
+<input type="text" name="passcode" autocomplete="off" data-index="phone3" class="hidden passcode-input" placeholder="ex.&#x20;867539" aria-label="passcode" tabindex=2>
+<div class="next-passcode-msg" role="alert" aria-live="polite"></div>
+</div>
+<button tabindex="2" type="submit" id="passcode" class="positive&#x20;auth-button" ><!-- -->Enter a Passcode </button>
+<input name="phone-smsable" type="hidden" value="True" />
+<input name="mobile-otpable" type="hidden" value="True" />
+<input name="next-passcode" type="hidden" value="None" />
+</div>
+
+</fieldset>
+
+
+
+
+
+<input type="hidden" name="has-token" value="false">
+
+
+</div>
+
+<div>
+
+</div>
+</form>
+
+
+
+<form class="oidc-exit-form" action="/frame/prompt/oidc/exit" method="POST">
+<input type="hidden" name="txid" value="" />
+<input type="hidden" name="sid" value="frameless-aaaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaaaa" />
+<input type="hidden" name="_xsrf" value="xsrfxsrfxsrfxsrfxsrfxsrfxsrfxsrfxsrfxs" />
+</form>
+
+
+</div>
+</div>
+<div class="base-navigation">
+
+<div class="base-navigation">
+<div role="banner">
+
+<a href="&#x2f;frame&#x2f;prompt&#x3f;sid&#x3d;frameless-aaaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaaaa">
+<img src="&#x2f;frame&#x2f;logo&#x3f;sid&#x3d;frameless-aaaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaaaa" alt="Example&#x20;Authentication" width="128"/>
+</a>
+
+</div>
+<div class="help-sidebar">
+<button class='btn btn-support'>
+<i class="icon-align-justify" aria-label="Open"></i>
+<i class="icon-delete" aria-label="Close"></i>
+Settings
+</button>
+<div class="help-links">
+<nav role="navigation">
+
+<a id="help_link" class="help-nav" href="https&#x3a;&#x2f;&#x2f;guide.duo.com&#x2f;prompt" target="_blank" aria-label="What&#x20;is&#x20;the&#x20;Duo&#x20;Prompt&#x3f;&#x20;&#x28;Opens&#x20;in&#x20;a&#x20;new&#x20;tab.&#x29;">
+What is this&#x3f;<i class="icon-new-window"></i>
+</a>
+
+
+<a class="help-nav" id="new-device" href="/frame/enroll/pre_flow_prompt?sid=frameless-aaaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaaaa&post_auth_action=addDevice">
+Add a new device
+</a>
+<a class="help-nav" href="/frame/enroll/pre_flow_prompt?sid=frameless-aaaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaaaa&post_auth_action=manageDevices">
+My Settings &amp; Devices
+</a>
+
+<a href="#" class="need-help">Need help&#x3f;</a>
+</nav>
+
+<div role="contentinfo">
+<a href="https&#x3a;&#x2f;&#x2f;duo.com" class="branding-link" target="_blank" rel="noreferrer noopener">
+Secured by Duo
+</a>
+</div>
+
+
+</div>
+
+</div>
+<div class="help-overlay offscreen">
+<div class="help-links">
+<nav role="navigation">
+
+<a id="help_link" class="help-nav" href="https&#x3a;&#x2f;&#x2f;guide.duo.com&#x2f;prompt" target="_blank" aria-label="What&#x20;is&#x20;the&#x20;Duo&#x20;Prompt&#x3f;&#x20;&#x28;Opens&#x20;in&#x20;a&#x20;new&#x20;tab.&#x29;">
+What is this&#x3f;<i class="icon-new-window"></i>
+</a>
+
+
+<a class="help-nav" id="new-device" href="/frame/enroll/pre_flow_prompt?sid=frameless-aaaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaaaa&post_auth_action=addDevice">
+Add a new device
+</a>
+<a class="help-nav" href="/frame/enroll/pre_flow_prompt?sid=frameless-aaaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaaaa&post_auth_action=manageDevices">
+My Settings &amp; Devices
+</a>
+
+<a href="#" class="need-help">Need help&#x3f;</a>
+</nav>
+
+<div role="contentinfo">
+<a href="https&#x3a;&#x2f;&#x2f;duo.com" class="branding-link" target="_blank" rel="noreferrer noopener">
+Secured by Duo
+</a>
+</div>
+
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="base-sidebar">
+
+</div>
+<div id="messages-view" class="hidden">
+<div class="messages-list">
+
+</div>
+</div>
+
+
+</div>
+</div>
+<script id="translations" type="text/json">
+{"locale_data": {"js-messages": {"": {"domain": "js-messages", "lang": "en", "plural_forms": "nplurals&#x3d;2&#x3b; plural&#x3d;&#x28;n &#x21;&#x3d; 1&#x29;&#x3b;"}}}, "domain": "js-messages"}
+</script>
+
+
+<!-- Hidden XSRF input needed for POST requests made by errors.js -->
+<input type="hidden" name="_xsrf" value="xsrfxsrfxsrfxsrfxsrfxsrfxsrfxsrfxsrfxs" />
+
+<script src="&#x2f;frame&#x2f;static&#x2f;shared&#x2f;lib&#x2f;jquery&#x2f;jquery-prologue.js&#x3f;v&#x3d;400dc"></script>
+<script src="&#x2f;frame&#x2f;static&#x2f;shared&#x2f;lib&#x2f;jquery&#x2f;jquery.min.js&#x3f;v&#x3d;ff152"></script>
+<script src="&#x2f;frame&#x2f;static&#x2f;shared&#x2f;lib&#x2f;he&#x2f;he.min.js&#x3f;v&#x3d;aaa33"></script>
+<script src="&#x2f;frame&#x2f;static&#x2f;js&#x2f;lib&#x2f;jquery-postmessage.min.js&#x3f;v&#x3d;98c73"></script>
+<script src="&#x2f;frame&#x2f;static&#x2f;shared&#x2f;lib&#x2f;lodash&#x2f;lodash.min.js&#x3f;v&#x3d;6585f"></script>
+<script src="&#x2f;frame&#x2f;static&#x2f;shared&#x2f;lib&#x2f;backbone&#x2f;backbone-min.js&#x3f;v&#x3d;e0ff6"></script>
+<script src="&#x2f;frame&#x2f;static&#x2f;js&#x2f;page&#x2f;v3&#x2f;frame.js&#x3f;v&#x3d;4baee"></script>
+<script src="&#x2f;frame&#x2f;static&#x2f;js&#x2f;page&#x2f;v3&#x2f;base.js&#x3f;v&#x3d;deba4"></script>
+<script src="&#x2f;frame&#x2f;static&#x2f;shared&#x2f;lib&#x2f;validator&#x2f;validator.min.js&#x3f;v&#x3d;9a068"></script>
+<script src="&#x2f;frame&#x2f;static&#x2f;shared&#x2f;lib&#x2f;jquery&#x2f;jquery-epilogue.js&#x3f;v&#x3d;c4ac5"></script>
+<script id="browser_exceptions" src="&#x2f;frame&#x2f;static&#x2f;shared&#x2f;js&#x2f;errors.js&#x3f;v&#x3d;d10d2" data-url="/frame/browser_exceptions"></script>
+<input type="hidden" name="helpdesk-message" id="helpdesk-message" value="&quot;Contact&#x20;the&#x20;global&#x20;help&#x20;desk,&#x20;Americas&#x3a;&#x20;&#x2b;1.312.635.6520,&#x20;&#x20;EMEA&#x3a;&#x20;&#x2b;3.140.298.1500,&#x20;APAC&#x3a;&#x20;&#x2b;9.122.6607.9800&quot;" />
+<!--[if lt IE 10]>
+<script src="&#x2f;frame&#x2f;static&#x2f;js&#x2f;page&#x2f;v3&#x2f;quirks.js&#x3f;v&#x3d;d6bd9"></script>
+<![endif]-->
+
+
+<script src="&#x2f;frame&#x2f;static&#x2f;js&#x2f;lib&#x2f;jquery.tipsy.js&#x3f;v&#x3d;c0432"></script>
+<script src="&#x2f;frame&#x2f;static&#x2f;js&#x2f;page&#x2f;v3&#x2f;prompt.js&#x3f;v&#x3d;1a59b"></script>
+
+
+</body>
+</html>
