@@ -228,6 +228,10 @@ A configuration wizard will prompt you to enter the necessary configuration para
   - web - DUO uses localhost webbrowser to support push|call|passcode
   - passcode - DUO uses `OKTA_MFA_CODE` or `--mfa-code` if set, or prompts user for passcode(OTP).
   - claims_provider - DUO Universal Prompt
+- preferred_mfa_provider - (optional) automatically select a particular provider when prompted for MFA:
+  - GOOGLE
+  - OKTA
+  - DUO
 - duo_universal_factor - (optional) Configure which type of factor to use with Duo Universal Prompt. Must be one of (case-sensitive):
   - `Duo Push` (default)
   - `Passcode`
