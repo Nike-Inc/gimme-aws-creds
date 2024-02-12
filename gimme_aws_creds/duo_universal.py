@@ -68,7 +68,8 @@ class OktaDuoUniversal:
                     "username": okta_profile_login,
                     "session": self.session.cookies['sid'],
                     "device_token": self.session.cookies['DT']
-                }
+                },
+                'sessionToken': self.session.cookies['sid']
             },
         }
 

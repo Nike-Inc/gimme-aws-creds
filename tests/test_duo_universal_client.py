@@ -4,9 +4,9 @@ from unittest.mock import Mock
 
 import requests
 import responses
-from tests import read_fixture
 
 from gimme_aws_creds.duo_universal import OktaDuoUniversal
+from tests import read_fixture
 from tests.user_interface_mock import MockUserInterface
 
 
@@ -135,7 +135,8 @@ class TestDuoUniversalClient(unittest.TestCase):
                     'username': self.OKTA_LOGIN,
                     'session': self.OKTA_SID_VALUE,
                     'device_token': self.OKTA_DT_VALUE
-                }
+                },
+                'sessionToken': 'oktasidvalue',
             },
         }
 
@@ -157,7 +158,8 @@ class TestDuoUniversalClient(unittest.TestCase):
                     'username': self.OKTA_LOGIN,
                     'session': self.OKTA_SID_VALUE,
                     'device_token': self.OKTA_DT_VALUE
-                }
+                },
+                'sessionToken': 'oktasidvalue',
             },
         }
 
@@ -180,7 +182,8 @@ class TestDuoUniversalClient(unittest.TestCase):
                     'username': self.OKTA_LOGIN,
                     'session': self.OKTA_SID_VALUE,
                     'device_token': self.OKTA_DT_VALUE
-                }
+                },
+                'sessionToken': 'oktasidvalue',
             },
         }
 
