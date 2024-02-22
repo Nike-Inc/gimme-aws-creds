@@ -616,7 +616,7 @@ class GimmeAWSCreds(object):
     def auth_session(self):
         if 'auth_session' in self._cache:
             return self._cache['auth_session']
-        if self.config.open_browser is True or self.conf_dict.get('open_browser') == "True":
+        if self.config.open_browser is True or self.conf_dict.get('open_browser') is True:
             open_browser = True
         else:
             open_browser = False
