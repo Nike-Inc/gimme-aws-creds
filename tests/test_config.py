@@ -31,6 +31,7 @@ class TestConfig(unittest.TestCase):
             remember_device=False,
             output_format=None,
             roles=None,
+            filter_selection = None,
             action_register_device=False,
             action_configure=False,
             action_list_profiles=False,
