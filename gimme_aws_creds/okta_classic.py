@@ -65,6 +65,7 @@ class OktaClassicClient(object):
         self._username = None
         self._password = None
         self._preferred_mfa_type = None
+        self._preferred_mfa_provider = None
         self._duo_universal_factor = 'Duo Push'
         self._mfa_code = None
         self._remember_device = None
@@ -104,6 +105,9 @@ class OktaClassicClient(object):
 
     def set_preferred_mfa_type(self, preferred_mfa_type):
         self._preferred_mfa_type = preferred_mfa_type
+
+    def set_preferred_mfa_provider(self, preferred_mfa_provider):
+        self._preferred_mfa_provider = preferred_mfa_provider
 
     def set_mfa_code(self, mfa_code):
         self._mfa_code = mfa_code
@@ -841,6 +845,19 @@ class OktaClassicClient(object):
             # prompting to select another.
             if not preferred_factors:
                 self.ui.notify('Preferred factor type of {} not available.'.format(self._preferred_mfa_type))
+
+        if self._preferred_mfa_provider is not None:
+            preferred_factors_with_preferred_provider = list(
+                filter(lambda item: item['provider'] == self._preferred_mfa_provider, preferred_factors)
+            )
+            # If filtering for the preferred provider yields no results, announce it,
+            # but don't update the list of preferred factors.
+            if preferred_factors and not preferred_factors_with_preferred_provider:
+                self.ui.notify('Preferred factor provider of {} not available. Will use available factors.'.format(
+                    self._preferred_mfa_provider
+                ))
+            else:
+                preferred_factors = preferred_factors_with_preferred_provider
 
         if len(preferred_factors) == 1:
             factor_name = self._build_factor_name(preferred_factors[0])
