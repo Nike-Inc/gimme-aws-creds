@@ -257,6 +257,11 @@ class OktaClassicClient(object):
         )
         response.raise_for_status()
 
+        # If we didn't get a 302 redirect, the MFA factor didn't meet the requirement for the app
+        if 'Location' not in response.headers:
+            raise errors.GimmeAWSCredsError(
+                "LOGIN ERROR: Provided MFA factor does not meet the authentication policies for this application", 2
+            )
         url_parse_results = urlparse(response.headers['Location'])
 
         query_result = parse_qs(url_parse_results.fragment)
