@@ -506,7 +506,7 @@ class GimmeAWSCreds(object):
             return self._cache['okta_platform']
 
         # Treat this domain as classic, even if it's OIE
-        if self.config.force_classic == True or self.conf_dict.get('force_classic') == "True":
+        if self.config.force_classic is True or self.conf_dict.get('force_classic') is True:
             self.ui.message('Okta Classic login flow enabled')
             self.set_okta_platform('classic')
             return 'classic'
