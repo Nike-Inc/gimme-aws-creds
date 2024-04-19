@@ -201,6 +201,10 @@ class Config(object):
                 profile_config[key] = True
             elif profile_config[key] == 'False':
                 profile_config[key] = False
+        
+        # Empty string in force_classic should be handled as True - this makes sure that migrating from Classic to OIE is seamless
+        if profile_config.get('force_classic') == '' or profile_config.get('force_classic') is None:
+            profile_config['force_classic'] = True
 
         if "inherits" in profile_config.keys() and include_inherits:
             self.ui.message("Using inherited config: " + profile_config["inherits"])

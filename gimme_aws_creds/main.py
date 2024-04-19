@@ -505,12 +505,6 @@ class GimmeAWSCreds(object):
         if 'okta_platform' in self._cache:
             return self._cache['okta_platform']
 
-        # Treat this domain as classic, even if it's OIE
-        if self.config.force_classic is True or self.conf_dict.get('force_classic') is True:
-            self.ui.message('Okta Classic login flow enabled')
-            self.set_okta_platform('classic')
-            return 'classic'
-
         response = requests.get(
             self.okta_org_url + '/.well-known/okta-organization',
             headers={
@@ -527,8 +521,13 @@ class GimmeAWSCreds(object):
                 ret = 'classic'
             elif response_data['pipeline'] == 'idx':
                 ret = 'identity_engine'
-                if not self.conf_dict.get('client_id'):
-                    raise errors.GimmeAWSCredsError('OAuth Client ID is required for Okta Identity Engine domains.  Try running --config again.')
+                # Force_Classic is set - treat this domain as classic
+                if self.config.force_classic is True or self.conf_dict.get('force_classic') is True:
+                    self.ui.message('Okta Classic login flow enabled')
+                    ret = 'classic'
+                else:
+                    if not self.conf_dict.get('client_id'):
+                        raise errors.GimmeAWSCredsError('OAuth Client ID is required for Okta Identity Engine domains.  Try running --config again.')
             else:
                 raise RuntimeError('Unknown Okta platform type: {}'.format(response_data['pipeline']))
         else:
