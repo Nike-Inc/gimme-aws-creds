@@ -4,7 +4,7 @@ with open('requirements.txt') as f:
     requirements = f.read().splitlines()
 
 setup(
-    name='gimme-aws-creds',
+    name='gimme_aws_creds',
     version='2.8.0',
     install_requires=requirements,
     author='Eric Pierce',
