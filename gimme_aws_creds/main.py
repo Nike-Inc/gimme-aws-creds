@@ -818,7 +818,7 @@ class GimmeAWSCreds(object):
             account = self._get_account_name(naming_data['account'], role, resolve_alias)
             role_name = naming_data['role']
             path = naming_data['path']
-            if include_path == 'True':
+            if include_path is True:
                 role_name = ''.join([path, role_name])
             profile_name = '-'.join([account,
                                      role_name])
@@ -827,7 +827,7 @@ class GimmeAWSCreds(object):
         return profile_name
 
     def _get_account_name(self, account, role, resolve_alias):
-        if resolve_alias == "False":
+        if resolve_alias is False:
             return account
         account_alias = self._get_alias_from_friendly_name(role.friendly_account_name)
         return account_alias or account

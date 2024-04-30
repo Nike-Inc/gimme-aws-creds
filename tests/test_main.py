@@ -197,8 +197,8 @@ class TestMain(unittest.TestCase):
                        friendly_account_name='Account: my-org-master (123456789012)',
                        friendly_role_name='administrator/administrator')
         cred_profile = 'acc-role'
-        resolve_alias = 'True'
-        include_path = 'False'
+        resolve_alias = True
+        include_path = False
         self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role), "my-org-master-administrator")
 
     def test_get_profile_accrole_name_do_not_resolve_alias_do_not_include_paths(self):
@@ -210,8 +210,8 @@ class TestMain(unittest.TestCase):
                        friendly_account_name='Account: my-org-master (123456789012)',
                        friendly_role_name='administrator/administrator')
         cred_profile = 'acc-role'
-        resolve_alias = 'False'
-        include_path = 'False'
+        resolve_alias = False
+        include_path = False
         self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role),
                          "123456789012-administrator")
 
@@ -224,8 +224,8 @@ class TestMain(unittest.TestCase):
                        friendly_account_name='Account: my-org-master (123456789012)',
                        friendly_role_name='administrator/administrator')
         cred_profile = 'acc-role'
-        resolve_alias = 'False'
-        include_path = 'True'
+        resolve_alias = False
+        include_path = True
         self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role),
                          "123456789012-/some/long/extended/path/administrator")
 
@@ -238,8 +238,8 @@ class TestMain(unittest.TestCase):
                        friendly_account_name='Account: my-org-master (123456789012)',
                        friendly_role_name='administrator/administrator')
         cred_profile = 'role'
-        resolve_alias = 'False'
-        include_path = 'True'
+        resolve_alias = False
+        include_path = True
         self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role),
                          'administrator')
 
@@ -252,8 +252,8 @@ class TestMain(unittest.TestCase):
                        friendly_account_name='Account: my-org-master (123456789012)',
                        friendly_role_name='administrator/administrator')
         cred_profile = 'acc'
-        resolve_alias = 'True'
-        include_path = 'True'
+        resolve_alias = True
+        include_path = True
         self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role),
                          'my-org-master')
 
@@ -266,8 +266,8 @@ class TestMain(unittest.TestCase):
                        friendly_account_name='Account: my-org-master (123456789012)',
                        friendly_role_name='administrator/administrator')
         cred_profile = 'acc'
-        resolve_alias = 'False'
-        include_path = 'True'
+        resolve_alias = False
+        include_path = True
         self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role),
                          '123456789012')
 
@@ -280,8 +280,8 @@ class TestMain(unittest.TestCase):
                        friendly_account_name='Account: my-org-master (123456789012)',
                        friendly_role_name='administrator/administrator')
         cred_profile = 'default'
-        resolve_alias = 'False'
-        include_path = 'True'
+        resolve_alias = False
+        include_path = True
         self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role),
                          'default')
 
@@ -294,7 +294,7 @@ class TestMain(unittest.TestCase):
                        friendly_account_name='Account: my-org-master (123456789012)',
                        friendly_role_name='administrator/administrator')
         cred_profile = 'foo'
-        resolve_alias = 'False'
-        include_path = 'True'
+        resolve_alias = False
+        include_path = True
         self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role),
                          'foo')
