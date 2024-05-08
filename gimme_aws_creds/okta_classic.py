@@ -11,6 +11,7 @@ See the License for the specific language governing permissions and* limitations
 """
 import base64
 import sys
+import platform
 import copy
 import re
 import socket
@@ -292,7 +293,7 @@ class OktaClassicClient(object):
     def _get_headers():
         """sets the default headers"""
         headers = {
-            'User-Agent': "gimme-aws-creds {}".format(version),
+            'User-Agent': "gimme-aws-creds {};{};{}".format(version, sys.platform, platform.python_version()),
             'Accept': 'application/json',
             'Content-Type': 'application/json',
         }

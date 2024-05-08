@@ -9,6 +9,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
+import platform
 import time
 import webbrowser
 import jwt
@@ -200,7 +201,7 @@ class OktaIdentityEngine(object):
     def _get_headers():
         """sets the default headers"""
         headers = {
-            'User-Agent': "gimme-aws-creds {}".format(version),
+            'User-Agent': "gimme-aws-creds {};{};{}".format(version, sys.platform, platform.python_version()),
             'Accept': 'application/json'
         }
         return headers
