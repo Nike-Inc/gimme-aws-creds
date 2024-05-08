@@ -4,7 +4,7 @@ keyring>=21.4.0
 requests>=2.25.0,<3.0.0
 fido2>=0.9.1,<0.10.0
 okta>=2.9.0,<3.0.0
-ctap-keyring-device==1.0.6
+ctap-keyring-device==1.0.6; sys_platform == "win32" and python_version < "3.10"
 pyjwt>=2.4.0,<3.0.0
 urllib3>=1.26.0,<2.0.0
 html5lib>=1.1,<2.0.0
