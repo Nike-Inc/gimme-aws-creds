@@ -17,6 +17,7 @@ import json
 import os
 import re
 import sys
+import platform
 import concurrent.futures
 
 # extras
@@ -510,7 +511,7 @@ class GimmeAWSCreds(object):
             self.okta_org_url + '/.well-known/okta-organization',
             headers={
                 'Accept': 'application/json',
-                'User-Agent': "gimme-aws-creds {}".format(version)
+                'User-Agent': "gimme-aws-creds {};{};{}".format(version, sys.platform, platform.python_version())
             },
             timeout=30
         )

@@ -10,6 +10,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
 import base64
+import sys
+import platform
 import copy
 import re
 import socket
@@ -30,11 +32,18 @@ from keyring.errors import PasswordDeleteError
 from requests.adapters import HTTPAdapter, Retry
 
 from gimme_aws_creds.u2f import FactorU2F
-from gimme_aws_creds.webauthn import WebAuthnClient, FakeAssertion
+
+# avoid importing ctap-keyring-device on Windows until it supports Python 3.10+
+if sys.platform == "win32" and sys.version_info >= (3, 10):
+    from gimme_aws_creds.dummy_webauthn import WebAuthnClient, FakeAssertion
+else:
+    from gimme_aws_creds.webauthn import WebAuthnClient, FakeAssertion
+
 from . import errors, ui, version, duo
 from .duo_universal import OktaDuoUniversal
 from .errors import GimmeAWSCredsMFAEnrollStatus
 from .registered_authenticators import RegisteredAuthenticators
+
 
 
 class OktaClassicClient(object):
@@ -284,7 +293,7 @@ class OktaClassicClient(object):
     def _get_headers():
         """sets the default headers"""
         headers = {
-            'User-Agent': "gimme-aws-creds {}".format(version),
+            'User-Agent': "gimme-aws-creds {};{};{}".format(version, sys.platform, platform.python_version()),
             'Accept': 'application/json',
             'Content-Type': 'application/json',
         }
@@ -622,7 +631,11 @@ class OktaClassicClient(object):
         elif factor['factorType'] == 'u2f':
             return self._login_input_webauthn_challenge(state_token, factor)
         elif factor['factorType'] == 'webauthn':
-            return self._login_input_webauthn_challenge(state_token, factor)
+            # Block webauthn until ctap-kering-device is updated to support Python 3.10+ on Windows
+            if sys.platform == "win32" and sys.version_info >= (3, 10):
+                raise errors.GimmeAWSCredsError("WebAuthn devices not supported on this platform", 2)
+            else:
+                return self._login_input_webauthn_challenge(state_token, factor)
         elif factor['factorType'] == 'token:hardware':
             return self._login_input_mfa_challenge(state_token, factor['_links']['verify']['href'])
         elif factor['factorType'] == 'claims_provider':
