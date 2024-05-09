@@ -18,6 +18,10 @@ Okta is a registered trademark of Okta, Inc. and this tool has no affiliation wi
 
 Python 3.7+
 
+####  A Note on Python 3.10+ Compatibility on Windows
+
+`gimme-aws-creds` depends on the [ctap-keyring-device](https://pypi.org/project/ctap-keyring-device/) library for WebAuthn support.  All of the released versions of ctap-keyring-device require [winRT](https://pypi.org/project/winrt/) on Windows, which only works on Python 3.9 and lower and is no longer maintained. Until a version of ctap-keyring-device that supports `winSDK` (the replacement for winRT) is released to PyPi, or some other solution is found, WebAuthn support will not be available for people running Python 3.10+ on Windows.
+
 ### Optional
 
 [Gimme-creds-lambda](https://github.com/Nike-Inc/gimme-aws-creds/tree/master/lambda) can be used as a proxy to the Okta APIs needed by gimme-aws-creds.  This removes the requirement of an Okta API key.  Gimme-aws-creds authenticates to gimme-creds-lambda using OpenID Connect and the lambda handles all interactions with the Okta APIs.  Alternately, you can set the `OKTA_API_KEY` environment variable and the `gimme_creds_server` configuration value to 'internal' to call the Okta APIs directly from gimme-aws-creds.
