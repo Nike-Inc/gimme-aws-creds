@@ -201,23 +201,22 @@ class Config(object):
                 profile_config[key] = True
             elif profile_config[key] == 'False':
                 profile_config[key] = False
-        
-        # Empty string in force_classic should be handled as True - this makes sure that migrating from Classic to OIE is seamless
-        if profile_config.get('force_classic') == '' or profile_config.get('force_classic') is None:
-            profile_config['force_classic'] = True
 
         if "inherits" in profile_config.keys() and include_inherits:
             self.ui.message("Using inherited config: " + profile_config["inherits"])
             if profile_config["inherits"] not in config:
                 raise errors.GimmeAWSCredsError(self.conf_profile + " inherits from " + profile_config["inherits"] + ", but could not find " + profile_config["inherits"])
-            combined_config = {
+            profile_config = {
                 **self._handle_config(config, dict(config[profile_config["inherits"]])),
                 **profile_config,
             }
-            del combined_config["inherits"]
-            return combined_config
-        else:
-            return profile_config
+            del profile_config["inherits"]
+
+        # Empty string in force_classic should be handled as True - this makes sure that migrating from Classic to OIE is seamless
+        if profile_config.get('force_classic') == '' or profile_config.get('force_classic') is None:
+            profile_config['force_classic'] = True
+
+        return profile_config
 
     def get_config_dict(self, include_inherits = True):
         """returns the conf dict from the okta config file"""
