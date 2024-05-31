@@ -356,12 +356,13 @@ class GimmeAWSCreds(object):
 
         return selection
 
-    def _get_selected_roles(self, requested_roles, aws_roles):
+    def _get_selected_roles(self, requested_roles, aws_roles, filter_selection=""):
         """ select the role from the config file if it exists in the
         results from Okta.  If not, present the user with a menu. """
+        filtered_roles = [role for role in aws_roles if filter_selection in role.friendly_account_name]
         # 'all' is a special case - skip processing
         if requested_roles == 'all':
-            return set(role.role for role in aws_roles)
+            return set(role.role for role in filtered_roles)
         # check to see if a role is in the config and look for it in the results from Okta
         if requested_roles:
             ret = set()
@@ -383,6 +384,9 @@ class GimmeAWSCreds(object):
                 return ret
             self.ui.error("ERROR: AWS roles [{}] not found!".format(', '.join(requested_roles)))
 
+        if filter_selection:
+            return self._choose_roles(filtered_roles)
+        
         # Present the user with a list of roles to choose from
         return self._choose_roles(aws_roles)
 
@@ -724,7 +728,7 @@ class GimmeAWSCreds(object):
     def aws_selected_roles(self):
         if 'aws_selected_roles' in self._cache:
             return self._cache['aws_selected_roles']
-        selected_roles = self._get_selected_roles(self.requested_roles, self.aws_roles)
+        selected_roles = self._get_selected_roles(self.requested_roles, self.aws_roles, self.config.filter_selection)
         self._cache['aws_selected_roles'] = ret = [
             role
             for role in self.aws_roles

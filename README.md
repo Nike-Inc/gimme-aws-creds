@@ -308,7 +308,7 @@ You can run a specific configuration profile with the `--profile` parameter:
 
 The username and password you are prompted for are the ones you login to Okta with. You can predefine your username by setting the `OKTA_USERNAME` environment variable or using the `-u username` parameter.
 
-If you have not configured an Okta App or Role, you will prompted to select one.
+If you have not configured an Okta App or Role, you will prompted to select one. If you want to filter the resulting list (for those with access to hundreds of roles), you can make use of the `--filter-selection/-f` option like so: `gimme-aws-creds -f prod` which would return only the roles where the account name contains the string `prod`. Note: use of the `-f` option requires `resolve_aws_alias` to be set to `True` to work as intended.
 
 If all goes well you will get your temporary AWS access, secret key and token, these will either be written to stdout or `~/.aws/credentials`.
 
