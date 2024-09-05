@@ -15,7 +15,7 @@ import os
 import requests
 from urllib.parse import urlparse
 
-from . import errors, ui, version
+from . import errors, profiles, ui, version
 
 
 class Config(object):
@@ -513,7 +513,7 @@ class Config(object):
             "The AWS credential profile defines which profile is used to store the temp AWS creds.\n"
             "If set to 'role' then a new profile will be created matching the role name assumed by the user.\n"
             "If set to 'acc' then a new profile will be created matching the account number.\n"
-            "If set to 'acc-role' then a new profile will be created matching the role name assumed by the user, but prefixed with account number to avoid collisions.\n"
+            "If set to 'acc-role' then a new profile will be created matching the role name assumed by the user, but prefixed with account number (or alias if resolve_alias is true) to avoid collisions. Any character may be substituted for the hyphen.\n"
             "If set to 'default' then the temp creds will be stored in the default profile\n"
             "If set to any other value, the name of the profile will match that value."
         )
@@ -521,8 +521,7 @@ class Config(object):
         cred_profile = self._get_user_input(
             "AWS Credential Profile", default_entry)
 
-        if cred_profile.lower() in ['default', 'role', 'acc', 'acc-role']:
-            cred_profile = cred_profile.lower()
+        cred_profile = profiles.Profile(cred_profile).canonicalize()
 
         return cred_profile
 

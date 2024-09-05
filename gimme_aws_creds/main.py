@@ -35,6 +35,7 @@ from .default import DefaultResolver
 from .okta_identity_engine import OktaIdentityEngine
 from .okta_classic import OktaClassicClient
 from .registered_authenticators import RegisteredAuthenticators
+from .profiles import Profile
 
 
 class GimmeAWSCreds(object):
@@ -809,23 +810,9 @@ class GimmeAWSCreds(object):
         }
 
     def get_profile_name(self, cred_profile, include_path, naming_data, resolve_alias, role):
-        if cred_profile.lower() == 'default':
-            profile_name = 'default'
-        elif cred_profile.lower() == 'role':
-            profile_name = naming_data['role']
-        elif cred_profile.lower() == 'acc':
-            profile_name = self._get_account_name(naming_data['account'], role, resolve_alias)
-        elif cred_profile.lower() == 'acc-role':
-            account = self._get_account_name(naming_data['account'], role, resolve_alias)
-            role_name = naming_data['role']
-            path = naming_data['path']
-            if include_path is True:
-                role_name = ''.join([path, role_name])
-            profile_name = '-'.join([account,
-                                     role_name])
-        else:
-            profile_name = cred_profile
-        return profile_name
+        cred_profile = Profile(cred_profile, include_path)
+        account = self._get_account_name(naming_data['account'], role, resolve_alias)
+        return cred_profile.name_for(account, naming_data['role'], naming_data['path'])
 
     def _get_account_name(self, account, role, resolve_alias):
         if resolve_alias is False:
