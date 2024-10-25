@@ -185,7 +185,7 @@ class GimmeAWSCreds(object):
             raise errors.GimmeAWSCredsError("{} is an unknown ACS URL".format(saml_acs_url))
 
     @staticmethod
-    def _get_sts_creds(partition, region, assertion, idp, role, duration=3600):
+    def _get_sts_creds(partition, region, assertion, idp, role, duration=3600, session_name="default-session"):
         """ using the assertion and arns return aws sts creds """
 
         session = boto3.session.Session(profile_name=None)
@@ -754,6 +754,7 @@ class GimmeAWSCreds(object):
         aws_creds = {}
         if generate_credentials:
             try:
+                okta_username = self.auth_session['username']
                 aws_creds = self._get_sts_creds(
                     self.aws_partition,
                     self.conf_dict.get('aws_region'),
@@ -761,6 +762,7 @@ class GimmeAWSCreds(object):
                     role.idp,
                     role.role,
                     self.config.aws_default_duration,
+                    session_name=okta_username,
                 )
             except ClientError as ex:
                 if 'requested DurationSeconds exceeds the MaxSessionDuration' in ex.response['Error']['Message']:
@@ -773,6 +775,7 @@ class GimmeAWSCreds(object):
                         role.idp,
                         role.role,
                         3600,
+                        session_name=okta_username,
                     )
                 else:
                     self.ui.error('Failed to generate credentials for {} due to {}'.format(role.role, ex))
