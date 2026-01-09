@@ -48,7 +48,7 @@ Organizations using Okta for SSO to AWS need a way to obtain temporary AWS crede
 | **JWT** | pyjwt | `>=2.4.0,<3.0.0` |
 | **Keyring** | keyring | `>=21.4.0` |
 | **HTML5** | html5lib | `>=1.1,<2.0.0` |
-| **URL Parsing** | furl | `>=2.1.3,<3.0.0` |
+| **URL Parsing** | furl | `>=2.1.4,<3.0.0` |
 
 ## Architecture Pattern
 
