@@ -111,3 +111,12 @@ ENV/
 
 # VSCODE
 .vscode
+
+# Cursor
+.cursor/
+
+#BMAD Method
+_bmad/
+_bmad-output/
+docs/project-scan-report.json
+docs/source-tree-analysis.md
