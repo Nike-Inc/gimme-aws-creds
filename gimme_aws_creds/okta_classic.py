@@ -55,6 +55,7 @@ class OktaClassicClient(object):
 
     KEYRING_SERVICE = 'gimme-aws-creds'
     KEYRING_ENABLED = not isinstance(keyring.get_keyring(), FailKeyring)
+    HTTP_TIMEOUT = 30  # Timeout in seconds for HTTP requests
 
     def __init__(self, gac_ui, okta_org_url, verify_ssl_certs=True, device_token=None, use_keyring=True):
         """
@@ -304,7 +305,7 @@ class OktaClassicClient(object):
         """ Starts the authentication flow with Okta"""
         if state_token is None:
             response = self._http_client.get(
-                embed_link, allow_redirects=False)
+                embed_link, allow_redirects=False, timeout=self.HTTP_TIMEOUT)
             response.raise_for_status()
             url_parse_results = urlparse(response.headers['Location'])
             state_token = parse_qs(url_parse_results.query)['stateToken'][0]
@@ -313,7 +314,8 @@ class OktaClassicClient(object):
             self._okta_org_url + '/api/v1/authn',
             json={'stateToken': state_token},
             headers=self._get_headers(),
-            verify=self._verify_ssl_certs
+            verify=self._verify_ssl_certs,
+            timeout=self.HTTP_TIMEOUT
         )
 
         # Passing the stateToken to the Authentication API for step-up auth doesn't work in OIE
@@ -323,7 +325,13 @@ class OktaClassicClient(object):
             )
 
         response.raise_for_status()
-        return {'stateToken': state_token, 'apiResponse': response.json()}
+        # Safe JSON parsing
+        try:
+            api_response = response.json()
+        except ValueError as e:
+            raise errors.GimmeAWSCredsError(
+                "Invalid JSON response from authentication API: {}".format(str(e)), 2)
+        return {'stateToken': state_token, 'apiResponse': api_response}
 
     def _next_login_step(self, state_token, login_data):
         """ decide what the next step in the login process is"""
@@ -374,10 +382,16 @@ class OktaClassicClient(object):
             url,
             json=login_json,
             headers=self._get_headers(),
-            verify=self._verify_ssl_certs
+            verify=self._verify_ssl_certs,
+            timeout=self.HTTP_TIMEOUT
         )
 
-        response_data = response.json()
+        # Safe JSON parsing with error handling
+        try:
+            response_data = response.json()
+        except ValueError as e:
+            raise errors.GimmeAWSCredsError(
+                "LOGIN ERROR: Invalid JSON response from server: {}".format(str(e)), 2)
 
         if response.status_code == 200:
             pass
@@ -385,7 +399,11 @@ class OktaClassicClient(object):
         # Handle known Okta error codes
         # ref: https://developer.okta.com/docs/reference/error-codes/#example-errors-listed-by-http-return-code
         elif response.status_code in [400, 401, 403, 404, 409, 429, 500, 501, 503]:
-            if response_data['errorCode'] == "E0000004":
+            # Safe access to error fields with KeyError handling
+            error_code = response_data.get('errorCode', 'UNKNOWN')
+            error_summary = response_data.get('errorSummary', 'Unknown error')
+            
+            if error_code == "E0000004":
                 if self.KEYRING_ENABLED and self._use_keyring:
                     try:
                         self.ui.info("Stored password is invalid, clearing.  Please try again")
@@ -393,7 +411,7 @@ class OktaClassicClient(object):
                     except PasswordDeleteError:
                         pass
             raise errors.GimmeAWSCredsError(
-                "LOGIN ERROR: {} | Error Code: {}".format(response_data['errorSummary'], response_data['errorCode']), 2)
+                "LOGIN ERROR: {} | Error Code: {}".format(error_summary, error_code), 2)
 
         # If the error code isn't one we know how to handle, raise an exception
         else:
@@ -819,21 +837,29 @@ class OktaClassicClient(object):
     def get(self, url, **kwargs):
         """ Retrieve resource that is protected by Okta """
         parameters = self.check_kwargs(kwargs)
+        if 'timeout' not in parameters:
+            parameters['timeout'] = self.HTTP_TIMEOUT
         return self._http_client.get(url, **parameters)
 
     def post(self, url, **kwargs):
         """ Create resource that is protected by Okta """
         parameters = self.check_kwargs(kwargs)
+        if 'timeout' not in parameters:
+            parameters['timeout'] = self.HTTP_TIMEOUT
         return self._http_client.post(url, **parameters)
 
     def put(self, url, **kwargs):
         """ Modify resource that is protected by Okta """
         parameters = self.check_kwargs(kwargs)
+        if 'timeout' not in parameters:
+            parameters['timeout'] = self.HTTP_TIMEOUT
         return self._http_client.put(url, **parameters)
 
     def delete(self, url, **kwargs):
         """ Delete resource that is protected by Okta """
         parameters = self.check_kwargs(kwargs)
+        if 'timeout' not in parameters:
+            parameters['timeout'] = self.HTTP_TIMEOUT
         return self._http_client.delete(url, **parameters)
 
     def _choose_factor(self, factors):
