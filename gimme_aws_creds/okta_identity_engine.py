@@ -255,7 +255,7 @@ class OktaIdentityEngine(object):
         if self._use_oauth_id_token is True:
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
+            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_id_token)
 
         return kwargs
 
