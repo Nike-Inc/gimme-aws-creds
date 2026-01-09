@@ -13,6 +13,7 @@ import sys
 import platform
 import time
 import webbrowser
+import urllib3
 import jwt
 import requests
 from bs4 import BeautifulSoup
@@ -44,7 +45,7 @@ class OktaIdentityEngine(object):
         self._oauth_id_token = None
 
         if verify_ssl_certs is False:
-            requests.packages.urllib3.disable_warnings()
+            urllib3.disable_warnings()
 
         self._jar = requests.cookies.RequestsCookieJar()
 

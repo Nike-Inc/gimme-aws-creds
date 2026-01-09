@@ -12,7 +12,7 @@ setup(
     description="A CLI to get temporary AWS credentials from Okta",
     url='https://github.com/Nike-Inc/gimme-aws-creds',
     long_description=open("LONG_DESCRIPTION.md").read(),
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     license='Apache License, v2.0',
     packages=find_packages(exclude=('tests', 'docs')),
     test_suite="tests",

@@ -13,10 +13,11 @@ import base64
 import json
 import xml.etree.ElementTree as ET
 
+import urllib3
 import requests
 from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+from urllib3.util.retry import Retry
 
 import gimme_aws_creds.common as commondef
 from . import errors
@@ -35,7 +36,7 @@ class AwsResolver(object):
         self._verify_ssl_certs = verify_ssl_certs
 
         if verify_ssl_certs is False:
-            requests.packages.urllib3.disable_warnings()
+            urllib3.disable_warnings()
 
         # Allow up to 5 retries on requests to AWS in case we have network issues
         self._http_client = requests.Session()

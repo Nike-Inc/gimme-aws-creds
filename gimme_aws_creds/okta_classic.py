@@ -23,6 +23,7 @@ from multiprocessing import Process
 from urllib.parse import parse_qs
 from urllib.parse import urlparse, quote
 
+import urllib3
 import keyring
 import requests
 from bs4 import BeautifulSoup
@@ -69,7 +70,7 @@ class OktaClassicClient(object):
         self._use_keyring = use_keyring
 
         if verify_ssl_certs is False:
-            requests.packages.urllib3.disable_warnings()
+            urllib3.disable_warnings()
 
         self._username = None
         self._password = None
