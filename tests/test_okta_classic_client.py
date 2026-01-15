@@ -1211,28 +1211,22 @@ class TestOktaClassicClient(unittest.TestCase):
     #     result = self.client.choose_app()
     #     self.assertEqual(result['name'], 'Sample AWS Account')
 
-    @patch('keyring.get_password')
-    @patch('keyring.get_keyring')
+    @patch('gimme_aws_creds.okta_classic.keyring.get_password')
+    @patch('gimme_aws_creds.okta_classic.OktaClassicClient.KEYRING_ENABLED', True)
     @patch('builtins.input', return_value='testuser@example.com')
     @patch('getpass.getpass', return_value='testpass123')
-    def test_get_username_password_creds_with_keyring(self, mock_pass, mock_input, mock_get_keyring, mock_get_password):
+    def test_get_username_password_creds_with_keyring(self, mock_pass, mock_input, mock_get_password):
         """Test password retrieval from keyring when available"""
-        from keyring.backends.fail import Keyring as FailKeyring
-        
-        # Mock keyring as available (not FailKeyring)
-        mock_keyring_instance = unittest.mock.MagicMock()
-        mock_get_keyring.return_value = mock_keyring_instance
+        # Mock keyring.get_password to return stored password
         mock_get_password.return_value = 'stored_password'
         
-        # Recreate client to pick up mocked keyring
-        with patch('gimme_aws_creds.okta_classic.keyring.get_keyring', return_value=mock_keyring_instance):
-            client = self.setUp_client(self.okta_org_url, False)
-            client._use_keyring = True
-            
-            result = client._get_username_password_creds()
-            self.assertEqual(result['username'], 'testuser@example.com')
-            self.assertEqual(result['password'], 'stored_password')
-            mock_get_password.assert_called_once_with(client.KEYRING_SERVICE, 'testuser@example.com')
+        client = self.setUp_client(self.okta_org_url, False)
+        client._use_keyring = True
+        
+        result = client._get_username_password_creds()
+        self.assertEqual(result['username'], 'testuser@example.com')
+        self.assertEqual(result['password'], 'stored_password')
+        mock_get_password.assert_called_once_with(client.KEYRING_SERVICE, 'testuser@example.com')
 
     @patch('keyring.get_keyring')
     @patch('builtins.input', return_value='testuser@example.com')
@@ -1253,28 +1247,20 @@ class TestOktaClassicClient(unittest.TestCase):
             self.assertEqual(result['username'], 'testuser@example.com')
             self.assertEqual(result['password'], 'testpass123')
 
-    @patch('keyring.set_password')
-    @patch('keyring.get_password', return_value=None)
-    @patch('keyring.get_keyring')
+    @patch('gimme_aws_creds.okta_classic.keyring.set_password')
+    @patch('gimme_aws_creds.okta_classic.keyring.get_password', return_value=None)
+    @patch('gimme_aws_creds.okta_classic.OktaClassicClient.KEYRING_ENABLED', True)
     @patch('builtins.input', side_effect=['testuser@example.com', 'y'])
     @patch('getpass.getpass', return_value='testpass123')
-    def test_password_storage_to_keyring(self, mock_pass, mock_input, mock_get_keyring, mock_get_password, mock_set_password):
+    def test_password_storage_to_keyring(self, mock_pass, mock_input, mock_get_password, mock_set_password):
         """Test password storage to keyring when user confirms"""
-        from keyring.backends.fail import Keyring as FailKeyring
+        client = self.setUp_client(self.okta_org_url, False)
+        client._use_keyring = True
         
-        # Mock keyring as available
-        mock_keyring_instance = unittest.mock.MagicMock()
-        mock_get_keyring.return_value = mock_keyring_instance
-        
-        # Recreate client to pick up mocked keyring
-        with patch('gimme_aws_creds.okta_classic.keyring.get_keyring', return_value=mock_keyring_instance):
-            client = self.setUp_client(self.okta_org_url, False)
-            client._use_keyring = True
-            
-            result = client._get_username_password_creds()
-            self.assertEqual(result['username'], 'testuser@example.com')
-            self.assertEqual(result['password'], 'testpass123')
-            mock_set_password.assert_called_once_with(client.KEYRING_SERVICE, 'testuser@example.com', 'testpass123')
+        result = client._get_username_password_creds()
+        self.assertEqual(result['username'], 'testuser@example.com')
+        self.assertEqual(result['password'], 'testpass123')
+        mock_set_password.assert_called_once_with(client.KEYRING_SERVICE, 'testuser@example.com', 'testpass123')
 
     @patch('keyring.delete_password')
     @patch('keyring.get_keyring')

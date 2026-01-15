@@ -12,24 +12,32 @@ class TestKeyringDeprecationWarnings(unittest.TestCase):
 
     def test_no_keyring_deprecation_warnings(self):
         """AC #5: Verify no keyring deprecation warnings appear"""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            # Import keyring and use its APIs
-            import keyring
-            keyring.get_keyring()
-            keyring.get_password('test-service', 'test-user')
-            
-            # Check for deprecation warnings
-            deprecation_warnings = [
-                x for x in w 
-                if 'deprecated' in str(x.message).lower() 
-                or issubclass(x.category, DeprecationWarning)
-            ]
-            self.assertEqual(
-                len(deprecation_warnings), 
-                0,
-                f"Found deprecation warnings: {[str(x.message) for x in deprecation_warnings]}"
-            )
+        try:
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                # Import keyring and use its APIs
+                import keyring
+                keyring.get_keyring()
+                try:
+                    keyring.get_password('test-service', 'test-user')
+                except keyring.errors.NoKeyringError:
+                    # No keyring backend available - skip the get_password test
+                    # but we can still check for deprecation warnings from the import/get_keyring
+                    pass
+                
+                # Check for deprecation warnings
+                deprecation_warnings = [
+                    x for x in w 
+                    if 'deprecated' in str(x.message).lower() 
+                    or issubclass(x.category, DeprecationWarning)
+                ]
+                self.assertEqual(
+                    len(deprecation_warnings), 
+                    0,
+                    f"Found deprecation warnings: {[str(x.message) for x in deprecation_warnings]}"
+                )
+        except keyring.errors.NoKeyringError:
+            self.skipTest("No keyring backend available on this platform")
 
     def test_no_ctap_keyring_device_deprecation_warnings(self):
         """AC #5: Verify no ctap-keyring-device deprecation warnings appear"""
