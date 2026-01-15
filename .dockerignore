@@ -1,3 +1,49 @@
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Python virtual environments
+venv/
+.venv/
+test-venv*/
+test-wheel-venv*/
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# Development and CI files
+.git/
+.github/
+.gitignore
+.cursor/
+_bmad/
+_bmad-output/
+docs/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test files (not needed in runtime image)
+tests/
+*.test
+*.spec
+
+# Documentation and miscellaneous
 CONTRIBUTING.md
 Makefile
 README.md
+*.md
+!LONG_DESCRIPTION.md
+
+# Nix files
+*.nix
+flake.lock
+
+# Other unnecessary files
+.dockerignore
+.DS_Store
