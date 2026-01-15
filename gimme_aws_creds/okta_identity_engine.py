@@ -102,7 +102,7 @@ class OktaIdentityEngine(object):
             token_response = self._get_user_tokens(login_response['apiResponse']['device_code'])
             count += 1
         
-        if count >= max_iterations:
+        if count >= max_iterations and token_response is None:
             raise errors.GimmeAWSCredsError(
                 "Timeout waiting for device authorization ({} seconds)".format(self._device_flow_timeout), 2)
         
