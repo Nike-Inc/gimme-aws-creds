@@ -106,6 +106,28 @@ class TestOktaIdentityEngineClient(unittest.TestCase):
         responses.add(responses.POST, self.okta_org_url + '/oauth2/v1/device/authorize', status=200, body=json.dumps(self.device_response))
         result = self.client._start_device_flow()
         self.assertEqual(result, {'apiResponse': self.device_response})
+
+    @responses.activate
+    def test_start_device_flow_unauthorized_client(self):
+        """Test that 401 error from device authorization returns helpful message"""
+
+        error_response = {
+            "error": "unauthorized_client",
+            "error_description": "The client is not authorized to use this authorization grant type."
+        }
+        responses.add(
+            responses.POST,
+            self.okta_org_url + '/oauth2/v1/device/authorize',
+            status=401,
+            body=json.dumps(error_response)
+        )
+
+        with self.assertRaises(errors.GimmeAWSCredsError) as context:
+            self.client._start_device_flow()
+
+        self.assertIn("client_id", context.exception.message)
+        self.assertIn("Device Authorization flow", context.exception.message)
+        self.assertIn("--force-classic", context.exception.message)
     
     @responses.activate
     def test_get_user_tokens(self):

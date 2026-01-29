@@ -138,6 +138,10 @@ class OktaIdentityEngine(object):
         if response.status_code == 200:
             func_result = {'apiResponse': response_data}
             return func_result
+        elif response.status_code == 401:
+            raise errors.GimmeAWSCredsError(
+                f"LOGIN ERROR: The client_id ({self._client_id}) is not authorized to use the Device Authorization flow.\n"
+                "Do you want to try classic mode? Run with --force-classic", 2)
         else:
             response.raise_for_status()
     
