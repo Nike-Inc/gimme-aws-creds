@@ -10,6 +10,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
 import base64
+import json
+import logging
 import sys
 import platform
 import copy
@@ -32,6 +34,8 @@ from keyring.backends.fail import Keyring as FailKeyring
 from keyring.errors import PasswordDeleteError
 from requests.adapters import HTTPAdapter, Retry
 
+logger = logging.getLogger(__name__)
+
 from gimme_aws_creds.u2f import FactorU2F
 
 # avoid importing ctap-keyring-device on Windows until it supports Python 3.10+
@@ -41,6 +45,7 @@ else:
     from gimme_aws_creds.webauthn import WebAuthnClient, FakeAssertion
 
 from . import errors, ui, version, duo
+from .debug_formatter import create_debug_response_hook
 from .duo_universal import OktaDuoUniversal
 from .errors import GimmeAWSCredsMFAEnrollStatus
 from .registered_authenticators import RegisteredAuthenticators
@@ -57,16 +62,18 @@ class OktaClassicClient(object):
     KEYRING_ENABLED = not isinstance(keyring.get_keyring(), FailKeyring)
     HTTP_TIMEOUT = 30  # Timeout in seconds for HTTP requests
 
-    def __init__(self, gac_ui, okta_org_url, verify_ssl_certs=True, device_token=None, use_keyring=True):
+    def __init__(self, gac_ui, okta_org_url, verify_ssl_certs=True, device_token=None, use_keyring=True, debug=False):
         """
         :type gac_ui: ui.UserInterface
         :param okta_org_url: Base URL string for Okta IDP.
         :param verify_ssl_certs: Enable/disable SSL verification
         :param device_token: Device Token value for Okta device ID
+        :param debug: Enable debug logging for API requests/responses
         """
         self.ui = gac_ui
         self._okta_org_url = okta_org_url
         self._verify_ssl_certs = verify_ssl_certs
+        self._debug = debug
 
         self._use_keyring = use_keyring
 
@@ -97,6 +104,10 @@ class OktaClassicClient(object):
         retries = Retry(total=5, backoff_factor=1,
                         allowed_methods=['GET', 'POST'])
         self._http_client.mount('https://', HTTPAdapter(max_retries=retries))
+
+        # Set up debug hooks if enabled
+        if self._debug:
+            self._http_client.hooks['response'].append(create_debug_response_hook())
 
     @property
     def device_token(self):

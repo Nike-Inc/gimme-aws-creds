@@ -58,6 +58,7 @@ class Config(object):
         self.action_output_format = False
         self.output_format = 'export'
         self.force_classic = False
+        self.debug = False
         self.roles = []
 
         if self.ui.environ.get("OKTA_USERNAME") is not None:
@@ -161,6 +162,10 @@ class Config(object):
             '--force-classic', action='store_true',
             help='Force the use of the Okta Classic login process (Okta Identity Engine only)'
         )
+        parser.add_argument(
+            '--debug', action='store_true',
+            help='Enable debug logging to show API request and response data'
+        )
         args = parser.parse_args(self.ui.args)
 
         self.action_configure = args.action_configure
@@ -172,6 +177,7 @@ class Config(object):
         self.open_browser = args.open_browser
         self.disable_keychain = args.disable_keychain
         self.force_classic = args.force_classic
+        self.debug = args.debug
 
         if args.insecure is True:
             ui.default.warning("Warning: SSL certificate validation is disabled!")

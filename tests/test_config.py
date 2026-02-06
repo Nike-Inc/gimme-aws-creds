@@ -40,7 +40,8 @@ class TestConfig(unittest.TestCase):
             action_setup_fido_authenticator=False,
             open_browser=False,
             force_classic=False,
-            disable_keychain=False
+            disable_keychain=False,
+            debug=False
         ),
     )
     def test_get_args_username(self, mock_arg):
@@ -187,7 +188,8 @@ client_id = foo
             action_setup_fido_authenticator=False,
             open_browser=False,
             force_classic=False,
-            disable_keychain=False
+            disable_keychain=False,
+            debug=False
         ),
     )
     def test_cli_arg_username_overrides_env_var(self, mock_arg):
@@ -222,7 +224,8 @@ client_id = foo
             action_setup_fido_authenticator=False,
             open_browser=False,
             force_classic=False,
-            disable_keychain=False
+            disable_keychain=False,
+            debug=False
         ),
     )
     def test_cli_arg_profile_overrides_default(self, mock_arg):
@@ -262,7 +265,8 @@ client_id = custom_client
             action_setup_fido_authenticator=False,
             open_browser=False,
             force_classic=False,
-            disable_keychain=False
+            disable_keychain=False,
+            debug=False
         ),
     )
     def test_cli_arg_output_format_overrides_config_file(self, mock_arg):

@@ -9,6 +9,8 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
+import json
+import logging
 import sys
 import platform
 import time
@@ -20,6 +22,9 @@ from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter, Retry
 
 from . import errors, version
+from .debug_formatter import create_debug_response_hook
+
+logger = logging.getLogger(__name__)
 
 class OktaIdentityEngine(object):
     """
@@ -30,17 +35,19 @@ class OktaIdentityEngine(object):
     HTTP_TIMEOUT = 30  # Timeout in seconds for HTTP requests
     DEVICE_FLOW_TIMEOUT = 120  # Timeout in seconds for device authorization flow (60 iterations * 2 seconds)
 
-    def __init__(self, gac_ui, okta_org_url, client_id, verify_ssl_certs=True, device_token=None, device_flow_timeout=None):
+    def __init__(self, gac_ui, okta_org_url, client_id, verify_ssl_certs=True, device_token=None, device_flow_timeout=None, debug=False):
         """
         :type gac_ui: ui.UserInterface
         :param okta_org_url: Base URL string for Okta IDP.
         :param client_id: Client ID that will be used for user auth
         :param verify_ssl_certs: Enable/disable SSL verification
+        :param debug: Enable debug logging for API requests/responses
         """
         self.ui = gac_ui
         self._okta_org_url = okta_org_url
         self._client_id = client_id
         self._verify_ssl_certs = verify_ssl_certs
+        self._debug = debug
         
         self._use_oauth_access_token = False
         self._use_oauth_id_token = False
@@ -60,6 +67,10 @@ class OktaIdentityEngine(object):
         retries = Retry(total=5, backoff_factor=1,
                         allowed_methods=['GET', 'POST'])
         self._http_client.mount('https://', HTTPAdapter(max_retries=retries))
+
+        # Set up debug hooks if enabled
+        if self._debug:
+            self._http_client.hooks['response'].append(create_debug_response_hook())
     
     def use_oauth_access_token(self, val=True):
         self._use_oauth_access_token = val
@@ -238,7 +249,6 @@ class OktaIdentityEngine(object):
 
         else:
             response.raise_for_status()
-        
         return {'SAMLResponse': saml_response, 'RelayState': relay_state, 'TargetUrl': form_action}
 
     @staticmethod

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and* limitations
 # standard imports
 import configparser
 import json
+import logging
 import os
 import re
 import sys
@@ -31,6 +32,7 @@ from okta.errors.error import Error as OktaError
 from . import errors, ui, version
 from .aws import AwsResolver
 from .config import Config
+from .debug_formatter import setup_debug_logging
 from .default import DefaultResolver
 from .okta_identity_engine import OktaIdentityEngine
 from .okta_classic import OktaClassicClient
@@ -79,6 +81,11 @@ class GimmeAWSCreds(object):
         )
         self._cache = {}
         self.skip_DT = False
+
+    def _setup_debug_logging(self):
+        """Set up debug logging for HTTP requests and responses"""
+        setup_debug_logging()
+        self.ui.info("Debug logging enabled - HTTP requests/responses will be displayed")
 
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
     def _write_aws_creds(self, profile, access_key, secret_key, token, expiration, aws_config=None):
@@ -462,6 +469,10 @@ class GimmeAWSCreds(object):
         config.get_args()
         self._cache['conf_dict'] = config.get_config_dict()
 
+        # Set up debug logging if enabled
+        if config.debug:
+            self._setup_debug_logging()
+
         if config.disable_keychain is True:
             self.conf_dict['enable_keychain'] = False
 
@@ -564,7 +575,8 @@ class GimmeAWSCreds(object):
                 self.ui,
                 self.okta_org_url,
                 self.conf_dict.get('client_id'),
-                self.config.verify_ssl_certs
+                self.config.verify_ssl_certs,
+                debug=self.config.debug
             )
         else:
             okta = self._cache['okta'] = OktaClassicClient(
@@ -572,7 +584,8 @@ class GimmeAWSCreds(object):
                 self.okta_org_url,
                 self.config.verify_ssl_certs,
                 self.device_token,
-                self.conf_dict.get('enable_keychain', True)
+                self.conf_dict.get('enable_keychain', True),
+                debug=self.config.debug
             )
 
             if self.config.username is not None:
