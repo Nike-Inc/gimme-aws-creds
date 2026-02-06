@@ -209,6 +209,9 @@ class OktaIdentityEngine(object):
 
         if response.status_code == 200:
             return response_data
+        elif response.status_code == 400:
+            raise errors.GimmeAWSCredsError(
+                "LOGIN ERROR: Token exchange failed: {}".format(response_data.get('error_description', 'Unknown error')), 2)
         else:
             response.raise_for_status()
 
