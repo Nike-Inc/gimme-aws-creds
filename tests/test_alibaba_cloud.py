@@ -82,7 +82,7 @@ class TestAlibabaCloudClient(unittest.TestCase):
         )
         with self.assertRaises(errors.GimmeAWSCredsError) as ctx:
             self.client._interclient_token_exchange('exk1234567890', 'at', 'idt')
-        self.assertIn('Interclient token exchange', ctx.exception.message)
+        self.assertIn('Token exchange failed', ctx.exception.message)
 
     @responses.activate
     def test_interclient_token_exchange_invalid_json(self):

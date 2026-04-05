@@ -11,19 +11,15 @@ See the License for the specific language governing permissions and* limitations
 """
 import base64
 import json
-import xml.etree.ElementTree as ET
 
-import urllib3
-import requests
 from bs4 import BeautifulSoup
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 import gimme_aws_creds.common as commondef
+from .common import parse_saml_role_attributes, create_http_session
 from . import errors
 
 
-class AwsResolver(object):
+class AwsResolver:
     """
        The Aws Client Class performes post request on AWS sign-in page
        to fetch friendly names/alias for account and IAM roles
@@ -34,15 +30,7 @@ class AwsResolver(object):
         :param verify_ssl_certs: Enable/disable SSL verification
         """
         self._verify_ssl_certs = verify_ssl_certs
-
-        if verify_ssl_certs is False:
-            urllib3.disable_warnings()
-
-        # Allow up to 5 retries on requests to AWS in case we have network issues
-        self._http_client = requests.Session()
-        retries = Retry(total=5, backoff_factor=1,
-                        allowed_methods=['POST'])
-        self._http_client.mount('https://', HTTPAdapter(max_retries=retries))
+        self._http_client = create_http_session(verify_ssl=verify_ssl_certs, allowed_methods=['POST'])
 
     def get_signinpage(self, saml_token, saml_target_url):
         """ Post SAML token to aws sign in page and get back html result"""
@@ -62,12 +50,7 @@ class AwsResolver(object):
         signin_page = self.get_signinpage(assertion, saml_target_url)
         
         """ using the assertion to fetch aws sign-in page, parse it and return aws sts creds """
-        role_pairs = []
-        root = ET.fromstring(base64.b64decode(assertion))
-        for saml2_attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
-            if saml2_attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role':
-                for saml2_attribute_value in saml2_attribute.iter('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
-                    role_pairs.append(saml2_attribute_value.text)
+        role_pairs = list(parse_saml_role_attributes(assertion, 'https://aws.amazon.com/SAML/Attributes/Role'))
 
         # build a temp hash table
         table = {}

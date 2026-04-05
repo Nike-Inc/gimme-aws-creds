@@ -10,8 +10,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
 
-from __future__ import print_function, absolute_import, unicode_literals
-
 from threading import Event, Thread
 
 from ctap_keyring_device.ctap_keyring_device import CtapKeyringDevice
@@ -27,13 +25,10 @@ from fido2.webauthn import PublicKeyCredentialRequestOptions
 from gimme_aws_creds.errors import NoFIDODeviceFoundError, FIDODeviceTimeoutError
 
 
-class FakeAssertion(object):
-    def __init__(self):
-        self.signature = b'fake'
-        self.auth_data = b'fake'
+from gimme_aws_creds.common import FakeAssertion
 
 
-class WebAuthnClient(object):
+class WebAuthnClient:
     def __init__(self, ui, okta_org_url, challenge, credential_id=None, timeout_ms=30_000):
         """
         :param okta_org_url: Base URL string for Okta IDP.

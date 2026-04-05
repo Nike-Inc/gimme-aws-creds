@@ -9,14 +9,12 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
-import base64
-import xml.etree.ElementTree as ET
-
 import gimme_aws_creds.common as commondef
+from .common import parse_saml_role_attributes
 from . import errors
 
 
-class DefaultResolver(object):
+class DefaultResolver:
     """
        The Aws Client Class performs post request on AWS sign-in page
        to fetch friendly names/alias for account and IAM roles
@@ -27,16 +25,8 @@ class DefaultResolver(object):
 
     def _enumerate_saml_roles(self, assertion, saml_target_url):
         """ using the assertion to fetch aws sign-in page, parse it and return aws sts creds """
-        role_pairs = []
-        root = ET.fromstring(base64.b64decode(assertion))
-        for saml2_attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
-            if saml2_attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role':
-                for saml2_attribute_value in saml2_attribute.iter('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
-                    role_pairs.append(saml2_attribute_value.text)
-
-        # Normalize pieces of string; order may vary per AWS sample
         result = []
-        for role_pair in role_pairs:
+        for role_pair in parse_saml_role_attributes(assertion, 'https://aws.amazon.com/SAML/Attributes/Role'):
             idp, role = None, None
             for field in role_pair.split(','):
                 if 'saml-provider' in field:

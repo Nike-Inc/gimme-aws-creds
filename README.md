@@ -16,7 +16,7 @@ Okta is a registered trademark of Okta, Inc. and this tool has no affiliation wi
 
 [Okta SAML integration to AWS using the AWS App](https://help.okta.com/en/prod/Content/Topics/Miscellaneous/References/OktaAWSMulti-AccountConfigurationGuide.pdf)
 
-Python 3.7+
+Python 3.10+
 
 ####  A Note on Python 3.10+ Compatibility on Windows
 

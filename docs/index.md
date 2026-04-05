@@ -7,7 +7,8 @@
 **Type:** CLI (Python command-line tool)  
 **Language:** Python 3.7+  
 **Architecture:** Modular authentication system with pluggable MFA providers  
-**Version:** 2.8.2
+**Released Version:** 2.8.2
+**Latest Version:** 2.9.0-pre
 
 ### Quick Reference
 

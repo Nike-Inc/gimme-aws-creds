@@ -3,7 +3,7 @@ import json
 import os
 
 
-class RegisteredAuthenticators(object):
+class RegisteredAuthenticators:
     """
        The RegisteredAuthenticators class manages a json file of gimme-aws-creds registered
        FIDO authenticators.

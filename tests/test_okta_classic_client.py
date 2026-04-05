@@ -1078,7 +1078,7 @@ class TestOktaClassicClient(unittest.TestCase):
     def test_missing_saml_response(self):
         """Test that the SAML reponse was successful (failed)"""
         responses.add(responses.GET, 'https://example.okta.com/app/gimmecreds/exkatg7u9g6LJfFrZ0h7/sso/saml', status=200, body="")
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(errors.GimmeAWSCredsError):
             result = self.client.get_saml_response('https://example.okta.com/app/gimmecreds/exkatg7u9g6LJfFrZ0h7/sso/saml')
 
     # @responses.activate

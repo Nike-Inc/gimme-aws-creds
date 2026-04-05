@@ -3,16 +3,13 @@ Copyright 2016-present Nike, Inc.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 """
-import base64
 import re
-import sys
-import platform
-import xml.etree.ElementTree as ET
 from collections import namedtuple
 from urllib.parse import quote
 
 import requests
-from bs4 import BeautifulSoup
+
+from .common import user_agent, request_headers_json, parse_saml_form, parse_saml_role_attributes, okta_token_exchange
 
 try:
     from alibabacloud_sts20150401 import client as _sts_client
@@ -23,7 +20,7 @@ try:
 except ImportError:
     ALIBABA_CLOUD_SDK_AVAILABLE = False
 
-from . import errors, version
+from . import errors
 
 ALIBABA_CLOUD_SAML_ROLE_ATTRIBUTE = 'https://www.aliyun.com/SAML-Role/Attributes/Role'
 
@@ -35,23 +32,13 @@ ALIBABA_CLOUD_SDK_INSTALL_HINT = (
 )
 
 
-def _user_agent():
-    return "gimme-aws-creds {};{};{}".format(version, sys.platform, platform.python_version())
-
-
-def _request_headers_json():
-    return {
-        'User-Agent': _user_agent(),
-        'Accept': 'application/json',
-    }
-
 def _account_id_from_role_arn(role_arn):
     m = re.match(r'acs:ram::(\d+):', role_arn)
     if not m:
         return ''
     return m.group(1)
 
-class AlibabaCloudClient(object):
+class AlibabaCloudClient:
     """Alibaba Cloud RAM credentials via Okta Native-to-Web SSO (interclient token) and STS AssumeRoleWithSAML."""
 
     HTTP_TIMEOUT = 30
@@ -71,36 +58,12 @@ class AlibabaCloudClient(object):
         self._verify_ssl_certs = verify_ssl_certs
     
     def _interclient_token_exchange(self, app_id, access_token, id_token):
-        response = self._http_client.post(
-            self._okta_org_url + '/oauth2/v1/token',
-            headers=_request_headers_json(),
-            data={
-                'actor_token': access_token,
-                'actor_token_type': 'urn:ietf:params:oauth:token-type:access_token',
-                'client_id': self._client_id,
-                'audience': 'urn:okta:apps:{}'.format(app_id),
-                'grant_type': 'urn:ietf:params:oauth:grant-type:token-exchange',
-                'requested_token_type': 'urn:okta:params:oauth:token-type:interclient_token',
-                'subject_token': id_token,
-                'subject_token_type': 'urn:ietf:params:oauth:token-type:id_token',
-            },
-            verify=self._verify_ssl_certs,
-            timeout=self.HTTP_TIMEOUT,
+        return okta_token_exchange(
+            self._http_client, self._okta_org_url, self._client_id,
+            app_id, access_token, id_token,
+            requested_token_type='urn:okta:params:oauth:token-type:interclient_token',
+            verify_ssl=self._verify_ssl_certs, timeout=self.HTTP_TIMEOUT,
         )
-        try:
-            response_data = response.json()
-        except ValueError as e:
-            raise errors.GimmeAWSCredsError(
-                'Invalid JSON response from token exchange endpoint: {}'.format(str(e)), 2)
-
-        if response.status_code == 200:
-            return response_data
-        if response.status_code == 400:
-            raise errors.GimmeAWSCredsError(
-                'LOGIN ERROR: Interclient token exchange failed: {}'.format(
-                    response_data.get('error_description', 'Unknown error')), 2)
-        response.raise_for_status()
-        return None
 
     @staticmethod
     def _saml_app_fetch_url(saml_app_url, interclient_token):
@@ -117,7 +80,7 @@ class AlibabaCloudClient(object):
         fetch_url = self._saml_app_fetch_url(saml_sso_url, interclient_token)
         response = self._http_client.get(
             fetch_url,
-            headers=_request_headers_json(),
+            headers=request_headers_json(),
             verify=self._verify_ssl_certs,
             timeout=self.HTTP_TIMEOUT,
         )
@@ -125,23 +88,14 @@ class AlibabaCloudClient(object):
         if response.status_code != 200:
             response.raise_for_status()
 
-        saml_response = None
-        relay_state = None
-        form_action = None
-
-        saml_soup = BeautifulSoup(response.text, 'html.parser')
-        if saml_soup.find('form') is not None:
-            form_action = saml_soup.find('form').get('action')
-        for input_tag in saml_soup.find_all('input'):
-            if input_tag.get('name') == 'SAMLResponse':
-                saml_response = input_tag.get('value')
-            elif input_tag.get('name') == 'RelayState':
-                relay_state = input_tag.get('value')
+        saml_response, relay_state, form_action = parse_saml_form(response.text)
 
         if saml_response is None:
             saml_error = 'Did not receive SAML Response after successful authentication [{}]'.format(saml_app_url)
-            if saml_soup.find(class_='error-content') is not None:
-                saml_error += '\n' + saml_soup.find(class_='error-content').get_text()
+            from bs4 import BeautifulSoup
+            error_soup = BeautifulSoup(response.text, 'html.parser')
+            if error_soup.find(class_='error-content') is not None:
+                saml_error += '\n' + error_soup.find(class_='error-content').get_text()
             raise errors.GimmeAWSCredsError(saml_error, 2)
 
         return {'SAMLResponse': saml_response, 'RelayState': relay_state, 'TargetUrl': form_action}
@@ -153,25 +107,18 @@ class AlibabaCloudClient(object):
 
     @staticmethod
     def _enumerate_saml_roles_impl(assertion_b64):
-        root = ET.fromstring(base64.b64decode(assertion_b64))
         roles = []
-        for attr in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
-            if attr.get('Name') != ALIBABA_CLOUD_SAML_ROLE_ATTRIBUTE:
-                continue
-            for val in attr.iter('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
-                text = (val.text or '').strip()
-                if not text:
-                    continue
-                parts = [p.strip() for p in text.split(',')]
-                if len(parts) != 2:
-                    raise errors.GimmeAWSCredsError(
-                        'Invalid Alibaba Cloud role pair (expected role_arn,saml_provider_arn): {}'.format(text), 2)
-                role_arn, saml_provider_arn = parts[0], parts[1]
-                roles.append(AlibabaCloudRoleSet(
-                    role_arn=role_arn,
-                    saml_provider_arn=saml_provider_arn,
-                    account_id=_account_id_from_role_arn(role_arn),
-                ))
+        for text in parse_saml_role_attributes(assertion_b64, ALIBABA_CLOUD_SAML_ROLE_ATTRIBUTE):
+            parts = [p.strip() for p in text.split(',')]
+            if len(parts) != 2:
+                raise errors.GimmeAWSCredsError(
+                    'Invalid Alibaba Cloud role pair (expected role_arn,saml_provider_arn): {}'.format(text), 2)
+            role_arn, saml_provider_arn = parts[0], parts[1]
+            roles.append(AlibabaCloudRoleSet(
+                role_arn=role_arn,
+                saml_provider_arn=saml_provider_arn,
+                account_id=_account_id_from_role_arn(role_arn),
+            ))
         return roles
 
     ASSUME_ROLE_MAX_DURATION = 3600

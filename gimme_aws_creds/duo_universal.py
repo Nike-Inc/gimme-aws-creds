@@ -4,6 +4,7 @@ import html5lib
 from furl import furl
 
 from . import version
+from .common import user_agent
 
 
 class DuoMfaDenied(BaseException):
@@ -154,7 +155,7 @@ class OktaDuoUniversal:
     @staticmethod
     def _get_form_headers():
         form_headers = {
-            'User-Agent': "gimme-aws-creds {}".format(version),
+            'User-Agent': user_agent(),
             'Accept': 'application/json',
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
         }

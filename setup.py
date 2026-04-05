@@ -5,7 +5,7 @@ with open('requirements.txt') as f:
 
 setup(
     name='gimme_aws_creds',
-    version='2.8.2-pre',
+    version='2.9.0-pre',
     install_requires=requirements,
     extras_require={
         'alicloud': [

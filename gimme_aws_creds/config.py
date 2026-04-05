@@ -16,9 +16,10 @@ import requests
 from urllib.parse import urlparse
 
 from . import errors, ui, version
+from .common import user_agent
 
 
-class Config(object):
+class Config:
     """
        The Config Class gets the CLI arguments, writes out the okta config file,
        gets and returns username and password and the Okta API key.
@@ -398,7 +399,7 @@ class Config(object):
                         okta_org_url + '/.well-known/okta-organization',
                         headers={
                             'Accept': 'application/json',
-                            'User-Agent': "gimme-aws-creds {}".format(version)
+                            'User-Agent': user_agent()
                         },
                         timeout=30
                     )

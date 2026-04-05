@@ -9,7 +9,8 @@
 | Property | Value |
 |----------|-------|
 | **Name** | gimme-aws-creds |
-| **Version** | 2.8.2 |
+| **Released Version** | 2.8.2 |
+| **Latest Version** | 2.9.0-pre |
 | **License** | Apache License 2.0 |
 | **Python** | 3.7+ |
 | **Maintainer** | Eric Pierce |
