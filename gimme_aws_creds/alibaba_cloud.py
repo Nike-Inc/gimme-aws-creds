@@ -174,16 +174,20 @@ class AlibabaCloudClient(object):
                 ))
         return roles
 
+    ASSUME_ROLE_MAX_DURATION = 3600
+
     def assume_role_with_saml(self, role_arn, saml_provider_arn, saml_assertion, duration=3600, region_id='cn-hangzhou'):
         """
         Call Alibaba Cloud STS AssumeRoleWithSAML using an anonymous regional client.
 
         :param saml_assertion: Raw SAML assertion XML, base64-encoded (same as POSTed SAMLResponse value).
-        :param duration: Requested session duration in seconds. Alibaba Cloud caps this at 3600; larger values are silently clamped.
+        :param duration: Requested session duration in seconds, clamped to ASSUME_ROLE_MAX_DURATION.
         """
         if not ALIBABA_CLOUD_SDK_AVAILABLE:
             raise errors.GimmeAWSCredsError(
                 'Alibaba Cloud STS requires optional SDK packages. {}'.format(ALIBABA_CLOUD_SDK_INSTALL_HINT), 2)
+
+        duration = min(duration, self.ASSUME_ROLE_MAX_DURATION)
 
         config = _open_api_models.Config(
             access_key_id='',
@@ -200,10 +204,7 @@ class AlibabaCloudClient(object):
                 duration_seconds=duration,
             )
         except Exception as e:
-            print(type(e))
-            print(e)
-            print(e.name)
-
+            raise errors.GimmeAWSCredsError("Failed to create AssumeRoleWithSAMLRequest: {}".format(e), 2)
 
         if self._verify_ssl_certs is False:
             runtime = _util_models.RuntimeOptions(ignore_ssl=True)

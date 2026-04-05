@@ -114,7 +114,7 @@ class TestAlibabaCloudClient(unittest.TestCase):
             status=200,
             body=html,
         )
-        result = self.client.get_saml_response(self.saml_app_url, self.auth_session)
+        result = self.client.get_saml_response(self.saml_app_url, self.saml_app_url, self.auth_session)
         self.assertEqual(result['SAMLResponse'], 'PHhtbC8+')
         self.assertEqual(result['RelayState'], 'rs')
         self.assertEqual(result['TargetUrl'], 'https://signin.aliyun.com/saml')
@@ -122,15 +122,15 @@ class TestAlibabaCloudClient(unittest.TestCase):
     @responses.activate
     def test_get_saml_response_app_with_existing_query_string(self):
         html = """<html><body><form><input name="SAMLResponse" type="hidden" value="eA=="/></form></body></html>"""
-        base_url = self.saml_app_url + '?foo=bar'
+        sso_url = self.saml_app_url + '?foo=bar'
         responses.add(responses.POST, self.okta_org_url + '/oauth2/v1/token', status=200, body=json.dumps(self.interclient_response))
         responses.add(
             responses.GET,
-            re.compile(re.escape(base_url) + r'.*'),
+            re.compile(re.escape(sso_url) + r'.*'),
             status=200,
             body=html,
         )
-        result = self.client.get_saml_response(base_url, self.auth_session)
+        result = self.client.get_saml_response(sso_url, self.saml_app_url, self.auth_session)
         self.assertEqual(result['SAMLResponse'], 'eA==')
 
     @responses.activate
@@ -138,14 +138,14 @@ class TestAlibabaCloudClient(unittest.TestCase):
         responses.add(responses.POST, self.okta_org_url + '/oauth2/v1/token', status=200, body=json.dumps(self.interclient_response))
         responses.add(responses.GET, self.saml_app_url, status=200, body='<html></html>')
         with self.assertRaises(errors.GimmeAWSCredsError):
-            self.client.get_saml_response(self.saml_app_url, self.auth_session)
+            self.client.get_saml_response(self.saml_app_url, self.saml_app_url, self.auth_session)
 
     @responses.activate
     def test_get_saml_response_http_error(self):
         responses.add(responses.POST, self.okta_org_url + '/oauth2/v1/token', status=200, body=json.dumps(self.interclient_response))
         responses.add(responses.GET, self.saml_app_url, status=500)
         with self.assertRaises(Exception):
-            self.client.get_saml_response(self.saml_app_url, self.auth_session)
+            self.client.get_saml_response(self.saml_app_url, self.saml_app_url, self.auth_session)
 
     def test_enumerate_saml_roles_single(self):
         b64 = _b64_xml(ALIBABA_CLOUD_ASSERTION_XML)

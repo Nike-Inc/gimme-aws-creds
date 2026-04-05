@@ -89,7 +89,7 @@ class GimmeAWSCreds(object):
         self.FILE_ROOT = self.ui.HOME
         self.ALIBABA_CLOUD_CONFIG = self.ui.environ.get(
             'ALIBABA_CLOUD_SHARED_CREDENTIALS_FILE',
-            os.path.join(self.FILE_ROOT, '.aliyun', 'credentials')
+            os.path.join(self.FILE_ROOT, '.aliyun', 'config.json')
         )
         self.AWS_CONFIG = self.ui.environ.get(
             'AWS_SHARED_CREDENTIALS_FILE',
@@ -104,7 +104,7 @@ class GimmeAWSCreds(object):
         self.ui.info("Debug logging enabled - HTTP requests/responses will be displayed")
 
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
-    def _write_credentials(self, profile, access_key, secret_key, token, expiration, credentials_file=None):
+    def _write_aws_credentials(self, profile, access_key, secret_key, token, expiration, credentials_file=None):
         """ Writes the AWS STS token into the AWS credential file"""
         # Check to see if the aws creds path exists, if not create it
         credentials_file = credentials_file or self.AWS_CONFIG
@@ -131,18 +131,69 @@ class GimmeAWSCreds(object):
         config.set(profile, 'x_security_token_expires', expiration)
 
         # Write the updated config file
-        with open(aws_config, 'w+') as configfile:
+        with open(credentials_file, 'w+') as configfile:
             config.write(configfile)
         # Update file permissions to secure  sensitive credentials file
-        os.chmod(aws_config, 0o600)
-        self.ui.message('Written profile {} to {}'.format(profile, aws_config))
+        os.chmod(credentials_file, 0o600)
+        self.ui.message('Written profile {} to {}'.format(profile, credentials_file))
+    
+    def _write_alibaba_cloud_credentials(self, profile, access_key, secret_key, token, expiration, region_id, credentials_file=None):
+        """ Writes the Alibaba Cloud STS token into ~/.aliyun/config.json"""
+        credentials_file = credentials_file or self.ALIBABA_CLOUD_CONFIG
+        creds_dir = os.path.dirname(credentials_file)
 
-    def write_aws_creds_from_data(self, data, aws_config=None):
+        if not os.path.exists(creds_dir):
+            os.makedirs(creds_dir)
+
+        config = {'current': '', 'profiles': []}
+        if os.path.isfile(credentials_file):
+            with open(credentials_file, 'r') as f:
+                try:
+                    config = json.load(f)
+                except (json.JSONDecodeError, ValueError):
+                    config = {'current': '', 'profiles': []}
+
+        if not isinstance(config.get('profiles'), list):
+            config['profiles'] = []
+
+        # Set the current profile the profile we are writing to
+        config['current'] = profile
+
+        new_profile = {
+            'name': profile,
+            'mode': 'StsToken',
+            'access_key_id': access_key,
+            'access_key_secret': secret_key,
+            'sts_token': token,
+            'x_security_token_expires': expiration,
+            'region_id': region_id,
+            "language": "en",
+        }
+
+        replaced = False
+        for i, p in enumerate(config['profiles']):
+            if p.get('name') == profile:
+                config['profiles'][i] = new_profile
+                replaced = True
+                break
+        if not replaced:
+            config['profiles'].append(new_profile)
+
+        if not config.get('current'):
+            config['current'] = profile
+
+        with open(credentials_file, 'w') as f:
+            json.dump(config, f, indent=2, sort_keys=False)
+            f.write('\n')
+        os.chmod(credentials_file, 0o600)
+        self.ui.message('Written profile {} to {}'.format(profile, credentials_file))
+
+    def write_credentials_from_data(self, data, credentials_file=None):
         if not isinstance(data, dict):
             self.ui.warning('json line is not a dict! ' + repr(data))
             return
 
-        aws_config = aws_config or data.get('shared_credentials_file')
+        credentials_file = credentials_file or data.get('shared_credentials_file')
         credentials = data.get('credentials', {})
         profile = data.get('profile', {})
 
@@ -158,14 +209,23 @@ class GimmeAWSCreds(object):
         if not isinstance(credentials, dict):
             errs.append('credentials are not a dict!' + repr(credentials))
         else:
-            for key in ('aws_access_key_id',
-                        'aws_secret_access_key',
-                        'aws_session_token',
-                        'expiration'):
-                value = credentials.get(key, None)
-                if not value:
-                    errs.append(
-                        '{} is not set {} in credentials! {}'.format(key, repr(value), str(credentials.keys())))
+            if self._alicloud_enabled() is True:
+                for key in ('access_key_id',
+                            'access_key_secret',
+                            'security_token',
+                            'expiration'):
+                    value = credentials.get(key, None)
+                    if not value:
+                        errs.append('{} is not set {} in credentials! {}'.format(key, repr(value), str(credentials.keys())))
+            else:
+                for key in ('aws_access_key_id',
+                            'aws_secret_access_key',
+                            'aws_session_token',
+                            'expiration'):
+                    value = credentials.get(key, None)
+                    if not value:
+                        errs.append(
+                            '{} is not set {} in credentials! {}'.format(key, repr(value), str(credentials.keys())))
 
         if errs:
             for error in errs:
@@ -174,14 +234,28 @@ class GimmeAWSCreds(object):
 
         arn = data.get('role', {}).get('arn', '<no-arn>')
         self.ui.message('Saving {} as {}'.format(arn, profile['name']))
-        self._write_credentials(
+        
+        if credentials['credentials_type'] == 'aws':
+            self._write_aws_credentials(
             profile['name'],
             credentials['aws_access_key_id'],
             credentials['aws_secret_access_key'],
             credentials['aws_session_token'],
             credentials['expiration'],
-            aws_config=aws_config,
+            credentials_file=credentials_file,
         )
+        elif credentials['credentials_type'] == 'alibaba_cloud':
+            self._write_alibaba_cloud_credentials(
+                profile['name'],
+                credentials['access_key_id'],
+                credentials['access_key_secret'],
+                credentials['security_token'],
+                credentials['expiration'],
+                credentials['region_id'],
+                credentials_file=credentials_file,
+            )
+        else:
+            raise errors.GimmeAWSCredsError("Unknown credentials type: {}".format(credentials['credentials_type']))
 
     @staticmethod
     def _get_partition_and_region_from_saml_acs(saml_acs_url):
@@ -556,8 +630,6 @@ class GimmeAWSCreds(object):
 
     def _alicloud_enabled(self):
         """User requested Alibaba Cloud (config/CLI/env); does not imply SDK is installed."""
-        if getattr(self.config, 'enable_alicloud', False):
-            return True
         v = self.conf_dict.get('enable_alicloud')
         if v is True:
             return True
@@ -574,9 +646,7 @@ class GimmeAWSCreds(object):
             return False
 
     def _warn_alicloud_sdk_missing_once(self):
-        if self._cache.get('_alicloud_sdk_missing_warned'):
-            return
-        if not self._alicloud_enabled() or self._alibaba_cloud_sdk_installed():
+        if self._alicloud_enabled() == True and self._alibaba_cloud_sdk_installed():
             return
         self.ui.error(
             'Alibaba Cloud is enabled but optional SDK packages are not installed; '
@@ -586,17 +656,6 @@ class GimmeAWSCreds(object):
         )
         self._cache['_alicloud_sdk_missing_warned'] = True
         sys.exit(1)
-
-    def _alicloud_active(self):
-        """Alibaba RAM flow via ``AlibabaCloudClient`` (OIE + optional Alibaba Cloud SDK installed)."""
-        if not self._alicloud_enabled():
-            return False
-        if self.okta_platform != 'identity_engine':
-            return False
-        if not self._alibaba_cloud_sdk_installed():
-            self._warn_alicloud_sdk_missing_once()
-            return False
-        return True
 
     def _alibaba_cloud_client(self):
         return AlibabaCloudClient(
@@ -678,10 +737,8 @@ class GimmeAWSCreds(object):
                 'verify_ssl_certs': self.config.verify_ssl_certs,
                 'debug': self.config.debug,
             }
-            if self._alicloud_enabled() and self._alibaba_cloud_sdk_installed():
+            if self._alicloud_enabled() is True:
                 okta_kwargs['device_flow_scope'] = ALIBABA_CLOUD_TOKEN_EXCHANGE_SCOPES
-            elif self._alicloud_enabled():
-                self._warn_alicloud_sdk_missing_once()
             okta = self._cache['okta'] = OktaIdentityEngine(**okta_kwargs)
         else:
             okta = self._cache['okta'] = OktaClassicClient(
@@ -825,7 +882,7 @@ class GimmeAWSCreds(object):
         if 'saml_data' in self._cache:
             return self._cache['saml_data']
         app_link = self.aws_app['links']['appLink']
-        if self._alicloud_active():
+        if self._alicloud_enabled() is True:
             saml_app_url = self.conf_dict.get('app_url') or app_link
             saml_sso_url = self.conf_dict.get('alicloud_saml_url')
             saml_data = self._alibaba_cloud_client().get_saml_response(
@@ -843,7 +900,7 @@ class GimmeAWSCreds(object):
         if 'aws_roles' in self._cache:
             return self._cache['aws_roles']
 
-        if self._alicloud_active():
+        if self._alicloud_enabled() is True:
             alibaba_cloud_roles = AlibabaCloudClient.enumerate_saml_roles(self.saml_data['SAMLResponse'])
             roles = [
                 RoleSet(
@@ -885,7 +942,7 @@ class GimmeAWSCreds(object):
     def aws_partition(self):
         if 'aws_partition' in self._cache:
             return self._cache['aws_partition']
-        if self._alicloud_active():
+        if self._alicloud_enabled() is True:
             # Alibaba Cloud STS uses alicloud_region / aws_region; SAML ACS is not an AWS sign-in URL.
             self._cache['aws_partition'] = 'alicloud'
             return 'alicloud'
@@ -908,7 +965,7 @@ class GimmeAWSCreds(object):
     def prepare_data(self, role, generate_credentials=False):
         cred_data = {}
         if generate_credentials:
-            if self._alicloud_active():
+            if self._alicloud_enabled() is True:
                 alicloud_region = (
                     self.conf_dict.get('alicloud_region')
                     or 'cn-hangzhou'
@@ -937,8 +994,10 @@ class GimmeAWSCreds(object):
                     credentials = {
                         'access_key_id': raw.get('AccessKeyId'),
                         'access_key_secret': raw.get('AccessKeySecret'),
-                        'session_token': raw.get('SecurityToken'),
+                        'security_token': raw.get('SecurityToken'),
                         'expiration': raw.get('Expiration'),
+                        'credentials_type': 'alibaba_cloud',
+                        'region_id': alicloud_region,
                     }                    
             else:
                 try:
@@ -965,13 +1024,14 @@ class GimmeAWSCreds(object):
                     else:
                         self.ui.error('Failed to generate credentials for {} due to {}'.format(role.role, ex))
                     
-                    credentials = {
-                        'aws_access_key_id': cred_data.get('AccessKeyId', ''),
-                        'aws_secret_access_key': cred_data.get('SecretAccessKey', ''),
-                        'aws_session_token': cred_data.get('SessionToken', ''),
-                        'aws_security_token': cred_data.get('SessionToken', ''),
-                        'expiration': self._credentials_expiration_iso(cred_data),
-                    }
+                credentials = {
+                    'aws_access_key_id': cred_data.get('AccessKeyId', ''),
+                    'aws_secret_access_key': cred_data.get('SecretAccessKey', ''),
+                    'aws_session_token': cred_data.get('SessionToken', ''),
+                    'aws_security_token': cred_data.get('SessionToken', ''),
+                    'expiration': self._credentials_expiration_iso(cred_data),
+                    'credentials_type': 'aws',
+                }
 
         naming_data = self._naming_data_for_role(role.role)
         # set the profile name
@@ -983,7 +1043,7 @@ class GimmeAWSCreds(object):
         profile_name = self.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role)
 
         return {
-            'shared_credentials_file': self.AWS_CONFIG if not self._alicloud_active() else self.ALIBABA_CLOUD_CONFIG,
+            'shared_credentials_file': self.AWS_CONFIG if self._alicloud_enabled() is False else self.ALIBABA_CLOUD_CONFIG,
             'profile': {
                 'name': profile_name,
                 'derived_name': naming_data['role'],
@@ -1029,8 +1089,6 @@ class GimmeAWSCreds(object):
 
         def generate_credentials_prepare_data(role):
             data = self.prepare_data(role, generate_credentials=True)
-
-            print(json.dumps(data, indent=4))
             return data
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -1074,7 +1132,7 @@ class GimmeAWSCreds(object):
             # check if write_aws_creds is true if so
             # get the profile name and write out the file
             if write_aws_creds:
-                self.write_aws_creds_from_data(data)
+                self.write_credentials_from_data(data)
                 continue
 
             self.write_result_action(self.conf_dict["output_format"], data)
@@ -1134,7 +1192,7 @@ class GimmeAWSCreds(object):
             except json.JSONDecodeError:
                 self.ui.warning('error parsing json line {}'.format(repr(line)))
                 continue
-            self.write_aws_creds_from_data(data)
+            self.write_credentials_from_data(data)
         raise errors.GimmeAWSCredsExitSuccess()
 
     def handle_action_register_device(self):
