@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Python**: 3.7 or higher
+- **Python**: 3.10 or higher
 - **pip**: Latest version recommended
 - **Git**: For version control
 
@@ -106,9 +106,11 @@ The project follows standard Python conventions:
 ```
 gimme_aws_creds/
 ├── main.py          # Start here - main orchestration
+├── common.py        # Shared utilities (HTTP sessions, SAML parsing, OktaHttpMixin)
 ├── config.py        # Configuration handling
-├── okta_classic.py  # Okta Classic auth flow
-├── okta_identity_engine.py  # OIE auth flow
+├── okta_classic.py  # Okta Classic auth flow (inherits OktaHttpMixin)
+├── okta_identity_engine.py  # OIE auth flow (inherits OktaHttpMixin)
+├── alibaba_cloud.py # AliCloud RAM credential support
 └── ...
 ```
 
@@ -128,7 +130,9 @@ gimme_aws_creds/
        return self._login_send_new_factor(state_token, factor)
    ```
 
-3. Update `_build_factor_name` for display
+3. Use `_build_auth_flow_result(response_data)` to extract the `stateToken`/`sessionToken` from the MFA response consistently
+
+4. Update `_build_factor_name` for display
 
 ### Adding Configuration Options
 
@@ -166,6 +170,9 @@ envvar_conf_map = {
 - Use `user_interface_mock.py` for UI mocking
 - Use fixtures in `tests/fixtures/` for HTML responses
 - Mock external HTTP calls with `unittest.mock` or `responses`
+- Use shared utilities from `tests/helpers.py`:
+  - `captured_output()` context manager for capturing stdout/stderr
+  - `make_args(**overrides)` factory for building `argparse.Namespace` test objects
 
 ### Test Structure
 
@@ -181,6 +188,22 @@ def test_feature_name(self):
     # Assert
     self.assertEqual(expected, result)
 ```
+
+### Test Organization
+
+| Test File | Coverage |
+|-----------|----------|
+| `test_main.py` | `GimmeAWSCreds` class methods |
+| `test_config.py` | Configuration parsing and profiles |
+| `test_aws_resolver.py` | SAML parsing, role enumeration |
+| `test_okta_classic_client.py` | Classic auth flow and MFA |
+| `test_okta_identity_engine_client.py` | OIE auth flow |
+| `test_alibaba_cloud.py` | AliCloud credential handling |
+| `test_duo_universal_client.py` | DUO Universal Prompt |
+| `test_bug_fixes.py` | Regression tests for critical bug fixes |
+| `test_build_verification.py` | Import and shared utility verification |
+| `test_registered_authenticators.py` | FIDO registry |
+| `test_keyring_integration.py` | Keyring storage |
 
 ## Building
 

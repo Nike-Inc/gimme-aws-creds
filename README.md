@@ -3,7 +3,7 @@
 [![][license img]][license]
 [![][cicd img]][cicd]
 
-gimme-aws-creds is a CLI that utilizes an [Okta](https://www.okta.com/) IdP via SAML to acquire temporary AWS credentials via AWS STS.
+gimme-aws-creds is a CLI that utilizes an [Okta](https://www.okta.com/) IdP via SAML to acquire temporary AWS credentials via AWS STS. It also supports [Alibaba Cloud (AliCloud)](#alibaba-cloud-support) RAM credentials via the same Okta SAML flow.
 
 Okta is a SAML identity provider (IdP), that can be easily set-up to do SSO to your AWS console. Okta does offer an [OSS java CLI]((https://github.com/oktadeveloper/okta-aws-cli-assume-role)) tool to obtain temporary AWS credentials, but I found it needs more information than the average Okta user would have and doesn't scale well if have more than one Okta App.
 
@@ -243,9 +243,11 @@ A configuration wizard will prompt you to enter the necessary configuration para
 - resolve_aws_alias - y or n. If yes, gimme-aws-creds will try to resolve AWS account ids with respective alias names (default: n). This option can also be set interactively in the command line using `-r` or `--resolve` parameter
 - include_path - (optional) Includes full role path to the role name in AWS credential profile name. (default: n).  If `y`: `<acct>-/some/path/administrator`. If `n`: `<acct>-administrator`
 - remember_device - y or n. If yes, the MFA device will be remembered by Okta service for a limited time. This option can also be set interactively in the command line using `-m` or `--remember-device`
-- output_format - `json` , `export` or `windows`, determines default credential output format, can be also specified by `--output-format FORMAT` and `-o FORMAT`.
+- output_format - `json` , `export` or `windows`, determines default credential output format, can be also specified by `--output-format FORMAT` and `-o FORMAT`. The `export` and `windows` formats output the correct environment variable names for both AWS and Alibaba Cloud credentials.
 - open-browser - Open the device authentication link in the default web browser automatically (Okta Identity Engine domains only)
 - force-classic - Force the use of the Okta Classic login process (Okta Identity Engine domains only)
+- enable_alicloud - y or n. If yes, enables Alibaba Cloud RAM support for this profile (OIE only). Can also be set via the `--enable-alicloud` CLI flag or the `GIMME_AWS_CREDS_ENABLE_ALICLOUD` environment variable. Requires optional dependencies: `pip install "gimme-aws-creds[alicloud]"`.
+- alicloud_saml_url - (optional, Alibaba Cloud only) Explicit SAML SSO URL for the Alibaba Cloud app in Okta; falls back to the app link if not set.
 
 ## Configuration File
 
@@ -328,6 +330,7 @@ A list of values of to change with environment variables are:
 - `OKTA_PASSWORD` - provides password during authentication, can be used in CI
 - `OKTA_USERNAME` - corresponds to `okta_username` configuration and `--username` CLI option
 - `AWS_STS_REGION` - force the use of the STS in a specific region (`us-east-1`, `eu-north-1`, etc.)
+- `GIMME_AWS_CREDS_ENABLE_ALICLOUD` - corresponds to `enable_alicloud` configuration and `--enable-alicloud` CLI option
 
 Example: `GIMME_AWS_CREDS_CLIENT_ID='foobar' AWS_DEFAULT_DURATION=12345 gimme-aws-creds`
 
@@ -397,6 +400,49 @@ for data in creds.iter_selected_aws_credentials():
 
 ```
 
+## Alibaba Cloud Support
+
+gimme-aws-creds can retrieve temporary Alibaba Cloud RAM credentials in addition to AWS credentials. This feature uses Okta Identity Engine's interclient token exchange to obtain a SAML assertion for your Alibaba Cloud app, then calls Alibaba Cloud's `AssumeRoleWithSAML` API.
+
+### Prerequisites
+
+1. **Okta Identity Engine** — AliCloud support requires the OIE Device Authorization flow
+2. **Optional SDK** — Install the Alibaba Cloud dependencies:
+   ```bash
+   pip install "gimme-aws-creds[alicloud]"
+   ```
+3. **Okta Configuration** — Configure an Alibaba Cloud SAML app in Okta with appropriate role mappings and configure the app to support [Native-to-Web SSO token exchange](https://developer.okta.com/docs/guides/native-to-web-sso/main/). 
+
+### Setup
+
+Enable AliCloud support when configuring a profile:
+
+```bash
+gimme-aws-creds --action-configure --enable-alicloud
+```
+
+Or add `enable_alicloud = True` to your profile in `~/.okta_aws_login_config`:
+
+```ini
+[alicloud-profile]
+okta_org_url = https://companyname.okta.com
+client_id = your_client_id
+enable_alicloud = True
+alicloud_saml_url = https://companyname.okta.com/app/china_alibabacloud/app_instance_id/sso/saml
+```
+
+### Output
+
+When AliCloud credentials are retrieved, the `export` and `windows` output formats produce the correct Alibaba Cloud environment variables:
+
+```bash
+export ALIBABA_CLOUD_ACCESS_KEY_ID=...
+export ALIBABA_CLOUD_ACCESS_KEY_SECRET=...
+export ALIBABA_CLOUD_SECURITY_TOKEN=...
+```
+
+Credentials can also be written to `~/.aliyun/credentials` when `write_aws_creds` is enabled.
+
 ## MFA security keys support
 
 gimme-aws-creds works both on FIDO1 enabled org and WebAuthN enabled org
@@ -419,6 +465,12 @@ You can run all the unit tests using pytest. Most of the tests are mocked.
 
 ```bash
 pytest -vv tests
+```
+
+To run with coverage reporting:
+
+```bash
+pytest --cov=gimme_aws_creds tests/
 ```
 
 ## Maintenance

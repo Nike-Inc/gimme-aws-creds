@@ -5,7 +5,7 @@
 ## Project Overview
 
 **Type:** CLI (Python command-line tool)  
-**Language:** Python 3.7+  
+**Language:** Python 3.10+  
 **Architecture:** Modular authentication system with pluggable MFA providers  
 **Released Version:** 2.8.2
 **Latest Version:** 2.9.0-pre
@@ -14,7 +14,7 @@
 
 | Property | Value |
 |----------|-------|
-| **Tech Stack** | Python 3.7+, boto3, requests, fido2 |
+| **Tech Stack** | Python 3.10+, boto3, requests, fido2 |
 | **Entry Point** | `bin/gimme-aws-creds` → `gimme_aws_creds.main` |
 | **Config File** | `~/.okta_aws_login_config` |
 | **Output** | `~/.aws/credentials` or stdout |
@@ -69,10 +69,12 @@ gimme-aws-creds
 | Module | Purpose |
 |--------|---------|
 | `main.py` | Main orchestrator, credential handling |
+| `common.py` | Shared utilities: HTTP session factory, SAML parsing, User-Agent, `OktaHttpMixin`, token exchange |
 | `config.py` | Configuration management |
 | `okta_classic.py` | Okta Classic authentication + MFA |
 | `okta_identity_engine.py` | Okta Identity Engine (OIE) auth |
 | `aws.py` | AWS role resolution, SAML parsing |
+| `alibaba_cloud.py` | Alibaba Cloud (AliCloud) RAM credential support |
 | `duo.py` / `duo_universal.py` | DUO MFA handlers |
 | `webauthn.py` / `u2f.py` | FIDO/hardware key MFA |
 | `ui.py` | User interface abstraction |
@@ -102,4 +104,5 @@ gimme-aws-creds
 ---
 
 *Documentation generated: 2026-01-09*  
+*Last updated: 2026-04-05*  
 *Scan level: exhaustive*

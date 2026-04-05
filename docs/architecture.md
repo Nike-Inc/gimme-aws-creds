@@ -51,8 +51,9 @@ The main orchestrator class that:
 - Initializes configuration and resolvers
 - Detects Okta platform type (Classic vs Identity Engine)
 - Manages authentication session lifecycle
-- Retrieves SAML assertions and exchanges for AWS credentials
-- Handles credential output (file, stdout, JSON)
+- Retrieves SAML assertions and exchanges for AWS or AliCloud credentials
+- Handles credential output (file, stdout, JSON, export, windows)
+- Supports both AWS STS and Alibaba Cloud RAM `assume_role_with_saml`
 
 **Key Properties (Lazy-loaded with caching):**
 - `config` - Configuration object
@@ -78,12 +79,24 @@ Manages all configuration sources:
 - `write_aws_creds` - Write to credentials file vs stdout
 - `preferred_mfa_type` - Auto-select MFA factor
 
-### 3. OktaClassicClient (okta_classic.py)
+### 3. Shared Utilities (common.py)
 
-Handles authentication for Okta Classic domains:
+Central module for cross-cutting concerns, eliminating code duplication across the codebase:
+- `user_agent()` — Canonical User-Agent string used by all HTTP callers
+- `parse_saml_form()` — Extracts SAMLResponse, RelayState, and form action from HTML
+- `parse_saml_role_attributes()` — Yields role values from a base64 SAML assertion's XML attributes
+- `create_http_session()` — Factory for `requests.Session` with retry logic, SSL configuration, and debug hooks
+- `OktaHttpMixin` — Shared OAuth-aware HTTP methods (`get`, `post`, `put`, `delete`, `check_kwargs`) inherited by both Okta client classes
+- `okta_token_exchange()` — Shared Okta OAuth2 token exchange used by both OIE Web SSO and AliCloud interclient flows
+- `FakeAssertion` — Stub assertion for when a real FIDO/WebAuthn device is unavailable
+- `RoleSet` — Named tuple for role data (`idp`, `role`, `friendly_account_name`, `friendly_role_name`)
+
+### 4. OktaClassicClient (okta_classic.py)
+
+Handles authentication for Okta Classic domains. Inherits from `OktaHttpMixin`.
 - Username/password authentication
 - State token management
-- MFA factor selection and verification
+- MFA factor selection and verification (uses `_build_auth_flow_result()` helper for consistent token extraction)
 - SAML response retrieval
 - OAuth token exchange for gimme-creds-lambda
 
@@ -93,11 +106,11 @@ Handles authentication for Okta Classic domains:
 3. Exchange session token for SAML assertion
 4. Optional: Device token registration
 
-### 4. OktaIdentityEngine (okta_identity_engine.py)
+### 5. OktaIdentityEngine (okta_identity_engine.py)
 
-Handles authentication for Okta Identity Engine domains:
+Handles authentication for Okta Identity Engine domains. Inherits from `OktaHttpMixin`.
 - OAuth 2.0 Device Authorization flow
-- Web SSO token exchange
+- Web SSO token exchange (via shared `okta_token_exchange()`)
 - Browser-based authentication
 
 **Authentication Flow:**
@@ -107,14 +120,22 @@ Handles authentication for Okta Identity Engine domains:
 4. Exchange tokens for Web SSO token
 5. Retrieve SAML assertion
 
-### 5. AwsResolver (aws.py)
+### 6. AwsResolver (aws.py)
 
 Resolves AWS account and role information:
-- Parses SAML assertions for role ARNs
+- Parses SAML assertions for role ARNs (via shared `parse_saml_role_attributes()`)
 - Fetches friendly names from AWS sign-in page
 - Supports both legacy and NextJS AWS console formats
 
-### 6. UI Abstraction (ui.py)
+### 7. AlibabaCloudClient (alibaba_cloud.py)
+
+Handles Alibaba Cloud (AliCloud) RAM credential retrieval:
+- Interclient OAuth token exchange with Okta (via shared `okta_token_exchange()`)
+- SAML assertion retrieval for AliCloud apps
+- RAM `AssumeRoleWithSAML` for temporary AliCloud credentials
+- Optional — requires `alibabacloud-credentials` SDK
+
+### 8. UI Abstraction (ui.py)
 
 Provides abstracted user interface:
 - `UserInterface` - Base class
@@ -180,7 +201,7 @@ Custom exception hierarchy in `errors.py`:
 - `GimmeAWSCredsExitBase` - Base for exit-handling exceptions
 - `GimmeAWSCredsExitSuccess` - Clean exit with optional result
 - `GimmeAWSCredsExitError` - Error exit with message
-- `GimmeAWSCredsError` - General operational error
+- `GimmeAWSCredsError` - General operational error (used consistently for SAML errors, invalid ARNs, token exchange failures, and missing SDK dependencies)
 - `GimmeAWSCredsMFAEnrollStatus` - MFA enrollment required
 
 ## Security Considerations
@@ -195,4 +216,7 @@ Custom exception hierarchy in `errors.py`:
 
 1. **Custom Resolvers**: Implement `_enumerate_saml_roles` and `_display_role`
 2. **UI Implementations**: Extend `UserInterface` for non-CLI use
-3. **MFA Factors**: Add handlers in `_login_multi_factor` dispatch
+3. **MFA Factors**: Add handlers in `_login_multi_factor` dispatch, use `_build_auth_flow_result()` for token extraction
+4. **Shared HTTP Clients**: New Okta client classes can inherit `OktaHttpMixin` from `common.py` for consistent OAuth-aware HTTP methods
+5. **SAML Parsing**: Use `parse_saml_form()` and `parse_saml_role_attributes()` from `common.py` for new SAML integrations
+6. **Cloud Providers**: New provider modules can follow the `alibaba_cloud.py` pattern and reuse `okta_token_exchange()` for Okta-backed flows

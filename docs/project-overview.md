@@ -12,7 +12,7 @@
 | **Released Version** | 2.8.2 |
 | **Latest Version** | 2.9.0-pre |
 | **License** | Apache License 2.0 |
-| **Python** | 3.7+ |
+| **Python** | 3.10+ |
 | **Maintainer** | Eric Pierce |
 | **Repository** | https://github.com/Nike-Inc/gimme-aws-creds |
 
@@ -40,7 +40,7 @@ Organizations using Okta for SSO to AWS need a way to obtain temporary AWS crede
 
 | Category | Technology | Version |
 |----------|------------|---------|
-| **Language** | Python | `3.7+` |
+| **Language** | Python | `3.10+` |
 | **AWS SDK** | boto3 | `>=1.7.70,<2.0.0` |
 | **HTTP** | requests | `>=2.25.0,<3.0.0` |
 | **HTML Parsing** | beautifulsoup4 | `>=4.6.0,<5.0.0` |
@@ -58,6 +58,8 @@ The project follows a **Command-Line Application Pattern** with:
 - Pluggable MFA factor handlers
 - Strategy pattern for AWS role resolution
 - Dependency injection for UI abstraction
+- Shared utility layer (`common.py`) for HTTP session management, SAML parsing, and cross-cutting concerns
+- Mixin-based code reuse (`OktaHttpMixin`) for Okta HTTP client classes
 
 ## Installation Methods
 
