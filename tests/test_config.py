@@ -41,13 +41,43 @@ class TestConfig(unittest.TestCase):
             open_browser=False,
             force_classic=False,
             disable_keychain=False,
-            debug=False
+            debug=False,
+            enable_alicloud=False,
         ),
     )
     def test_get_args_username(self, mock_arg):
         """Test to make sure username gets returned"""
         self.config.get_args()
         self.assertEqual(self.config.username, "ann")
+
+    @patch(
+        "argparse.ArgumentParser.parse_args",
+        return_value=argparse.Namespace(
+            username=None,
+            profile=None,
+            insecure=False,
+            resolve=None,
+            mfa_code=None,
+            remember_device=False,
+            output_format=None,
+            roles=None,
+            action_register_device=False,
+            action_configure=False,
+            action_list_profiles=False,
+            action_list_roles=False,
+            action_store_json_creds=False,
+            action_setup_fido_authenticator=False,
+            open_browser=False,
+            force_classic=False,
+            disable_keychain=False,
+            debug=False,
+            enable_alicloud=True,
+        ),
+    )
+    def test_get_args_enable_alicloud(self, mock_arg):
+        """--enable-alicloud sets config flag"""
+        self.config.get_args()
+        self.assertTrue(self.config.enable_alicloud)
 
     def test_read_config(self):
         """Test to make sure getting config works"""
@@ -64,6 +94,23 @@ client_id = foo
         config.conf_profile = "myprofile"
         profile_config = config.get_config_dict()
         self.assertEqual(profile_config, {"client_id": "foo", 'force_classic': True})
+
+    def test_read_config_enable_alicloud(self):
+        """Profile may set enable_alicloud for Alibaba Cloud device scope"""
+        test_ui = MockUserInterface(argv=[
+            "--profile",
+            "myprofile",
+        ])
+        with open(test_ui.HOME + "/.okta_aws_login_config", "w") as config_file:
+            config_file.write("""
+[myprofile]
+client_id = foo
+enable_alicloud = True
+""")
+        config = Config(gac_ui=test_ui, create_config=False)
+        config.conf_profile = "myprofile"
+        profile_config = config.get_config_dict()
+        self.assertIs(profile_config.get('enable_alicloud'), True)
 
     def test_read_config_inherited(self):
         """Test to make sure getting config works when inherited"""
@@ -189,7 +236,8 @@ client_id = foo
             open_browser=False,
             force_classic=False,
             disable_keychain=False,
-            debug=False
+            debug=False,
+            enable_alicloud=False,
         ),
     )
     def test_cli_arg_username_overrides_env_var(self, mock_arg):
@@ -225,7 +273,8 @@ client_id = foo
             open_browser=False,
             force_classic=False,
             disable_keychain=False,
-            debug=False
+            debug=False,
+            enable_alicloud=False,
         ),
     )
     def test_cli_arg_profile_overrides_default(self, mock_arg):
@@ -266,7 +315,8 @@ client_id = custom_client
             open_browser=False,
             force_classic=False,
             disable_keychain=False,
-            debug=False
+            debug=False,
+            enable_alicloud=False,
         ),
     )
     def test_cli_arg_output_format_overrides_config_file(self, mock_arg):

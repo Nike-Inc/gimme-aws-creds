@@ -6,7 +6,7 @@ import unittest
 from contextlib import contextmanager
 from io import StringIO
 from unittest.mock import patch
-from urllib.parse import quote
+from urllib.parse import parse_qsl, quote
 
 import requests
 import responses
@@ -106,6 +106,30 @@ class TestOktaIdentityEngineClient(unittest.TestCase):
         responses.add(responses.POST, self.okta_org_url + '/oauth2/v1/device/authorize', status=200, body=json.dumps(self.device_response))
         result = self.client._start_device_flow()
         self.assertEqual(result, {'apiResponse': self.device_response})
+
+    @responses.activate
+    def test_start_device_flow_default_device_flow_scope(self):
+        """Device authorization uses default scope openid okta.apps.sso"""
+        responses.add(responses.POST, self.okta_org_url + '/oauth2/v1/device/authorize', status=200, body=json.dumps(self.device_response))
+        self.client._start_device_flow()
+        body = responses.calls[0].request.body
+        if isinstance(body, bytes):
+            body = body.decode('utf-8')
+        pairs = dict(parse_qsl(body))
+        self.assertEqual(pairs['scope'], 'openid okta.apps.sso')
+
+    @responses.activate
+    def test_start_device_flow_custom_device_flow_scope(self):
+        """Device authorization respects custom device_flow_scope"""
+        custom = 'openid interclient_access'
+        client = OktaIdentityEngine(ui.default, self.okta_org_url, self.client_id, False, device_flow_scope=custom)
+        responses.add(responses.POST, self.okta_org_url + '/oauth2/v1/device/authorize', status=200, body=json.dumps(self.device_response))
+        client._start_device_flow()
+        body = responses.calls[0].request.body
+        if isinstance(body, bytes):
+            body = body.decode('utf-8')
+        pairs = dict(parse_qsl(body))
+        self.assertEqual(pairs['scope'], custom)
 
     @responses.activate
     def test_start_device_flow_unauthorized_client(self):

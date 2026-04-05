@@ -298,3 +298,18 @@ class TestMain(unittest.TestCase):
         include_path = True
         self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role),
                          'foo')
+
+    def test_naming_data_for_role_aws_arn(self):
+        creds = GimmeAWSCreds()
+        arn = 'arn:aws:iam::123456789012:role/Admin'
+        d = creds._naming_data_for_role(arn)
+        self.assertEqual(d['account'], '123456789012')
+        self.assertEqual(d['role'], 'Admin')
+
+    def test_naming_data_for_role_alicloud_ram(self):
+        creds = GimmeAWSCreds()
+        arn = 'acs:ram::111122223333:role/MyRole'
+        d = creds._naming_data_for_role(arn)
+        self.assertEqual(d['account'], '111122223333')
+        self.assertEqual(d['role'], 'MyRole')
+        self.assertEqual(d['path'], '/')

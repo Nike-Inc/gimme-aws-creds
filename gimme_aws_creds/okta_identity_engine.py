@@ -35,12 +35,13 @@ class OktaIdentityEngine(object):
     HTTP_TIMEOUT = 30  # Timeout in seconds for HTTP requests
     DEVICE_FLOW_TIMEOUT = 120  # Timeout in seconds for device authorization flow (60 iterations * 2 seconds)
 
-    def __init__(self, gac_ui, okta_org_url, client_id, verify_ssl_certs=True, device_token=None, device_flow_timeout=None, debug=False):
+    def __init__(self, gac_ui, okta_org_url, client_id, verify_ssl_certs=True, device_token=None, device_flow_timeout=None, debug=False, device_flow_scope='openid okta.apps.sso'):
         """
         :type gac_ui: ui.UserInterface
         :param okta_org_url: Base URL string for Okta IDP.
         :param client_id: Client ID that will be used for user auth
         :param verify_ssl_certs: Enable/disable SSL verification
+        :param device_flow_scope: OAuth scope for device authorization (default: Web SSO / AWS flow)
         :param debug: Enable debug logging for API requests/responses
         """
         self.ui = gac_ui
@@ -48,6 +49,7 @@ class OktaIdentityEngine(object):
         self._client_id = client_id
         self._verify_ssl_certs = verify_ssl_certs
         self._debug = debug
+        self._device_flow_scope = device_flow_scope
         
         self._use_oauth_access_token = False
         self._use_oauth_id_token = False
@@ -134,7 +136,7 @@ class OktaIdentityEngine(object):
         response = self._http_client.post(
             self._okta_org_url + '/oauth2/v1/device/authorize',
             headers=self._get_headers(),
-            data={'scope':'openid okta.apps.sso', 'client_id': self._client_id },
+            data={'scope': self._device_flow_scope, 'client_id': self._client_id },
             verify=self._verify_ssl_certs,
             timeout=self.HTTP_TIMEOUT
         )

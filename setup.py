@@ -7,6 +7,11 @@ setup(
     name='gimme_aws_creds',
     version='2.8.2-pre',
     install_requires=requirements,
+    extras_require={
+        'alicloud': [
+            'alibabacloud_sts20150401>=1.2.0,<2.0.0',
+        ],
+    },
     author='Eric Pierce',
     author_email='eric.pierce@nike.com',
     description="A CLI to get temporary AWS credentials from Okta",

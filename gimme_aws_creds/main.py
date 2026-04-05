@@ -34,10 +34,20 @@ from .aws import AwsResolver
 from .config import Config
 from .debug_formatter import setup_debug_logging
 from .default import DefaultResolver
+from .alibaba_cloud import AlibabaCloudClient
+from .common import RoleSet
 from .okta_identity_engine import OktaIdentityEngine
 from .okta_classic import OktaClassicClient
 from .registered_authenticators import RegisteredAuthenticators
 
+try:
+    from alibabacloud_sts20150401 import client as _sts_client
+    ALIBABA_CLOUD_SDK_AVAILABLE = True
+except ImportError:
+    ALIBABA_CLOUD_SDK_AVAILABLE = False
+
+# Scopes needed for token exchange for Alibaba Cloud: AWS Web SSO + Native-to-Web interclient.
+ALIBABA_CLOUD_TOKEN_EXCHANGE_SCOPES = 'openid interclient_access'
 
 class GimmeAWSCreds(object):
     """
@@ -53,6 +63,7 @@ class GimmeAWSCreds(object):
         'GIMME_AWS_CREDS_CLIENT_ID',
         'GIMME_AWS_CREDS_CRED_PROFILE',
         'GIMME_AWS_CREDS_OUTPUT_FORMAT',
+        'GIMME_AWS_CREDS_ENABLE_ALICLOUD',
         'OKTA_AUTH_SERVER',
         'OKTA_DEVICE_TOKEN',
         'OKTA_MFA_CODE',
@@ -65,6 +76,7 @@ class GimmeAWSCreds(object):
         'GIMME_AWS_CREDS_CLIENT_ID': 'client_id',
         'GIMME_AWS_CREDS_CRED_PROFILE': 'cred_profile',
         'GIMME_AWS_CREDS_OUTPUT_FORMAT': 'output_format',
+        'GIMME_AWS_CREDS_ENABLE_ALICLOUD': 'enable_alicloud',
         'OKTA_DEVICE_TOKEN': 'device_token',
         'AWS_STS_REGION': 'aws_region'
     }
@@ -75,6 +87,10 @@ class GimmeAWSCreds(object):
         """
         self.ui = ui
         self.FILE_ROOT = self.ui.HOME
+        self.ALIBABA_CLOUD_CONFIG = self.ui.environ.get(
+            'ALIBABA_CLOUD_SHARED_CREDENTIALS_FILE',
+            os.path.join(self.FILE_ROOT, '.aliyun', 'credentials')
+        )
         self.AWS_CONFIG = self.ui.environ.get(
             'AWS_SHARED_CREDENTIALS_FILE',
             os.path.join(self.FILE_ROOT, '.aws', 'credentials')
@@ -88,11 +104,11 @@ class GimmeAWSCreds(object):
         self.ui.info("Debug logging enabled - HTTP requests/responses will be displayed")
 
     #  this is modified code from https://github.com/nimbusscale/okta_aws_login
-    def _write_aws_creds(self, profile, access_key, secret_key, token, expiration, aws_config=None):
+    def _write_credentials(self, profile, access_key, secret_key, token, expiration, credentials_file=None):
         """ Writes the AWS STS token into the AWS credential file"""
         # Check to see if the aws creds path exists, if not create it
-        aws_config = aws_config or self.AWS_CONFIG
-        creds_dir = os.path.dirname(aws_config)
+        credentials_file = credentials_file or self.AWS_CONFIG
+        creds_dir = os.path.dirname(credentials_file)
 
         if os.path.exists(creds_dir) is False:
             os.makedirs(creds_dir)
@@ -100,8 +116,8 @@ class GimmeAWSCreds(object):
         config = configparser.RawConfigParser()
 
         # Read in the existing config file if it exists
-        if os.path.isfile(aws_config):
-            config.read(aws_config)
+        if os.path.isfile(credentials_file):
+            config.read(credentials_file)
 
         # Put the credentials into a saml specific section instead of clobbering
         # the default credentials
@@ -158,7 +174,7 @@ class GimmeAWSCreds(object):
 
         arn = data.get('role', {}).get('arn', '<no-arn>')
         self.ui.message('Saving {} as {}'.format(arn, profile['name']))
-        self._write_aws_creds(
+        self._write_credentials(
             profile['name'],
             credentials['aws_access_key_id'],
             credentials['aws_secret_access_key'],
@@ -289,6 +305,32 @@ class GimmeAWSCreds(object):
             'role': matches.group('role'),
             'path': matches.group('path')
         }
+
+    @staticmethod
+    def _parse_ram_role_arn(arn):
+        """Account id and role name from AliCloud RAM role ARN ``acs:ram::...:role/...``."""
+        matches = re.match(r'acs:ram::(?P<accountid>\d+):role/(?P<role>[^\s,]+)', arn)
+        if not matches:
+            raise errors.GimmeAWSCredsError('Unrecognized Alibaba Cloud RAM role ARN: {}'.format(arn))
+        return {
+            'account': matches.group('accountid'),
+            'role': matches.group('role'),
+            'path': '/',
+        }
+
+    def _naming_data_for_role(self, role_arn):
+        """Profile naming: AWS IAM ARN or AliCloud RAM role ARN."""
+        m = re.match(
+            r"arn:(aws|aws-cn|aws-us-gov):iam:.*:(?P<accountid>\d{12}):role(?P<path>(/[\w/]+)?/)(?P<role>\S+)",
+            role_arn,
+        )
+        if m:
+            return {
+                'account': m.group('accountid'),
+                'role': m.group('role'),
+                'path': m.group('path'),
+            }
+        return self._parse_ram_role_arn(role_arn)
 
     @staticmethod
     def _get_alias_from_friendly_name(friendly_name):
@@ -465,7 +507,7 @@ class GimmeAWSCreds(object):
         """ generates a new configuration and populates
         various config caches
         """
-        self._cache['config'] = config = Config(gac_ui=self.ui)
+        self._cache['config'] = config = Config(gac_ui=self.ui, alicloud_sdk_available=ALIBABA_CLOUD_SDK_AVAILABLE)
         config.get_args()
         self._cache['conf_dict'] = config.get_config_dict()
 
@@ -486,6 +528,12 @@ class GimmeAWSCreds(object):
             self.config.aws_default_duration = int(self.conf_dict['aws_default_duration'])
         else:
             self.config.aws_default_duration = 3600
+        
+        # Alibaba Cloud Default session duration ....
+        if self.conf_dict.get('alibaba_cloud_default_duration'):
+            self.config.alibaba_cloud_default_duration = int(self.conf_dict['alibaba_cloud_default_duration'])
+        else:
+            self.config.alibaba_cloud_default_duration = 3600
 
         self.resolver = self.get_resolver()
         return config
@@ -505,6 +553,58 @@ class GimmeAWSCreds(object):
         # noinspection PyUnusedLocal
         config = self.config
         return self._cache['conf_dict']
+
+    def _alicloud_enabled(self):
+        """User requested Alibaba Cloud (config/CLI/env); does not imply SDK is installed."""
+        if getattr(self.config, 'enable_alicloud', False):
+            return True
+        v = self.conf_dict.get('enable_alicloud')
+        if v is True:
+            return True
+        if isinstance(v, str):
+            return v.strip().lower() in ('true', '1', 'yes', 'y')
+        return False
+
+    @staticmethod
+    def _alibaba_cloud_sdk_installed():
+        try:
+            from . import alibaba_cloud as alibaba_cloud_mod
+            return bool(getattr(alibaba_cloud_mod, 'ALIBABA_CLOUD_SDK_AVAILABLE', False))
+        except ImportError:
+            return False
+
+    def _warn_alicloud_sdk_missing_once(self):
+        if self._cache.get('_alicloud_sdk_missing_warned'):
+            return
+        if not self._alicloud_enabled() or self._alibaba_cloud_sdk_installed():
+            return
+        self.ui.error(
+            'Alibaba Cloud is enabled but optional SDK packages are not installed; '
+            'Alibaba Cloud features are disabled. Install with: '
+            'pip install "gimme-aws-creds[alicloud]" '
+            '(or: pip install alibabacloud_sts20150401)'
+        )
+        self._cache['_alicloud_sdk_missing_warned'] = True
+        sys.exit(1)
+
+    def _alicloud_active(self):
+        """Alibaba RAM flow via ``AlibabaCloudClient`` (OIE + optional Alibaba Cloud SDK installed)."""
+        if not self._alicloud_enabled():
+            return False
+        if self.okta_platform != 'identity_engine':
+            return False
+        if not self._alibaba_cloud_sdk_installed():
+            self._warn_alicloud_sdk_missing_once()
+            return False
+        return True
+
+    def _alibaba_cloud_client(self):
+        return AlibabaCloudClient(
+            self.okta._http_client,
+            self.okta_org_url,
+            self.conf_dict.get('client_id'),
+            self.config.verify_ssl_certs,
+        )
 
     @property
     def output_format(self):
@@ -571,13 +671,18 @@ class GimmeAWSCreds(object):
             return self._cache['okta']
 
         if self.okta_platform == 'identity_engine':
-            okta = self._cache['okta'] = OktaIdentityEngine(
-                self.ui,
-                self.okta_org_url,
-                self.conf_dict.get('client_id'),
-                self.config.verify_ssl_certs,
-                debug=self.config.debug
-            )
+            okta_kwargs = {
+                'gac_ui': self.ui,
+                'okta_org_url': self.okta_org_url,
+                'client_id': self.conf_dict.get('client_id'),
+                'verify_ssl_certs': self.config.verify_ssl_certs,
+                'debug': self.config.debug,
+            }
+            if self._alicloud_enabled() and self._alibaba_cloud_sdk_installed():
+                okta_kwargs['device_flow_scope'] = ALIBABA_CLOUD_TOKEN_EXCHANGE_SCOPES
+            elif self._alicloud_enabled():
+                self._warn_alicloud_sdk_missing_once()
+            okta = self._cache['okta'] = OktaIdentityEngine(**okta_kwargs)
         else:
             okta = self._cache['okta'] = OktaClassicClient(
                 self.ui,
@@ -719,7 +824,18 @@ class GimmeAWSCreds(object):
     def saml_data(self):
         if 'saml_data' in self._cache:
             return self._cache['saml_data']
-        self._cache['saml_data'] = saml_data = self.okta.get_saml_response(self.aws_app['links']['appLink'], self.auth_session)
+        app_link = self.aws_app['links']['appLink']
+        if self._alicloud_active():
+            saml_app_url = self.conf_dict.get('app_url') or app_link
+            saml_sso_url = self.conf_dict.get('alicloud_saml_url')
+            saml_data = self._alibaba_cloud_client().get_saml_response(
+                saml_sso_url=saml_sso_url,
+                saml_app_url=app_link,
+                auth_session=self.auth_session,
+            )
+        else:
+            saml_data = self.okta.get_saml_response(app_link, self.auth_session)
+        self._cache['saml_data'] = saml_data
         return saml_data
 
     @property
@@ -727,10 +843,23 @@ class GimmeAWSCreds(object):
         if 'aws_roles' in self._cache:
             return self._cache['aws_roles']
 
-        self._cache['aws_roles'] = roles = self.resolver._enumerate_saml_roles(
-            self.saml_data['SAMLResponse'],
-            self.saml_data['TargetUrl'],
-        )
+        if self._alicloud_active():
+            alibaba_cloud_roles = AlibabaCloudClient.enumerate_saml_roles(self.saml_data['SAMLResponse'])
+            roles = [
+                RoleSet(
+                    idp=ar.saml_provider_arn,
+                    role=ar.role_arn,
+                    friendly_account_name='Account: {}'.format(ar.account_id) if ar.account_id else '',
+                    friendly_role_name=ar.role_arn.split('/')[-1] if ar.role_arn else '',
+                )
+                for ar in alibaba_cloud_roles
+            ]
+        else:
+            roles = self.resolver._enumerate_saml_roles(
+                self.saml_data['SAMLResponse'],
+                self.saml_data['TargetUrl'],
+            )
+        self._cache['aws_roles'] = roles
         return roles
 
     @property
@@ -756,6 +885,10 @@ class GimmeAWSCreds(object):
     def aws_partition(self):
         if 'aws_partition' in self._cache:
             return self._cache['aws_partition']
+        if self._alicloud_active():
+            # Alibaba Cloud STS uses alicloud_region / aws_region; SAML ACS is not an AWS sign-in URL.
+            self._cache['aws_partition'] = 'alicloud'
+            return 'alicloud'
         aws_partition, aws_region = self._get_partition_and_region_from_saml_acs(self.saml_data['TargetUrl'])
         self._cache['aws_partition'] = aws_partition
         # use the region of the SAML ACS if one wasn't specified by the user
@@ -763,34 +896,84 @@ class GimmeAWSCreds(object):
             self.conf_dict['aws_region'] = aws_region
         return aws_partition
 
+    @staticmethod
+    def _credentials_expiration_iso(creds):
+        exp = creds.get('Expiration') if creds else None
+        if exp is None:
+            return ''
+        if hasattr(exp, 'isoformat'):
+            return exp.isoformat()
+        return str(exp)
+
     def prepare_data(self, role, generate_credentials=False):
-        aws_creds = {}
+        cred_data = {}
         if generate_credentials:
-            try:
-                aws_creds = self._get_sts_creds(
-                    self.aws_partition,
-                    self.conf_dict.get('aws_region'),
-                    self.saml_data['SAMLResponse'],
-                    role.idp,
-                    role.role,
-                    self.config.aws_default_duration,
+            if self._alicloud_active():
+                alicloud_region = (
+                    self.conf_dict.get('alicloud_region')
+                    or 'cn-hangzhou'
                 )
-            except ClientError as ex:
-                if 'requested DurationSeconds exceeds the MaxSessionDuration' in ex.response['Error']['Message']:
-                    self.ui.warning(
-                        "The requested session duration was too long for the role {}.  Falling back to 1 hour.".format(role.role))
-                    aws_creds = self._get_sts_creds(
+                try:
+                    raw = self._alibaba_cloud_client().assume_role_with_saml(
+                        role.role,
+                        role.idp,
+                        self.saml_data['SAMLResponse'],
+                        duration=self.config.aws_default_duration,
+                        region_id=alicloud_region,
+                    )
+                except Exception as ex:
+                    if 'The min of duration seconds is 900, the max of duration seconds is 3600' in ex.message:
+                        self.ui.warning(
+                            "The requested session duration was too long for the role {}.  Falling back to 1 hour.".format(role.role))
+                        raw = self._alibaba_cloud_client().assume_role_with_saml(
+                            role.role,
+                            role.idp,
+                            self.saml_data['SAMLResponse'],
+                            duration=3600,
+                            region_id=alicloud_region,
+                        )
+                    else:
+                        self.ui.error('Failed to generate Alibaba Cloud credentials for {} due to {}'.format(role.role, ex))
+                    credentials = {
+                        'access_key_id': raw.get('AccessKeyId'),
+                        'access_key_secret': raw.get('AccessKeySecret'),
+                        'session_token': raw.get('SecurityToken'),
+                        'expiration': raw.get('Expiration'),
+                    }                    
+            else:
+                try:
+                    cred_data = self._get_sts_creds(
                         self.aws_partition,
                         self.conf_dict.get('aws_region'),
                         self.saml_data['SAMLResponse'],
                         role.idp,
                         role.role,
-                        3600,
+                        self.config.aws_default_duration,
                     )
-                else:
-                    self.ui.error('Failed to generate credentials for {} due to {}'.format(role.role, ex))
+                except ClientError as ex:
+                    if 'requested DurationSeconds exceeds the MaxSessionDuration' in ex.response['Error']['Message']:
+                        self.ui.warning(
+                            "The requested session duration was too long for the role {}.  Falling back to 1 hour.".format(role.role))
+                        cred_data = self._get_sts_creds(
+                            self.aws_partition,
+                            self.conf_dict.get('aws_region'),
+                            self.saml_data['SAMLResponse'],
+                            role.idp,
+                            role.role,
+                            3600,
+                        )
+                    else:
+                        self.ui.error('Failed to generate credentials for {} due to {}'.format(role.role, ex))
+                    
+                    credentials = {
+                        'aws_access_key_id': cred_data.get('AccessKeyId', ''),
+                        'aws_secret_access_key': cred_data.get('SecretAccessKey', ''),
+                        'aws_session_token': cred_data.get('SessionToken', ''),
+                        'aws_security_token': cred_data.get('SessionToken', ''),
+                        'expiration': self._credentials_expiration_iso(cred_data),
+                    }
 
-        naming_data = self._parse_role_arn(role.role)
+        naming_data = self._naming_data_for_role(role.role)
         # set the profile name
         # Note if there are multiple roles
         # it will be overwritten multiple times and last role wins.
@@ -800,7 +983,7 @@ class GimmeAWSCreds(object):
         profile_name = self.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role)
 
         return {
-            'shared_credentials_file': self.AWS_CONFIG,
+            'shared_credentials_file': self.AWS_CONFIG if not self._alicloud_active() else self.ALIBABA_CLOUD_CONFIG,
             'profile': {
                 'name': profile_name,
                 'derived_name': naming_data['role'],
@@ -812,13 +995,7 @@ class GimmeAWSCreds(object):
                 'friendly_name': role.friendly_role_name,
                 'friendly_account_name': role.friendly_account_name,
             },
-            'credentials': {
-                'aws_access_key_id': aws_creds.get('AccessKeyId', ''),
-                'aws_secret_access_key': aws_creds.get('SecretAccessKey', ''),
-                'aws_session_token': aws_creds.get('SessionToken', ''),
-                'aws_security_token': aws_creds.get('SessionToken', ''),
-                'expiration': aws_creds.get('Expiration').isoformat(),
-            } if bool(aws_creds) else {}
+            'credentials': credentials if bool(credentials) else {}
         }
 
     def get_profile_name(self, cred_profile, include_path, naming_data, resolve_alias, role):
@@ -852,6 +1029,8 @@ class GimmeAWSCreds(object):
 
         def generate_credentials_prepare_data(role):
             data = self.prepare_data(role, generate_credentials=True)
+
+            print(json.dumps(data, indent=4))
             return data
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
