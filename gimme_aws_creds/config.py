@@ -79,7 +79,7 @@ class Config:
     def get_args(self):
         """Get the CLI args"""
         parser = argparse.ArgumentParser(
-            description="Gets a STS token to use for AWS CLI based on a SAML assertion from Okta"
+            description="Gets a STS token to use for AWS or Alibaba Cloud CLI based on a SAML assertion from Okta"
         )
         parser.add_argument(
             '--username', '-u',
@@ -268,13 +268,13 @@ class Config:
                 okta_auth_server = Server ID for the OAuth authorization server used by gimme-creds-server
                 write_aws_creds = Option to write creds to ~/.aws/credentials
                 cred_profile = Use DEFAULT or Role-based name as the profile in ~/.aws/credentials
-                aws_appname = (optional) Okta AWS App Name
-                aws_rolename =  (optional) Okta Role ARN
+                aws_appname = (optional) Okta App Name (AWS or Alibaba Cloud)
+                aws_rolename =  (optional) AWS or Alibaba Cloud Role ARN to assume
                 okta_username = Okta username
-                aws_default_duration = Default AWS session duration (3600)
-                preferred_mfa_type = Select this MFA device type automatically
-                include_path - (optional) includes that full role path to the role name for profile
-                enable_keychain = (optional) enable the use of the system keychain to store the user's password
+                aws_default_duration = Default AWS or Alibaba Cloud session duration in seconds (default: 3600)
+                preferred_mfa_type = (optional, Okta Classic only) Select this MFA device type automatically
+                include_path - (optional) includes the full role path to the role name for profile
+                enable_keychain = (optional, Okta Classic only) enable the use of the system keychain to store the user's password
                 enable_alicloud = (optional, OIE only) y/n — use Native-to-Web SSO scope for Alibaba Cloud RAM
                 alicloud_saml_url = (optional, Alibaba Cloud only) explicit SAML SSO URL for the Alibaba Cloud app in Okta; falls back to the app link if not set
 
@@ -502,16 +502,16 @@ class Config:
         return gimme_creds_server
 
     def _get_write_aws_creds(self, default_entry):
-        """ Option to write to the ~/.aws/credentials, ~/.aliyun/credentials, or to stdour"""
+        """ Option to write to the ~/.aws/credentials, ~/.aliyun/config.json, or to stdout"""
 
         if self.enable_alicloud:
             ui.default.message(
-                "Do you want to write the temporary Alibaba Cloud to ~/.aliyun/credentials?"
+                "Do you want to write the temporary Alibaba Cloud credentials to ~/.aliyun/config.json?"
                 "\nIf no, the credentials will be written to stdout."
                 "\nPlease answer y or n.")
         else:
             ui.default.message(
-                "Do you want to write the temporary AWS to ~/.aws/credentials?"
+                "Do you want to write the temporary AWS credentials to ~/.aws/credentials?"
                 "\nIf no, the credentials will be written to stdout."
                 "\nPlease answer y or n.")
 
@@ -525,7 +525,7 @@ class Config:
         """ Option to include path from rolename """
 
         ui.default.message(
-            "Do you want to include full role path to the role name in AWS credential profile name?"
+            "Do you want to include the full role path to the role name in credential profile name?"
             "\nPlease answer y or n.")
 
         while True:
@@ -537,18 +537,18 @@ class Config:
     def _get_resolve_aws_alias(self, default_entry):
         """ Option to resolve account id to alias """
         ui.default.message(
-            "Do you want to resolve aws account id to aws alias ?"
+            "Do you want to resolve account id to an alias ?"
             "\nPlease answer y or n.")
         while True:
             try:
-                return self._get_user_input_yes_no("Resolve AWS alias", default_entry)
+                return self._get_user_input_yes_no("Resolve account alias", default_entry)
             except ValueError:
-                ui.default.warning("Resolve AWS alias must be either y or n.")
+                ui.default.warning("Resolve account alias must be either y or n.")
 
     def _get_cred_profile(self, default_entry):
         """sets the aws credential profile name"""
         ui.default.message(
-            "The AWS credential profile defines which profile is used to store the temp AWS creds.\n"
+            "The credential profile defines which profile is used to store the temp credentials.\n"
             "If set to 'role' then a new profile will be created matching the role name assumed by the user.\n"
             "If set to 'acc' then a new profile will be created matching the account number.\n"
             "If set to 'acc-role' then a new profile will be created matching the role name assumed by the user, but prefixed with account number to avoid collisions.\n"
@@ -557,7 +557,7 @@ class Config:
         )
 
         cred_profile = self._get_user_input(
-            "AWS Credential Profile", default_entry)
+            "Credential Profile", default_entry)
 
         if cred_profile.lower() in ['default', 'role', 'acc', 'acc-role']:
             cred_profile = cred_profile.lower()
@@ -565,19 +565,19 @@ class Config:
         return cred_profile
 
     def _get_aws_appname(self, default_entry):
-        """ Get Okta AWS App name """
+        """ Get Okta App name (AWS or Alibaba Cloud) """
         ui.default.message(
-            "Enter the AWS Okta App Name."
+            "Enter the Okta App Name (AWS or Alibaba Cloud)."
             "\nThis is optional, you can select the App when you run the CLI.")
-        aws_appname = self._get_user_input("AWS App Name", default_entry)
+        aws_appname = self._get_user_input("App Name", default_entry)
         return aws_appname
 
     def _get_aws_rolename(self, default_entry):
-        """ Get the AWS Role ARN"""
+        """ Get the Role ARN (AWS or Alibaba Cloud)"""
         ui.default.message(
-            "Enter the ARN for the AWS role you want credentials for. 'all' will retrieve all roles."
+            "Enter the ARN for the role you want credentials for. 'all' will retrieve all roles."
             "\nThis is optional, you can select the role when you run the CLI.")
-        aws_rolename = self._get_user_input("AWS Role ARN", default_entry)
+        aws_rolename = self._get_user_input("Role ARN", default_entry)
         return aws_rolename
 
     def _get_conf_profile_name(self, default_entry):
@@ -603,9 +603,9 @@ class Config:
         """Get and validate the aws default session duration. [Optional]"""
         ui.default.message(
             "If you'd like to set the default session duration, specify it (in seconds).\n"
-            "This is optional.")
+            "This is optional and defaults to 3600 seconds.")
         aws_default_duration = self._get_user_input(
-            "AWS Default Session Duration", default_entry)
+            "Default Session Duration (in seconds)", default_entry)
         return aws_default_duration
 
     def _get_preferred_mfa_type(self, default_entry):
