@@ -328,6 +328,7 @@ class Config:
             if config_dict['force_classic'] is False:
                 config_dict['open_browser'] = self._get_open_browser(defaults['open_browser'])
                 config_dict['client_id'] = self._get_client_id_entry(defaults['client_id'])
+                config_dict['okta_auth_server'] = self._get_auth_server_entry(defaults['okta_auth_server'])
                 client_id_set = True
 
             # Options specific to Alibaba Cloud
@@ -351,7 +352,7 @@ class Config:
         elif config_dict['gimme_creds_server'] != 'internal':
             if client_id_set is False:
                 config_dict['client_id'] = self._get_client_id_entry(defaults['client_id'])
-            config_dict['okta_auth_server'] = self._get_auth_server_entry(defaults['okta_auth_server'])
+                config_dict['okta_auth_server'] = self._get_auth_server_entry(defaults['okta_auth_server'])
         config_dict['write_aws_creds'] = self._get_write_aws_creds(defaults['write_aws_creds'])
         config_dict['include_path'] = self._get_include_path(defaults['include_path'])
         config_dict['aws_rolename'] = self._get_aws_rolename(defaults['aws_rolename'])
