@@ -861,7 +861,10 @@ class OktaClassicClient(OktaHttpMixin):
         if factor['provider'] == 'DUO':
             return factor['factorType'] + ": " + factor['provider'].capitalize()
         elif factor['factorType'] == 'push':
-            return "Okta Verify App: " + factor['profile']['deviceType'] + ": " + factor['profile']['name']
+            if 'profile' in factor:
+                return "Okta Verify App: " + factor['profile']['deviceType'] + ": " + factor['profile']['name']
+            else:
+                return "Okta Verify App - push verification"
         elif factor['factorType'] == 'sms':
             return factor['factorType'] + ": " + factor['profile']['phoneNumber']
         elif factor['factorType'] == 'email':
