@@ -584,6 +584,9 @@ class GimmeAWSCreds:
                 key = self.envvar_conf_map.get(value, value).lower()
                 self.conf_dict[key] = self.ui.environ.get(value)
 
+        if config.cred_profile is not None:
+            self.conf_dict['cred_profile'] = config.cred_profile
+
         # AWS Default session duration ....
         if self.conf_dict.get('aws_default_duration'):
             self.config.aws_default_duration = int(self.conf_dict['aws_default_duration'])

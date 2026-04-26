@@ -1,9 +1,11 @@
+import shutil
 import unittest
 from unittest.mock import patch
 
 from gimme_aws_creds import errors
 from gimme_aws_creds.common import RoleSet
 from gimme_aws_creds.main import GimmeAWSCreds
+from tests.user_interface_mock import MockUserInterface
 
 
 class TestMain(unittest.TestCase):
@@ -327,3 +329,70 @@ class TestMain(unittest.TestCase):
         self.assertEqual(d['account'], '111122223333')
         self.assertEqual(d['role'], 'MyRole')
         self.assertEqual(d['path'], '/')
+
+
+class TestCredProfilePrecedence(unittest.TestCase):
+    """Tests for --aws-cred-profile CLI flag precedence over env var and config file.
+
+    Expected precedence: CLI flag > env var > config file
+    """
+
+    CONFIG_TEMPLATE = """[DEFAULT]
+client_id = test-client
+okta_org_url = https://test.okta.com
+cred_profile = {cred_profile}
+"""
+
+    def setUp(self):
+        self._temp_dirs = []
+
+    def tearDown(self):
+        for d in self._temp_dirs:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def _build_and_generate(self, argv=None, environ=None, config_cred_profile='file-profile'):
+        test_ui = MockUserInterface(
+            argv=argv or [],
+            environ=environ or {},
+        )
+        self._temp_dirs.append(test_ui.HOME)
+        with open(test_ui.HOME + "/.okta_aws_login_config", "w") as f:
+            f.write(self.CONFIG_TEMPLATE.format(cred_profile=config_cred_profile))
+
+        creds = GimmeAWSCreds(ui=test_ui)
+        creds.generate_config()
+        return creds
+
+    def test_cli_flag_overrides_config_file(self):
+        """--aws-cred-profile should override the cred_profile from config file"""
+        creds = self._build_and_generate(
+            argv=['gimme-aws-creds', '--aws-cred-profile', 'cli-profile'],
+            config_cred_profile='file-profile',
+        )
+        self.assertEqual(creds.conf_dict['cred_profile'], 'cli-profile')
+
+    def test_cli_flag_overrides_env_var(self):
+        """--aws-cred-profile should override GIMME_AWS_CREDS_CRED_PROFILE env var"""
+        creds = self._build_and_generate(
+            argv=['gimme-aws-creds', '--aws-cred-profile', 'cli-profile'],
+            environ={'GIMME_AWS_CREDS_CRED_PROFILE': 'env-profile'},
+            config_cred_profile='file-profile',
+        )
+        self.assertEqual(creds.conf_dict['cred_profile'], 'cli-profile')
+
+    def test_env_var_overrides_config_file_when_no_cli_flag(self):
+        """Without --aws-cred-profile, GIMME_AWS_CREDS_CRED_PROFILE should override config file"""
+        creds = self._build_and_generate(
+            argv=['gimme-aws-creds'],
+            environ={'GIMME_AWS_CREDS_CRED_PROFILE': 'env-profile'},
+            config_cred_profile='file-profile',
+        )
+        self.assertEqual(creds.conf_dict['cred_profile'], 'env-profile')
+
+    def test_config_file_used_when_no_cli_flag_or_env_var(self):
+        """Without --aws-cred-profile or env var, config file value should be used"""
+        creds = self._build_and_generate(
+            argv=['gimme-aws-creds'],
+            config_cred_profile='file-profile',
+        )
+        self.assertEqual(creds.conf_dict['cred_profile'], 'file-profile')

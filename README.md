@@ -210,7 +210,7 @@ A configuration wizard will prompt you to enter the necessary configuration para
   - 'internal' for direct interaction with the Okta APIs (`OKTA_API_KEY` environment variable required)
   - 'appurl' to set an aws application link url. This setting removes the need of an OKTA API key.
 - write_aws_creds - True or False - If True, the AWS credentials will be written to `~/.aws/credentials` otherwise it will be written to stdout.
-- cred_profile - If writing to the AWS cred file, this sets the name of the AWS credential profile.
+- cred_profile - If writing to the AWS cred file, this sets the name of the AWS credential profile. Can be overridden with the --aws-cred-profile CLI option or the GIMME_AWS_CREDS_CRED_PROFILE environment variable.
   - The reserved word `role` will use the name component of the role arn as the profile name. i.e. arn:aws:iam::123456789012:role/okta-1234-role becomes section [okta-1234-role] in the aws credentials file
   - The reserved word `acc` will use the account number (or alias if `resolve_aws_alias` is set to y) as the profile name. i.e. arn:aws:iam::123456789012:role/okta-1234-role becomes section [arn:aws:iam::123456789012] or if `resolve_aws_alias` [okta-1234-role] in the aws credentials file.
   - The reserved word `acc-role` will use the name component of the role arn prepended with account number (or alias if `resolve_aws_alias` is set to y) to avoid collisions, i.e. arn:aws:iam::123456789012:role/okta-1234-role becomes section [123456789012-okta-1234-role], or if `resolve_aws_alias` [okta-1234-role] in the aws credentials file
@@ -322,7 +322,7 @@ A list of values of to change with environment variables are:
 - `AWS_DEFAULT_DURATION` - corresponds to `aws_default_duration` configuration
 - `AWS_SHARED_CREDENTIALS_FILE` - file to write credentials to, points to `~/.aws/credentials` by default
 - `GIMME_AWS_CREDS_CLIENT_ID` - corresponds to `client_id` configuration
-- `GIMME_AWS_CREDS_CRED_PROFILE` - corresponds to `cred_profile` configuration
+- `GIMME_AWS_CREDS_CRED_PROFILE` - corresponds to `cred_profile` configuration and `--aws-cred-profile` CLI option
 - `GIMME_AWS_CREDS_OUTPUT_FORMAT` - corresponds to `output_format` configuration and `--output-format` CLI option
 - `OKTA_AUTH_SERVER` - corresponds to `okta_auth_server` configuration
 - `OKTA_DEVICE_TOKEN` - corresponds to `device_token` configuration, can be used in CI

@@ -168,6 +168,11 @@ class Config:
             help='Force the use of the Okta Classic login process (Okta Identity Engine only)'
         )
         parser.add_argument(
+            '--aws-cred-profile',
+            help="If set, overrides the cred_profile setting from the config file and the "
+                 "GIMME_AWS_CREDS_CRED_PROFILE environment variable."
+        )
+        parser.add_argument(
             '--debug', action='store_true',
             help='Enable debug logging to show API request and response data'
         )
@@ -211,6 +216,7 @@ class Config:
             self.output_format = args.output_format
         if args.roles is not None:
             self.roles = [role.strip() for role in args.roles.split(',') if role.strip()]
+        self.cred_profile = args.aws_cred_profile
         self.conf_profile = args.profile or 'DEFAULT'
 
     def _handle_config(self, config, profile_config, include_inherits = True):

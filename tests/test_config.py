@@ -32,6 +32,7 @@ class TestConfig(unittest.TestCase):
             remember_device=False,
             output_format=None,
             roles=None,
+            aws_cred_profile=None,
             action_register_device=False,
             action_configure=False,
             action_list_profiles=False,
@@ -49,6 +50,22 @@ class TestConfig(unittest.TestCase):
         """Test to make sure username gets returned"""
         self.config.get_args()
         self.assertEqual(self.config.username, "ann")
+
+    def test_get_args_aws_cred_profile_set(self):
+        """Test that --aws-cred-profile is stored on Config when provided"""
+        test_ui = MockUserInterface(argv=[
+            'gimme-aws-creds', '--aws-cred-profile', 'my-custom-profile',
+        ])
+        config = Config(gac_ui=test_ui, create_config=False)
+        config.get_args()
+        self.assertEqual(config.cred_profile, "my-custom-profile")
+
+    def test_get_args_aws_cred_profile_not_set(self):
+        """Test that cred_profile is None on Config when --aws-cred-profile is not provided"""
+        test_ui = MockUserInterface(argv=['gimme-aws-creds'])
+        config = Config(gac_ui=test_ui, create_config=False)
+        config.get_args()
+        self.assertIsNone(config.cred_profile)
 
     @patch(
         "argparse.ArgumentParser.parse_args",
