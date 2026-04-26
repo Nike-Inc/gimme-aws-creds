@@ -41,6 +41,17 @@ class Config:
             'OKTA_CONFIG',
             os.path.join(self.FILE_ROOT, '.okta_aws_login_config')
         )
+        # Tracking for `--debug` output: how each config value was determined.
+        # See log_resolved_configuration().
+        self._cli_args_provided = {}
+        self._env_used_in_init = {}
+        self._inheritance_chain = []
+        self._profile_value_sources = {}
+        if self.ui.environ.get('OKTA_CONFIG') is not None:
+            self._env_used_in_init['OKTA_CONFIG'] = {
+                'sets': 'config file path',
+                'value': self.ui.environ.get('OKTA_CONFIG'),
+            }
         self.disable_keychain = False
         self.open_browser = False
         self.action_register_device = False
@@ -68,9 +79,17 @@ class Config:
 
         if self.ui.environ.get("OKTA_USERNAME") is not None:
             self.username = self.ui.environ.get("OKTA_USERNAME")
+            self._env_used_in_init['OKTA_USERNAME'] = {
+                'sets': 'config.username',
+                'value': self.username,
+            }
 
         if self.ui.environ.get("OKTA_API_KEY") is not None:
             self.api_key = self.ui.environ.get("OKTA_API_KEY")
+            self._env_used_in_init['OKTA_API_KEY'] = {
+                'sets': 'config.api_key',
+                'value': self.api_key,
+            }
 
         if create_config and not os.path.isfile(self.OKTA_CONFIG):
             self.ui.notify('No gimme-aws-creds configuration file found, starting first-time configuration...')
@@ -185,6 +204,18 @@ class Config:
         )
         args = parser.parse_args(self.ui.args)
 
+        # Track which CLI flags were explicitly provided (i.e. differ from
+        # argparse defaults). Used by --debug output to show how each value
+        # was determined.
+        for action in parser._actions:
+            if action.dest in ('help', 'version'):
+                continue
+            if not hasattr(args, action.dest):
+                continue
+            parsed_value = getattr(args, action.dest)
+            if parsed_value != action.default:
+                self._cli_args_provided[action.dest] = parsed_value
+
         self.action_configure = args.action_configure
         self.action_list_profiles = args.action_list_profiles
         self.action_list_roles = args.action_list_roles
@@ -219,7 +250,15 @@ class Config:
         self.cred_profile = args.aws_cred_profile
         self.conf_profile = args.profile or 'DEFAULT'
 
-    def _handle_config(self, config, profile_config, include_inherits = True):
+    def _handle_config(self, config, profile_config, include_inherits = True, profile_name=None):
+        # Track this profile in the inheritance chain (most-derived first).
+        if profile_name is not None and profile_name not in self._inheritance_chain:
+            self._inheritance_chain.append(profile_name)
+
+        # Capture keys directly defined in this profile (before merging parents)
+        # so we can correctly stamp child overrides over parent values.
+        raw_keys_in_profile = [k for k in profile_config.keys() if k != 'inherits']
+
         # Convert True/False strings to booleans
         for key in profile_config:
             if profile_config[key] == 'True':
@@ -231,11 +270,19 @@ class Config:
             self.ui.message("Using inherited config: " + profile_config["inherits"])
             if profile_config["inherits"] not in config:
                 raise errors.GimmeAWSCredsError(self.conf_profile + " inherits from " + profile_config["inherits"] + ", but could not find " + profile_config["inherits"])
+            parent_name = profile_config["inherits"]
             profile_config = {
-                **self._handle_config(config, dict(config[profile_config["inherits"]])),
+                **self._handle_config(config, dict(config[parent_name]), profile_name=parent_name),
                 **profile_config,
             }
             del profile_config["inherits"]
+
+        # Stamp this profile's directly-defined keys, overriding parent stamps
+        # for keys the child explicitly defines.
+        if profile_name is not None:
+            for key in raw_keys_in_profile:
+                if key in profile_config:
+                    self._profile_value_sources[key] = profile_name
 
         # Empty string in force_classic should be handled as True - this makes sure that migrating from Classic to OIE is seamless
         if profile_config.get('force_classic') == '' or profile_config.get('force_classic') is None:
@@ -254,7 +301,7 @@ class Config:
             try:
                 profile_config = dict(config[self.conf_profile])
                 self.fail_if_profile_not_found(profile_config, self.conf_profile, config.default_section)
-                return self._handle_config(config, profile_config, include_inherits)
+                return self._handle_config(config, profile_config, include_inherits, profile_name=self.conf_profile)
             except KeyError:
                 if self.action_configure:
                     return {}
@@ -734,6 +781,29 @@ class Config:
             return False
 
         raise ValueError('Invalid answer: %s' % answer)
+
+    def log_resolved_configuration(self, conf_dict, env_overrides_applied=None,
+                                   cli_overrides_applied=None):
+        """Emit the resolved configuration (and how each value was determined)
+        via the debug logger. Intended to be called when --debug is enabled.
+
+        :param conf_dict: the merged profile config dictionary used at runtime
+        :param env_overrides_applied: dict of {conf_key: env_var_name} for env
+            variables that overrode profile values (from main.py envvar_list)
+        :param cli_overrides_applied: dict of {conf_key: cli_flag_name} for
+            CLI flags that overrode profile values (e.g. --aws-cred-profile)
+        """
+        import logging
+        from .debug_formatter import format_resolved_configuration
+
+        logger = logging.getLogger('gimme_aws_creds')
+        output = format_resolved_configuration(
+            config=self,
+            conf_dict=conf_dict or {},
+            env_overrides_applied=env_overrides_applied or {},
+            cli_overrides_applied=cli_overrides_applied or {},
+        )
+        logger.debug(output)
 
     def clean_up(self):
         """ clean up secret stuff"""

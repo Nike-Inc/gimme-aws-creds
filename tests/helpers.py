@@ -18,16 +18,19 @@ def captured_output():
 
 
 def make_args(**overrides):
-    """Build an argparse.Namespace with sensible defaults for Config tests."""
+    """Build an argparse.Namespace with the same defaults as the real
+    argparse parser in gimme_aws_creds.config.Config.get_args().
+
+    Important: keep these defaults synchronized with the parser. Config tracks
+    which CLI flags were explicitly provided by comparing parsed values to the
+    parser's defaults; mismatched defaults here would cause spurious entries
+    in Config._cli_args_provided.
+    """
     defaults = dict(
-        username=None,
-        profile=None,
+        # store_true flags default to False
         insecure=False,
-        resolve=None,
-        mfa_code=None,
+        resolve=False,
         remember_device=False,
-        output_format=None,
-        roles=None,
         action_register_device=False,
         action_configure=False,
         action_list_profiles=False,
@@ -39,6 +42,13 @@ def make_args(**overrides):
         disable_keychain=False,
         debug=False,
         enable_alicloud=False,
+        # value-bearing flags default to None
+        username=None,
+        profile=None,
+        mfa_code=None,
+        output_format=None,
+        roles=None,
+        aws_cred_profile=None,
     )
     defaults.update(overrides)
     return argparse.Namespace(**defaults)

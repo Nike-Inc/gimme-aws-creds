@@ -576,16 +576,24 @@ class GimmeAWSCreds:
         if config.debug:
             self._setup_debug_logging()
 
+        # Track which env vars and CLI flags overrode profile values, so the
+        # --debug output can show how each conf_dict value was determined.
+        env_overrides_applied = {}
+        cli_overrides_applied = {}
+
         if config.disable_keychain is True:
             self.conf_dict['enable_keychain'] = False
+            cli_overrides_applied['enable_keychain'] = '--disable-keychain'
 
         for value in self.envvar_list:
             if self.ui.environ.get(value):
                 key = self.envvar_conf_map.get(value, value).lower()
                 self.conf_dict[key] = self.ui.environ.get(value)
+                env_overrides_applied[key] = value
 
         if config.cred_profile is not None:
             self.conf_dict['cred_profile'] = config.cred_profile
+            cli_overrides_applied['cred_profile'] = '--aws-cred-profile'
 
         # AWS Default session duration ....
         if self.conf_dict.get('aws_default_duration'):
@@ -598,6 +606,15 @@ class GimmeAWSCreds:
             self.config.alibaba_cloud_default_duration = int(self.conf_dict['alibaba_cloud_default_duration'])
         else:
             self.config.alibaba_cloud_default_duration = 3600
+
+        # Emit the resolved configuration (and how each value was determined)
+        # to the debug logger before any network calls happen.
+        if config.debug:
+            config.log_resolved_configuration(
+                self.conf_dict,
+                env_overrides_applied=env_overrides_applied,
+                cli_overrides_applied=cli_overrides_applied,
+            )
 
         self.resolver = self.get_resolver()
         return config
