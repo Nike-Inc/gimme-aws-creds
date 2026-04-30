@@ -329,6 +329,7 @@ class Config:
                 enable_keychain = (optional, Okta Classic only) enable the use of the system keychain to store the user's password
                 enable_alicloud = (optional, OIE only) y/n — use Native-to-Web SSO scope for Alibaba Cloud RAM
                 alicloud_saml_url = (optional, Alibaba Cloud only) explicit SAML SSO URL for the Alibaba Cloud app in Okta; falls back to the app link if not set
+                alicloud_region = (optional, Alibaba Cloud only) Alibaba Cloud STS region used for AssumeRoleWithSAML (default: cn-hangzhou)
 
         """
         config = configparser.ConfigParser()
@@ -356,6 +357,7 @@ class Config:
             'open_browser': '',
             'enable_alicloud': 'n',
             'alicloud_saml_url': '',
+            'alicloud_region': 'cn-hangzhou',
             'enable_keychain': 'y'
         }
 
@@ -390,6 +392,7 @@ class Config:
                 self.enable_alicloud = config_dict['enable_alicloud']
                 if config_dict['enable_alicloud'] is True:
                     config_dict['alicloud_saml_url'] = self._get_alicloud_saml_url(defaults['alicloud_saml_url'])
+                    config_dict['alicloud_region'] = self._get_alicloud_region(defaults['alicloud_region'])
 
         # These options are only used in the Classic authentication flow
         if self._okta_platform == 'classic' or config_dict['force_classic'] is True:
@@ -745,7 +748,17 @@ class Config:
             "\nContact your Okta admin to get the SAML SSO URL.")
         alicloud_saml_url = self._get_user_input("Alibaba Cloud SAML SSO URL", default_entry)
         return alicloud_saml_url
-    
+
+    def _get_alicloud_region(self, default_entry):
+        """Get the Alibaba Cloud STS region used for AssumeRoleWithSAML."""
+        ui.default.message(
+            "Enter the Alibaba Cloud STS region used for AssumeRoleWithSAML "
+            "(e.g. cn-hangzhou, ap-southeast-1).")
+        if not default_entry:
+            default_entry = 'cn-hangzhou'
+        alicloud_region = self._get_user_input("Alibaba Cloud STS region", default_entry)
+        return alicloud_region
+
     def _get_user_input(self, message, default=None):
         """formats message to include default and then prompts user for input
         via keyboard with message. Returns user's input or if user doesn't
