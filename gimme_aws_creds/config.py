@@ -327,7 +327,7 @@ class Config:
                 preferred_mfa_type = (optional, Okta Classic only) Select this MFA device type automatically
                 include_path - (optional) includes the full role path to the role name for profile
                 enable_keychain = (optional, Okta Classic only) enable the use of the system keychain to store the user's password
-                enable_alicloud = (optional, OIE only) y/n — use Native-to-Web SSO scope for Alibaba Cloud RAM
+                enable_alicloud = (optional, OIE only) y/n - use Native-to-Web SSO scope for Alibaba Cloud RAM
                 alicloud_saml_url = (optional, Alibaba Cloud only) explicit SAML SSO URL for the Alibaba Cloud app in Okta; falls back to the app link if not set
                 alicloud_region = (optional, Alibaba Cloud only) Alibaba Cloud STS region used for AssumeRoleWithSAML (default: cn-hangzhou)
 

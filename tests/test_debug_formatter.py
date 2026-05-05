@@ -200,7 +200,7 @@ class TestFormatResolvedConfiguration(unittest.TestCase):
             argv=['--profile', 'myprofile'],
         )
         # Reuse the config file already on disk under test_ui2.HOME? Not
-        # quite — env points to the original cfg_path.
+        # quite - env points to the original cfg_path.
         config = Config(gac_ui=test_ui2, create_config=False)
         config.conf_profile = 'myprofile'
         conf_dict = config.get_config_dict()
