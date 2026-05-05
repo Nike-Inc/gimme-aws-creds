@@ -49,7 +49,7 @@ Organizations using Okta for SSO to AWS need a way to obtain temporary AWS crede
 | **HTTP transport** | urllib3 | `>=2.6.3,<3.0.0` |
 | **HTML Parsing** | beautifulsoup4 | `>=4.14.3,<5.0.0` |
 | **HTML5** | html5lib | `>=1.1,<2.0.0` |
-| **Okta SDK** | okta | `>=2.9.13,<3.0.0` |
+| **Okta SDK** | okta | `>=3.4.2,<4.0.0` |
 | **FIDO2/WebAuthn** | fido2 | `>=0.9.1,<0.10.0` |
 | **CTAP keyring (FIDO via system keychain)** | ctap-keyring-device | `==1.0.6` (non-Win or Python <3.10 on Windows) |
 | **JWT** | pyjwt | `>=2.10.1,<3.0.0` |

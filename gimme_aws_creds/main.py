@@ -12,6 +12,7 @@ See the License for the specific language governing permissions and* limitations
 """
 # For enumerating saml roles
 # standard imports
+import asyncio
 import configparser
 import json
 import logging
@@ -25,8 +26,8 @@ import concurrent.futures
 import boto3
 import requests
 from botocore.exceptions import ClientError
-from okta.api_client import APIClient
-from okta.errors.error import Error as OktaError
+from okta.client import Client as OktaManagementClient
+from okta.exceptions.exceptions import ApiException as OktaApiException, NotFoundException as OktaNotFoundException
 
 # local imports
 from . import errors, ui, version
@@ -303,53 +304,59 @@ class GimmeAWSCreds:
         return response.json()
 
     @staticmethod
+    def _okta_error_summary(exc):
+        """Extract Okta's ``errorSummary`` from an ApiException response body, falling back to ``str(exc)``."""
+        body = getattr(exc, 'body', None) or getattr(exc, 'data', None)
+        if not body:
+            return str(exc)
+        try:
+            payload = json.loads(body) if isinstance(body, (str, bytes, bytearray)) else body
+        except (ValueError, TypeError):
+            return str(exc)
+        if isinstance(payload, dict):
+            return payload.get('errorSummary') or payload.get('error_summary') or str(exc)
+        return str(exc)
+
+    @staticmethod
     def _get_aws_account_info(okta_org_url, okta_api_key, username):
         """ Call the Okta User API and process the results to return
         just the information we need for gimme_aws_creds"""
-        # We need access to the entire JSON response from the Okta APIs, so we need to
-        # use the low-level APIClient instead of UsersClient and AppInstanceClient
-        users_client = APIClient(okta_org_url, okta_api_key, pathname='/api/v1/users')
-
-        # Get User information
-        try:
-            result = users_client.get_path('/{0}'.format(username))
-            user = result.json()
-        except OktaError as e:
-            if e.error_code == 'E0000007':
+        # The Okta management SDK (>=3.x) is async-only, so drive it from a synchronous
+        # entrypoint via asyncio.run.
+        async def _fetch_app_links():
+            client = OktaManagementClient({'orgUrl': okta_org_url, 'token': okta_api_key})
+            try:
+                user = await client.get_user(username)
+            except OktaNotFoundException:
                 raise errors.GimmeAWSCredsError("Error: " + username + " was not found!")
-            else:
-                raise errors.GimmeAWSCredsError("Error: " + e.error_summary)
+            except OktaApiException as e:
+                raise errors.GimmeAWSCredsError("Error: " + GimmeAWSCreds._okta_error_summary(e))
 
-        try:
-            # Get first page of results
-            result = users_client.get_path('/{0}/appLinks'.format(user['id']))
-            final_result = result.json()
-
-            # Loop through other pages
-            while 'next' in result.links:
-                result = users_client.get(result.links['next']['url'])
-                final_result = final_result + result.json()
-            ui.default.info("done\n")
-        except OktaError as e:
-            if e.error_code == 'E0000007':
+            try:
+                links = await client.list_app_links(user.id)
+            except OktaNotFoundException:
                 raise errors.GimmeAWSCredsError("Error: No applications found for " + username)
-            else:
-                raise errors.GimmeAWSCredsError("Error: " + e.error_summary)
+            except OktaApiException as e:
+                raise errors.GimmeAWSCredsError("Error: " + GimmeAWSCreds._okta_error_summary(e))
+
+            ui.default.info("done\n")
+            return links
+
+        app_links = asyncio.run(_fetch_app_links())
 
         # Loop through the list of apps and filter it down to just the info we need
         app_list = []
-        for app in final_result:
+        for app in app_links:
             # All AWS connections have the same app name
-            if app['appName'] == 'amazon_aws':
-                new_app_entry = {
-                    'id': app['id'],
-                    'name': app['label'],
+            if app.app_name == 'amazon_aws':
+                app_list.append({
+                    'id': app.id,
+                    'name': app.label,
                     'links': {
-                        'appLink': app['linkUrl'],
-                        'appLogo': app['logoUrl']
-                    }
-                }
-                app_list.append(new_app_entry)
+                        'appLink': app.link_url,
+                        'appLogo': app.logo_url,
+                    },
+                })
 
         # Throw an error if we didn't get any accounts back
         if not app_list:
