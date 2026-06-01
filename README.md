@@ -340,6 +340,7 @@ aws_rolename = my-role
 | `enable_keychain` | Enable use of the system keychain to store the user's password. |
 | `preferred_mfa_type` | Automatically select an MFA device. See [MFA factor types](#preferred-mfa-types). |
 | `preferred_mfa_provider` | (Optional) Automatically select an MFA provider: `GOOGLE`, `OKTA`, or `DUO`. |
+| `preferred_mfa_factor_id` | (Optional) Pin a specific MFA factor by its Okta factor id. Useful when multiple factors of the same type are enrolled. Overrides `preferred_mfa_type` and `preferred_mfa_provider`. |
 | `duo_universal_factor` | (Optional, case-sensitive) Duo Universal Prompt factor: `Duo Push` (default), `Passcode`, `Phone Call`. |
 | `resolve_aws_alias` | `y` or `n`. If `y`, resolve AWS account IDs to alias names (default `n`). Also settable via `-r` / `--resolve`. |
 | `include_path` | (Optional) Include full role path in the AWS credential profile name (default `n`). If `y`: `<acct>-/some/path/administrator`. If `n`: `<acct>-administrator`. |
