@@ -1150,6 +1150,26 @@ class TestOktaClassicClient(unittest.TestCase):
         with self.assertRaises(errors.GimmeAWSCredsExitBase):
             result = self.client._choose_factor(self.factor_list)
 
+    def test_choose_factor_pinned_by_id(self):
+        """Pinning preferred_mfa_factor_id auto-selects the matching factor without prompting"""
+        self.client.set_preferred_mfa_factor_id(self.webauthn_factor['id'])
+        result = self.client._choose_factor(self.factor_list)
+        self.assertEqual(result, self.webauthn_factor)
+
+    @patch('builtins.input', return_value='0')
+    def test_choose_factor_pinned_by_id_miss_falls_back_to_prompt(self, mock_input):
+        """An unmatched factor id falls through to the interactive picker rather than failing"""
+        self.client.set_preferred_mfa_factor_id('no_such_factor_id')
+        result = self.client._choose_factor(self.factor_list)
+        self.assertEqual(result, self.sms_factor)
+
+    def test_choose_factor_pinned_by_id_overrides_type(self):
+        """A pinned factor id wins over preferred_mfa_type when both are set"""
+        self.client.set_preferred_mfa_type('push')
+        self.client.set_preferred_mfa_factor_id(self.webauthn_factor['id'])
+        result = self.client._choose_factor(self.factor_list)
+        self.assertEqual(result, self.webauthn_factor)
+
     def test_build_factor_name_sms(self):
         """ Test building a display name for SMS"""
         result = self.client._build_factor_name(self.sms_factor)

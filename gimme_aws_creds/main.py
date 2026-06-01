@@ -779,6 +779,9 @@ class GimmeAWSCreds:
             if self.conf_dict.get('preferred_mfa_provider'):
                 okta.set_preferred_mfa_provider(self.conf_dict['preferred_mfa_provider'])
 
+            if self.conf_dict.get('preferred_mfa_factor_id'):
+                okta.set_preferred_mfa_factor_id(self.conf_dict['preferred_mfa_factor_id'])
+
             if self.conf_dict.get('duo_universal_factor'):
                 okta.set_duo_universal_factor(self.conf_dict.get('duo_universal_factor'))
 

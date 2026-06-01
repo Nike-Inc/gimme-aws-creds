@@ -76,6 +76,7 @@ class OktaClassicClient(OktaHttpMixin):
         self._password = None
         self._preferred_mfa_type = None
         self._preferred_mfa_provider = None
+        self._preferred_mfa_factor_id = None
         self._duo_universal_factor = 'Duo Push'
         self._mfa_code = None
         self._remember_device = None
@@ -112,6 +113,9 @@ class OktaClassicClient(OktaHttpMixin):
 
     def set_preferred_mfa_provider(self, preferred_mfa_provider):
         self._preferred_mfa_provider = preferred_mfa_provider
+
+    def set_preferred_mfa_factor_id(self, preferred_mfa_factor_id):
+        self._preferred_mfa_factor_id = preferred_mfa_factor_id
 
     def set_mfa_code(self, mfa_code):
         self._mfa_code = mfa_code
@@ -813,6 +817,17 @@ class OktaClassicClient(OktaHttpMixin):
             else:
                 preferred_factors = preferred_factors_with_preferred_provider
 
+        # Pin to a specific factor by its Okta factor id. Overrides the type/provider
+        # filters above when matched, since the id uniquely identifies one factor.
+        if self._preferred_mfa_factor_id is not None:
+            factor_id_matches = [item for item in factors if item.get('id') == self._preferred_mfa_factor_id]
+            if factor_id_matches:
+                preferred_factors = factor_id_matches
+            else:
+                self.ui.notify('Preferred factor id {!r} not found among {} enrolled factors.'.format(
+                    self._preferred_mfa_factor_id, len(factors)
+                ))
+
         if len(preferred_factors) == 1:
             factor_name = self._build_factor_name(preferred_factors[0])
             self.ui.info(factor_name + ' selected')
@@ -827,7 +842,7 @@ class OktaClassicClient(OktaHttpMixin):
             for i, factor in enumerate(factors):
                 factor_name = self._build_factor_name(factor)
                 if factor_name != "":
-                    self.ui.info('[{}] {}'.format(i, factor_name))
+                    self.ui.info('[{}] {} (id: {})'.format(i, factor_name, factor.get('id')))
             selection = self._get_user_int_factor_choice(len(factors))
 
         # make sure the choice is valid

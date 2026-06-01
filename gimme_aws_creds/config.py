@@ -325,6 +325,7 @@ class Config:
                 okta_username = Okta username
                 aws_default_duration = Default AWS or Alibaba Cloud session duration in seconds (default: 3600)
                 preferred_mfa_type = (optional, Okta Classic only) Select this MFA device type automatically
+                preferred_mfa_factor_id = (optional, Okta Classic only) Pin a specific Okta factor by id (overrides preferred_mfa_type when matched)
                 include_path - (optional) includes the full role path to the role name for profile
                 enable_keychain = (optional, Okta Classic only) enable the use of the system keychain to store the user's password
                 enable_alicloud = (optional, OIE only) y/n - use Native-to-Web SSO scope for Alibaba Cloud RAM
@@ -350,6 +351,7 @@ class Config:
             'resolve_aws_alias': 'n',
             'include_path': 'n',
             'preferred_mfa_type': '',
+            'preferred_mfa_factor_id': '',
             'remember_device': 'n',
             'aws_default_duration': '3600',
             'output_format': 'export',

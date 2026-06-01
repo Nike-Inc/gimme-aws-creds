@@ -539,9 +539,11 @@ gimme-aws-creds can retrieve temporary Alibaba Cloud RAM credentials using the s
 
 1. **Okta Identity Engine** - Alibaba Cloud support requires the OIE Device Authorization flow. The Okta Classic flow is not supported.
 2. **Optional Alibaba Cloud SDK** - Install the optional dependency group:
+
    ```bash
    pip install "gimme-aws-creds[alicloud]"
    ```
+
    Without this extra, gimme-aws-creds will refuse to enable Alibaba Cloud and report a clear error pointing to the install command.
 3. **Okta application configuration** - In your Okta org, configure:
    - An Alibaba Cloud SAML app with the appropriate Alibaba Cloud RAM role mappings.
@@ -614,6 +616,7 @@ The authentication policies on the OIDC Native Application and the AWS/Alibaba C
 
 **`Alibaba Cloud is enabled but optional SDK packages are not installed`**
 You set `enable_alicloud = True` (or passed `--enable-alicloud`) but did not install the optional extra. Run:
+
 ```bash
 pip install "gimme-aws-creds[alicloud]"
 ```
