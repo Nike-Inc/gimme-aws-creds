@@ -10,8 +10,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
 
-from __future__ import print_function, absolute_import, unicode_literals
-
 import json
 import time
 from threading import Event, Thread
@@ -25,7 +23,7 @@ from fido2.utils import sha256, websafe_decode
 from gimme_aws_creds.errors import NoFIDODeviceFoundError, FIDODeviceTimeoutError, FIDODeviceError
 
 
-class FactorU2F(object):
+class FactorU2F:
 
     def __init__(self, ui, appId, nonce, credentialId):
         """

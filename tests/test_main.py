@@ -315,6 +315,21 @@ class TestMain(unittest.TestCase):
         self.assertEqual(creds.get_profile_name(cred_profile, include_path, naming_data, resolve_alias, role),
                          'foo')
 
+    def test_naming_data_for_role_aws_arn(self):
+        creds = GimmeAWSCreds()
+        arn = 'arn:aws:iam::123456789012:role/Admin'
+        d = creds._naming_data_for_role(arn)
+        self.assertEqual(d['account'], '123456789012')
+        self.assertEqual(d['role'], 'Admin')
+
+    def test_naming_data_for_role_alicloud_ram(self):
+        creds = GimmeAWSCreds()
+        arn = 'acs:ram::111122223333:role/MyRole'
+        d = creds._naming_data_for_role(arn)
+        self.assertEqual(d['account'], '111122223333')
+        self.assertEqual(d['role'], 'MyRole')
+        self.assertEqual(d['path'], '/')
+
 
 class TestCredProfilePrecedence(unittest.TestCase):
     """Tests for --aws-cred-profile CLI flag precedence over env var and config file.
@@ -381,3 +396,154 @@ cred_profile = {cred_profile}
             config_cred_profile='file-profile',
         )
         self.assertEqual(creds.conf_dict['cred_profile'], 'file-profile')
+
+
+class TestGenerateConfigDebugLogging(unittest.TestCase):
+    """Tests verifying GimmeAWSCreds.generate_config() emits the resolved
+    configuration to the debug logger when --debug is set, with CLI/env
+    overrides correctly attributed.
+    """
+
+    CONFIG_TEMPLATE = """[DEFAULT]
+client_id = test-client
+okta_org_url = https://test.okta.com
+gimme_creds_server = appurl
+"""
+
+    def setUp(self):
+        self._temp_dirs = []
+
+    def tearDown(self):
+        for d in self._temp_dirs:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def _build_ui(self, argv=None, environ=None, config_contents=None):
+        test_ui = MockUserInterface(
+            argv=argv or ['gimme-aws-creds'],
+            environ=environ or {},
+        )
+        self._temp_dirs.append(test_ui.HOME)
+        with open(test_ui.HOME + "/.okta_aws_login_config", "w") as f:
+            f.write(config_contents if config_contents is not None
+                    else self.CONFIG_TEMPLATE)
+        return test_ui
+
+    def test_no_debug_output_when_flag_absent(self):
+        """generate_config does NOT emit RESOLVED CONFIGURATION without --debug."""
+        test_ui = self._build_ui(argv=['gimme-aws-creds'])
+        creds = GimmeAWSCreds(ui=test_ui)
+
+        # Capture all DEBUG logs from gimme_aws_creds; none should be emitted.
+        # assertNoLogs is available in Python 3.10+.
+        with self.assertNoLogs('gimme_aws_creds', level='DEBUG'):
+            creds.generate_config()
+
+    def test_debug_flag_emits_resolved_configuration(self):
+        """--debug should emit a 'RESOLVED CONFIGURATION' block at DEBUG level."""
+        test_ui = self._build_ui(argv=['gimme-aws-creds', '--debug'])
+        creds = GimmeAWSCreds(ui=test_ui)
+
+        with self.assertLogs('gimme_aws_creds', level='DEBUG') as captured:
+            creds.generate_config()
+
+        full_output = '\n'.join(captured.output)
+        self.assertIn('RESOLVED CONFIGURATION', full_output)
+        self.assertIn('Configuration file:', full_output)
+        self.assertIn('Active profile:', full_output)
+
+    def test_debug_records_env_override(self):
+        """Env vars in envvar_list show up tagged as env: <VAR>."""
+        test_ui = self._build_ui(
+            argv=['gimme-aws-creds', '--debug'],
+            environ={'GIMME_AWS_CREDS_OUTPUT_FORMAT': 'json'},
+        )
+        creds = GimmeAWSCreds(ui=test_ui)
+
+        with self.assertLogs('gimme_aws_creds', level='DEBUG') as captured:
+            creds.generate_config()
+
+        full_output = '\n'.join(captured.output)
+        self.assertIn('env: GIMME_AWS_CREDS_OUTPUT_FORMAT', full_output)
+        # And the conf_dict was actually overridden
+        self.assertEqual(creds.conf_dict['output_format'], 'json')
+
+    def test_debug_records_cli_override_for_cred_profile(self):
+        """--aws-cred-profile shows up tagged as cli: --aws-cred-profile."""
+        test_ui = self._build_ui(argv=[
+            'gimme-aws-creds', '--debug',
+            '--aws-cred-profile', 'cli-profile',
+        ])
+        creds = GimmeAWSCreds(ui=test_ui)
+
+        with self.assertLogs('gimme_aws_creds', level='DEBUG') as captured:
+            creds.generate_config()
+
+        full_output = '\n'.join(captured.output)
+        self.assertIn('cli: --aws-cred-profile', full_output)
+        self.assertIn('cli-profile', full_output)
+        self.assertEqual(creds.conf_dict['cred_profile'], 'cli-profile')
+
+    def test_debug_records_disable_keychain_cli_override(self):
+        """--disable-keychain shows up tagged as a CLI override on enable_keychain."""
+        # The DEFAULT profile from CONFIG_TEMPLATE doesn't include enable_keychain;
+        # main.py sets it to False when --disable-keychain is passed.
+        test_ui = self._build_ui(argv=[
+            'gimme-aws-creds', '--debug', '--disable-keychain',
+        ])
+        creds = GimmeAWSCreds(ui=test_ui)
+
+        with self.assertLogs('gimme_aws_creds', level='DEBUG') as captured:
+            creds.generate_config()
+
+        full_output = '\n'.join(captured.output)
+        self.assertIn('cli: --disable-keychain', full_output)
+
+    def test_debug_does_not_leak_sensitive_env_values(self):
+        """Sensitive env values (tokens, passwords) must be REDACTED in output."""
+        test_ui = self._build_ui(
+            argv=['gimme-aws-creds', '--debug'],
+            environ={
+                'OKTA_DEVICE_TOKEN': 'super-secret-token-1234567890',
+                'OKTA_PASSWORD': 'my-secret-password',
+            },
+        )
+        creds = GimmeAWSCreds(ui=test_ui)
+
+        with self.assertLogs('gimme_aws_creds', level='DEBUG') as captured:
+            creds.generate_config()
+
+        full_output = '\n'.join(captured.output)
+        # Raw secrets must not appear
+        self.assertNotIn('super-secret-token-1234567890', full_output)
+        self.assertNotIn('my-secret-password', full_output)
+        # The mask marker should be present
+        self.assertIn('[REDACTED]', full_output)
+
+    def test_debug_output_includes_inheritance_chain(self):
+        """When the active profile inherits, the chain is included in output."""
+        config_contents = """
+[mybase]
+client_id = base-id
+gimme_creds_server = appurl
+okta_org_url = https://test.okta.com
+
+[myprofile]
+inherits = mybase
+aws_appname = MyApp
+"""
+        test_ui = self._build_ui(
+            argv=['gimme-aws-creds', '--debug', '--profile', 'myprofile'],
+            config_contents=config_contents,
+        )
+        creds = GimmeAWSCreds(ui=test_ui)
+
+        with self.assertLogs('gimme_aws_creds', level='DEBUG') as captured:
+            creds.generate_config()
+
+        full_output = '\n'.join(captured.output)
+        self.assertIn('Inheritance chain:', full_output)
+        self.assertIn('myprofile', full_output)
+        self.assertIn('mybase', full_output)
+        # Per-key sources reflect the owning profile
+        self.assertIn('profile: mybase', full_output)
+        self.assertIn('profile: myprofile', full_output)

@@ -16,9 +16,10 @@ import requests
 from urllib.parse import urlparse
 
 from . import errors, ui, version
+from .common import user_agent
 
 
-class Config(object):
+class Config:
     """
        The Config Class gets the CLI arguments, writes out the okta config file,
        gets and returns username and password and the Okta API key.
@@ -27,16 +28,30 @@ class Config(object):
        under the MIT license.
     """
 
-    def __init__(self, gac_ui, create_config=True):
+    def __init__(self, gac_ui, create_config=True, alicloud_sdk_available=False):
         """
         :type gac_ui: ui.UserInterface
+        :type create_config: bool
+        :type alicloud_sdk_available: bool
         """
+        self._alicloud_sdk_available = alicloud_sdk_available
         self.ui = gac_ui
         self.FILE_ROOT = self.ui.HOME
         self.OKTA_CONFIG = self.ui.environ.get(
             'OKTA_CONFIG',
             os.path.join(self.FILE_ROOT, '.okta_aws_login_config')
         )
+        # Tracking for `--debug` output: how each config value was determined.
+        # See log_resolved_configuration().
+        self._cli_args_provided = {}
+        self._env_used_in_init = {}
+        self._inheritance_chain = []
+        self._profile_value_sources = {}
+        if self.ui.environ.get('OKTA_CONFIG') is not None:
+            self._env_used_in_init['OKTA_CONFIG'] = {
+                'sets': 'config file path',
+                'value': self.ui.environ.get('OKTA_CONFIG'),
+            }
         self.disable_keychain = False
         self.open_browser = False
         self.action_register_device = False
@@ -58,13 +73,23 @@ class Config(object):
         self.action_output_format = False
         self.output_format = 'export'
         self.force_classic = False
+        self.debug = False
+        self.enable_alicloud = False
         self.roles = []
 
         if self.ui.environ.get("OKTA_USERNAME") is not None:
             self.username = self.ui.environ.get("OKTA_USERNAME")
+            self._env_used_in_init['OKTA_USERNAME'] = {
+                'sets': 'config.username',
+                'value': self.username,
+            }
 
         if self.ui.environ.get("OKTA_API_KEY") is not None:
             self.api_key = self.ui.environ.get("OKTA_API_KEY")
+            self._env_used_in_init['OKTA_API_KEY'] = {
+                'sets': 'config.api_key',
+                'value': self.api_key,
+            }
 
         if create_config and not os.path.isfile(self.OKTA_CONFIG):
             self.ui.notify('No gimme-aws-creds configuration file found, starting first-time configuration...')
@@ -73,7 +98,7 @@ class Config(object):
     def get_args(self):
         """Get the CLI args"""
         parser = argparse.ArgumentParser(
-            description="Gets a STS token to use for AWS CLI based on a SAML assertion from Okta"
+            description="Gets a STS token to use for AWS or Alibaba Cloud CLI based on a SAML assertion from Okta"
         )
         parser.add_argument(
             '--username', '-u',
@@ -166,7 +191,30 @@ class Config(object):
             help="If set, overrides the cred_profile setting from the config file and the "
                  "GIMME_AWS_CREDS_CRED_PROFILE environment variable."
         )
+        parser.add_argument(
+            '--debug', action='store_true',
+            help='Enable debug logging to show API request and response data'
+        )
+        parser.add_argument(
+            '--enable-alicloud', action='store_true',
+            help='Request openid, okta.apps.sso, and interclient_access on OIE device authorization '
+                 '(Alibaba Cloud / Native-to-Web SSO alongside AWS Web SSO). '
+                 'Requires optional dependencies: pip install "gimme-aws-creds[alicloud]". '
+                 'Can also be set per-profile as enable_alicloud in the config file.'
+        )
         args = parser.parse_args(self.ui.args)
+
+        # Track which CLI flags were explicitly provided (i.e. differ from
+        # argparse defaults). Used by --debug output to show how each value
+        # was determined.
+        for action in parser._actions:
+            if action.dest in ('help', 'version'):
+                continue
+            if not hasattr(args, action.dest):
+                continue
+            parsed_value = getattr(args, action.dest)
+            if parsed_value != action.default:
+                self._cli_args_provided[action.dest] = parsed_value
 
         self.action_configure = args.action_configure
         self.action_list_profiles = args.action_list_profiles
@@ -177,6 +225,8 @@ class Config(object):
         self.open_browser = args.open_browser
         self.disable_keychain = args.disable_keychain
         self.force_classic = args.force_classic
+        self.debug = args.debug
+        self.enable_alicloud = args.enable_alicloud
 
         if args.insecure is True:
             ui.default.warning("Warning: SSL certificate validation is disabled!")
@@ -200,7 +250,15 @@ class Config(object):
         self.cred_profile = args.aws_cred_profile
         self.conf_profile = args.profile or 'DEFAULT'
 
-    def _handle_config(self, config, profile_config, include_inherits = True):
+    def _handle_config(self, config, profile_config, include_inherits = True, profile_name=None):
+        # Track this profile in the inheritance chain (most-derived first).
+        if profile_name is not None and profile_name not in self._inheritance_chain:
+            self._inheritance_chain.append(profile_name)
+
+        # Capture keys directly defined in this profile (before merging parents)
+        # so we can correctly stamp child overrides over parent values.
+        raw_keys_in_profile = [k for k in profile_config.keys() if k != 'inherits']
+
         # Convert True/False strings to booleans
         for key in profile_config:
             if profile_config[key] == 'True':
@@ -212,11 +270,19 @@ class Config(object):
             self.ui.message("Using inherited config: " + profile_config["inherits"])
             if profile_config["inherits"] not in config:
                 raise errors.GimmeAWSCredsError(self.conf_profile + " inherits from " + profile_config["inherits"] + ", but could not find " + profile_config["inherits"])
+            parent_name = profile_config["inherits"]
             profile_config = {
-                **self._handle_config(config, dict(config[profile_config["inherits"]])),
+                **self._handle_config(config, dict(config[parent_name]), profile_name=parent_name),
                 **profile_config,
             }
             del profile_config["inherits"]
+
+        # Stamp this profile's directly-defined keys, overriding parent stamps
+        # for keys the child explicitly defines.
+        if profile_name is not None:
+            for key in raw_keys_in_profile:
+                if key in profile_config:
+                    self._profile_value_sources[key] = profile_name
 
         # Empty string in force_classic should be handled as True - this makes sure that migrating from Classic to OIE is seamless
         if profile_config.get('force_classic') == '' or profile_config.get('force_classic') is None:
@@ -235,7 +301,7 @@ class Config(object):
             try:
                 profile_config = dict(config[self.conf_profile])
                 self.fail_if_profile_not_found(profile_config, self.conf_profile, config.default_section)
-                return self._handle_config(config, profile_config, include_inherits)
+                return self._handle_config(config, profile_config, include_inherits, profile_name=self.conf_profile)
             except KeyError:
                 if self.action_configure:
                     return {}
@@ -254,14 +320,17 @@ class Config(object):
                 okta_auth_server = Server ID for the OAuth authorization server used by gimme-creds-server
                 write_aws_creds = Option to write creds to ~/.aws/credentials
                 cred_profile = Use DEFAULT or Role-based name as the profile in ~/.aws/credentials
-                aws_appname = (optional) Okta AWS App Name
-                aws_rolename =  (optional) Okta Role ARN
+                aws_appname = (optional) Okta App Name (AWS or Alibaba Cloud)
+                aws_rolename =  (optional) AWS or Alibaba Cloud Role ARN to assume
                 okta_username = Okta username
-                aws_default_duration = Default AWS session duration (3600)
-                preferred_mfa_type = Select this MFA device type automatically
-                preferred_mfa_factor_id = Pin a specific Okta factor by id (overrides preferred_mfa_type when matched)
-                include_path - (optional) includes that full role path to the role name for profile
-                enable_keychain = (optional) enable the use of the system keychain to store the user's password
+                aws_default_duration = Default AWS or Alibaba Cloud session duration in seconds (default: 3600)
+                preferred_mfa_type = (optional, Okta Classic only) Select this MFA device type automatically
+                preferred_mfa_factor_id = (optional, Okta Classic only) Pin a specific Okta factor by id (overrides preferred_mfa_type when matched)
+                include_path - (optional) includes the full role path to the role name for profile
+                enable_keychain = (optional, Okta Classic only) enable the use of the system keychain to store the user's password
+                enable_alicloud = (optional, OIE only) y/n - use Native-to-Web SSO scope for Alibaba Cloud RAM
+                alicloud_saml_url = (optional, Alibaba Cloud only) explicit SAML SSO URL for the Alibaba Cloud app in Okta; falls back to the app link if not set
+                alicloud_region = (optional, Alibaba Cloud only) Alibaba Cloud STS region used for AssumeRoleWithSAML (default: cn-hangzhou)
 
         """
         config = configparser.ConfigParser()
@@ -288,6 +357,9 @@ class Config(object):
             'output_format': 'export',
             'force_classic': '',
             'open_browser': '',
+            'enable_alicloud': 'n',
+            'alicloud_saml_url': '',
+            'alicloud_region': 'cn-hangzhou',
             'enable_keychain': 'y'
         }
 
@@ -313,7 +385,16 @@ class Config(object):
             if config_dict['force_classic'] is False:
                 config_dict['open_browser'] = self._get_open_browser(defaults['open_browser'])
                 config_dict['client_id'] = self._get_client_id_entry(defaults['client_id'])
+                config_dict['okta_auth_server'] = self._get_auth_server_entry(defaults['okta_auth_server'])
                 client_id_set = True
+
+            # Options specific to Alibaba Cloud
+            if self._alicloud_sdk_available:
+                config_dict['enable_alicloud'] = self._get_enable_alicloud(defaults['enable_alicloud'])
+                self.enable_alicloud = config_dict['enable_alicloud']
+                if config_dict['enable_alicloud'] is True:
+                    config_dict['alicloud_saml_url'] = self._get_alicloud_saml_url(defaults['alicloud_saml_url'])
+                    config_dict['alicloud_region'] = self._get_alicloud_region(defaults['alicloud_region'])
 
         # These options are only used in the Classic authentication flow
         if self._okta_platform == 'classic' or config_dict['force_classic'] is True:
@@ -329,7 +410,7 @@ class Config(object):
         elif config_dict['gimme_creds_server'] != 'internal':
             if client_id_set is False:
                 config_dict['client_id'] = self._get_client_id_entry(defaults['client_id'])
-            config_dict['okta_auth_server'] = self._get_auth_server_entry(defaults['okta_auth_server'])
+                config_dict['okta_auth_server'] = self._get_auth_server_entry(defaults['okta_auth_server'])
         config_dict['write_aws_creds'] = self._get_write_aws_creds(defaults['write_aws_creds'])
         config_dict['include_path'] = self._get_include_path(defaults['include_path'])
         config_dict['aws_rolename'] = self._get_aws_rolename(defaults['aws_rolename'])
@@ -376,7 +457,7 @@ class Config(object):
                         okta_org_url + '/.well-known/okta-organization',
                         headers={
                             'Accept': 'application/json',
-                            'User-Agent': "gimme-aws-creds {}".format(version)
+                            'User-Agent': user_agent()
                         },
                         timeout=30
                     )
@@ -479,23 +560,30 @@ class Config(object):
         return gimme_creds_server
 
     def _get_write_aws_creds(self, default_entry):
-        """ Option to write to the ~/.aws/credentials or to stdour"""
-        ui.default.message(
-            "Do you want to write the temporary AWS to ~/.aws/credentials?"
-            "\nIf no, the credentials will be written to stdout."
-            "\nPlease answer y or n.")
+        """ Option to write to the ~/.aws/credentials, ~/.aliyun/config.json, or to stdout"""
+
+        if self.enable_alicloud:
+            ui.default.message(
+                "Do you want to write the temporary Alibaba Cloud credentials to ~/.aliyun/config.json?"
+                "\nIf no, the credentials will be written to stdout."
+                "\nPlease answer y or n.")
+        else:
+            ui.default.message(
+                "Do you want to write the temporary AWS credentials to ~/.aws/credentials?"
+                "\nIf no, the credentials will be written to stdout."
+                "\nPlease answer y or n.")
 
         while True:
             try:
-                return self._get_user_input_yes_no("Write AWS Credentials", default_entry)
+                return self._get_user_input_yes_no("Write to Credentials file", default_entry)
             except ValueError:
-                ui.default.warning("Write AWS Credentials must be either y or n.")
+                ui.default.warning("Write to Credentials file must be either y or n.")
 
     def _get_include_path(self, default_entry):
         """ Option to include path from rolename """
 
         ui.default.message(
-            "Do you want to include full role path to the role name in AWS credential profile name?"
+            "Do you want to include the full role path to the role name in credential profile name?"
             "\nPlease answer y or n.")
 
         while True:
@@ -507,18 +595,18 @@ class Config(object):
     def _get_resolve_aws_alias(self, default_entry):
         """ Option to resolve account id to alias """
         ui.default.message(
-            "Do you want to resolve aws account id to aws alias ?"
+            "Do you want to resolve account id to an alias ?"
             "\nPlease answer y or n.")
         while True:
             try:
-                return self._get_user_input_yes_no("Resolve AWS alias", default_entry)
+                return self._get_user_input_yes_no("Resolve account alias", default_entry)
             except ValueError:
-                ui.default.warning("Resolve AWS alias must be either y or n.")
+                ui.default.warning("Resolve account alias must be either y or n.")
 
     def _get_cred_profile(self, default_entry):
         """sets the aws credential profile name"""
         ui.default.message(
-            "The AWS credential profile defines which profile is used to store the temp AWS creds.\n"
+            "The credential profile defines which profile is used to store the temp credentials.\n"
             "If set to 'role' then a new profile will be created matching the role name assumed by the user.\n"
             "If set to 'acc' then a new profile will be created matching the account number.\n"
             "If set to 'acc-role' then a new profile will be created matching the role name assumed by the user, but prefixed with account number to avoid collisions.\n"
@@ -527,7 +615,7 @@ class Config(object):
         )
 
         cred_profile = self._get_user_input(
-            "AWS Credential Profile", default_entry)
+            "Credential Profile", default_entry)
 
         if cred_profile.lower() in ['default', 'role', 'acc', 'acc-role']:
             cred_profile = cred_profile.lower()
@@ -535,19 +623,19 @@ class Config(object):
         return cred_profile
 
     def _get_aws_appname(self, default_entry):
-        """ Get Okta AWS App name """
+        """ Get Okta App name (AWS or Alibaba Cloud) """
         ui.default.message(
-            "Enter the AWS Okta App Name."
+            "Enter the Okta App Name (AWS or Alibaba Cloud)."
             "\nThis is optional, you can select the App when you run the CLI.")
-        aws_appname = self._get_user_input("AWS App Name", default_entry)
+        aws_appname = self._get_user_input("App Name", default_entry)
         return aws_appname
 
     def _get_aws_rolename(self, default_entry):
-        """ Get the AWS Role ARN"""
+        """ Get the Role ARN (AWS or Alibaba Cloud)"""
         ui.default.message(
-            "Enter the ARN for the AWS role you want credentials for. 'all' will retrieve all roles."
+            "Enter the ARN for the role you want credentials for. 'all' will retrieve all roles."
             "\nThis is optional, you can select the role when you run the CLI.")
-        aws_rolename = self._get_user_input("AWS Role ARN", default_entry)
+        aws_rolename = self._get_user_input("Role ARN", default_entry)
         return aws_rolename
 
     def _get_conf_profile_name(self, default_entry):
@@ -573,9 +661,9 @@ class Config(object):
         """Get and validate the aws default session duration. [Optional]"""
         ui.default.message(
             "If you'd like to set the default session duration, specify it (in seconds).\n"
-            "This is optional.")
+            "This is optional and defaults to 3600 seconds.")
         aws_default_duration = self._get_user_input(
-            "AWS Default Session Duration", default_entry)
+            "Default Session Duration (in seconds)", default_entry)
         return aws_default_duration
 
     def _get_preferred_mfa_type(self, default_entry):
@@ -643,6 +731,36 @@ class Config(object):
             except ValueError:
                 ui.default.warning("Open browser must be either y or n.")
 
+    def _get_enable_alicloud(self, default_entry):
+        """Option to request interclient_access scope for Alibaba Cloud SSO (OIE only)."""
+        ui.default.message(
+            "Enable Alibaba Cloud support? This profile will be used to authenticate with Alibaba Cloud instead of AWS."
+            "\nPlease answer y or n.")
+        while True:
+            try:
+                return self._get_user_input_yes_no(
+                    "Enable Alibaba Cloud support", default_entry)
+            except ValueError:
+                ui.default.warning("Enable Alibaba Cloud must be either y or n.")
+
+    def _get_alicloud_saml_url(self, default_entry):
+        """Get the Alibaba Cloud SAML SSO URL"""
+        ui.default.message(
+            "Enter the Alibaba Cloud SAML SSO URL."
+            "\nContact your Okta admin to get the SAML SSO URL.")
+        alicloud_saml_url = self._get_user_input("Alibaba Cloud SAML SSO URL", default_entry)
+        return alicloud_saml_url
+
+    def _get_alicloud_region(self, default_entry):
+        """Get the Alibaba Cloud STS region used for AssumeRoleWithSAML."""
+        ui.default.message(
+            "Enter the Alibaba Cloud STS region used for AssumeRoleWithSAML "
+            "(e.g. cn-hangzhou, ap-southeast-1).")
+        if not default_entry:
+            default_entry = 'cn-hangzhou'
+        alicloud_region = self._get_user_input("Alibaba Cloud STS region", default_entry)
+        return alicloud_region
+
     def _get_user_input(self, message, default=None):
         """formats message to include default and then prompts user for input
         via keyboard with message. Returns user's input or if user doesn't
@@ -678,6 +796,29 @@ class Config(object):
             return False
 
         raise ValueError('Invalid answer: %s' % answer)
+
+    def log_resolved_configuration(self, conf_dict, env_overrides_applied=None,
+                                   cli_overrides_applied=None):
+        """Emit the resolved configuration (and how each value was determined)
+        via the debug logger. Intended to be called when --debug is enabled.
+
+        :param conf_dict: the merged profile config dictionary used at runtime
+        :param env_overrides_applied: dict of {conf_key: env_var_name} for env
+            variables that overrode profile values (from main.py envvar_list)
+        :param cli_overrides_applied: dict of {conf_key: cli_flag_name} for
+            CLI flags that overrode profile values (e.g. --aws-cred-profile)
+        """
+        import logging
+        from .debug_formatter import format_resolved_configuration
+
+        logger = logging.getLogger('gimme_aws_creds')
+        output = format_resolved_configuration(
+            config=self,
+            conf_dict=conf_dict or {},
+            env_overrides_applied=env_overrides_applied or {},
+            cli_overrides_applied=cli_overrides_applied or {},
+        )
+        logger.debug(output)
 
     def clean_up(self):
         """ clean up secret stuff"""

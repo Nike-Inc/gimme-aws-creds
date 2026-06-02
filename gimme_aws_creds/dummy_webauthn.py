@@ -13,13 +13,10 @@ See the License for the specific language governing permissions and* limitations
 
 from . import errors
 
-class FakeAssertion(object):
-    def __init__(self):
-        self.signature = b'fake'
-        self.auth_data = b'fake'
+from .common import FakeAssertion
 
 
-class WebAuthnClient(object):
+class WebAuthnClient:
     """ Dummy WebAuthnClient class - needed until ctap-keyring-device is updated to support Python 3.10+ on Windows"""
     def __init__(self, ui, okta_org_url, challenge, credential_id=None, timeout_ms=30_000):
         return None

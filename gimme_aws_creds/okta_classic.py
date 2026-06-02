@@ -10,8 +10,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and* limitations under the License.*
 """
 import base64
+import logging
 import sys
-import platform
 import copy
 import re
 import socket
@@ -29,7 +29,7 @@ from bs4 import BeautifulSoup
 from fido2.utils import websafe_decode
 from keyring.backends.fail import Keyring as FailKeyring
 from keyring.errors import PasswordDeleteError
-from requests.adapters import HTTPAdapter, Retry
+logger = logging.getLogger(__name__)
 
 from gimme_aws_creds.u2f import FactorU2F
 
@@ -39,14 +39,15 @@ if sys.platform == "win32" and sys.version_info >= (3, 10):
 else:
     from gimme_aws_creds.webauthn import WebAuthnClient, FakeAssertion
 
-from . import errors, ui, version, duo
+from . import errors, ui, duo
+from .common import user_agent, parse_saml_form, create_http_session, OktaHttpMixin
 from .duo_universal import OktaDuoUniversal
 from .errors import GimmeAWSCredsMFAEnrollStatus
 from .registered_authenticators import RegisteredAuthenticators
 
 
 
-class OktaClassicClient(object):
+class OktaClassicClient(OktaHttpMixin):
     """
        The Okta Client Class performs the necessary API
        calls to an Okta Classic domain to get temporary AWS credentials.
@@ -54,22 +55,22 @@ class OktaClassicClient(object):
 
     KEYRING_SERVICE = 'gimme-aws-creds'
     KEYRING_ENABLED = not isinstance(keyring.get_keyring(), FailKeyring)
+    HTTP_TIMEOUT = 30  # Timeout in seconds for HTTP requests
 
-    def __init__(self, gac_ui, okta_org_url, verify_ssl_certs=True, device_token=None, use_keyring=True):
+    def __init__(self, gac_ui, okta_org_url, verify_ssl_certs=True, device_token=None, use_keyring=True, debug=False):
         """
         :type gac_ui: ui.UserInterface
         :param okta_org_url: Base URL string for Okta IDP.
         :param verify_ssl_certs: Enable/disable SSL verification
         :param device_token: Device Token value for Okta device ID
+        :param debug: Enable debug logging for API requests/responses
         """
         self.ui = gac_ui
         self._okta_org_url = okta_org_url
         self._verify_ssl_certs = verify_ssl_certs
+        self._debug = debug
 
         self._use_keyring = use_keyring
-
-        if verify_ssl_certs is False:
-            requests.packages.urllib3.disable_warnings()
 
         self._username = None
         self._password = None
@@ -85,17 +86,11 @@ class OktaClassicClient(object):
         self._oauth_access_token = None
         self._oauth_id_token = None
 
-        self._jar = requests.cookies.RequestsCookieJar()
-
-        # Allow up to 5 retries on requests to Okta in case we have network issues
-        self._http_client = requests.Session()
-        self._http_client.cookies = self._jar
+        self._http_client = create_http_session(
+            verify_ssl=verify_ssl_certs, debug=debug)
+        self._http_client.cookies = requests.cookies.RequestsCookieJar()
 
         self.device_token = device_token
-
-        retries = Retry(total=5, backoff_factor=1,
-                        allowed_methods=['GET', 'POST'])
-        self._http_client.mount('https://', HTTPAdapter(max_retries=retries))
 
     @property
     def device_token(self):
@@ -296,18 +291,17 @@ class OktaClassicClient(object):
     @staticmethod
     def _get_headers():
         """sets the default headers"""
-        headers = {
-            'User-Agent': "gimme-aws-creds {};{};{}".format(version, sys.platform, platform.python_version()),
+        return {
+            'User-Agent': user_agent(),
             'Accept': 'application/json',
             'Content-Type': 'application/json',
         }
-        return headers
 
     def _get_initial_flow_state(self, embed_link, state_token=None):
         """ Starts the authentication flow with Okta"""
         if state_token is None:
             response = self._http_client.get(
-                embed_link, allow_redirects=False)
+                embed_link, allow_redirects=False, timeout=self.HTTP_TIMEOUT)
             response.raise_for_status()
             url_parse_results = urlparse(response.headers['Location'])
             state_token = parse_qs(url_parse_results.query)['stateToken'][0]
@@ -316,7 +310,8 @@ class OktaClassicClient(object):
             self._okta_org_url + '/api/v1/authn',
             json={'stateToken': state_token},
             headers=self._get_headers(),
-            verify=self._verify_ssl_certs
+            verify=self._verify_ssl_certs,
+            timeout=self.HTTP_TIMEOUT
         )
 
         # Passing the stateToken to the Authentication API for step-up auth doesn't work in OIE
@@ -326,7 +321,13 @@ class OktaClassicClient(object):
             )
 
         response.raise_for_status()
-        return {'stateToken': state_token, 'apiResponse': response.json()}
+        # Safe JSON parsing
+        try:
+            api_response = response.json()
+        except ValueError as e:
+            raise errors.GimmeAWSCredsError(
+                "Invalid JSON response from authentication API: {}".format(str(e)), 2)
+        return {'stateToken': state_token, 'apiResponse': api_response}
 
     def _next_login_step(self, state_token, login_data):
         """ decide what the next step in the login process is"""
@@ -360,6 +361,14 @@ class OktaClassicClient(object):
         """ prints the correct answer to the additional factor authentication step in Okta Verify"""
         self.ui.info("Additional factor correct answer is: " + str(answer))
 
+    def _build_auth_flow_result(self, response_data):
+        """Extract stateToken/sessionToken from an Okta auth API response."""
+        if 'stateToken' in response_data:
+            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
+        if 'sessionToken' in response_data:
+            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+        return None
+
     def _login_username_password(self, state_token, url):
         """ login to Okta with a username and password"""
         creds = self._get_username_password_creds()
@@ -377,10 +386,16 @@ class OktaClassicClient(object):
             url,
             json=login_json,
             headers=self._get_headers(),
-            verify=self._verify_ssl_certs
+            verify=self._verify_ssl_certs,
+            timeout=self.HTTP_TIMEOUT
         )
 
-        response_data = response.json()
+        # Safe JSON parsing with error handling
+        try:
+            response_data = response.json()
+        except ValueError as e:
+            raise errors.GimmeAWSCredsError(
+                "LOGIN ERROR: Invalid JSON response from server: {}".format(str(e)), 2)
 
         if response.status_code == 200:
             pass
@@ -388,7 +403,11 @@ class OktaClassicClient(object):
         # Handle known Okta error codes
         # ref: https://developer.okta.com/docs/reference/error-codes/#example-errors-listed-by-http-return-code
         elif response.status_code in [400, 401, 403, 404, 409, 429, 500, 501, 503]:
-            if response_data['errorCode'] == "E0000004":
+            # Safe access to error fields with KeyError handling
+            error_code = response_data.get('errorCode', 'UNKNOWN')
+            error_summary = response_data.get('errorSummary', 'Unknown error')
+            
+            if error_code == "E0000004":
                 if self.KEYRING_ENABLED and self._use_keyring:
                     try:
                         self.ui.info("Stored password is invalid, clearing.  Please try again")
@@ -396,7 +415,7 @@ class OktaClassicClient(object):
                     except PasswordDeleteError:
                         pass
             raise errors.GimmeAWSCredsError(
-                "LOGIN ERROR: {} | Error Code: {}".format(response_data['errorSummary'], response_data['errorCode']), 2)
+                "LOGIN ERROR: {} | Error Code: {}".format(error_summary, error_code), 2)
 
         # If the error code isn't one we know how to handle, raise an exception
         else:
@@ -422,10 +441,7 @@ class OktaClassicClient(object):
         self.ui.info("A verification code has been sent to " + factor['profile']['phoneNumber'])
         response_data = response.json()
 
-        if 'stateToken' in response_data:
-            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
-        if 'sessionToken' in response_data:
-            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+        return self._build_auth_flow_result(response_data)
 
     def _login_send_email(self, state_token, factor):
         """ Send email message for second factor authentication"""
@@ -441,10 +457,7 @@ class OktaClassicClient(object):
         self.ui.info("A verification code has been sent to " + factor['profile']['email'])
         response_data = response.json()
 
-        if 'stateToken' in response_data:
-            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
-        if 'sessionToken' in response_data:
-            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+        return self._build_auth_flow_result(response_data)
 
     def _login_send_call(self, state_token, factor):
         """ Send Voice call for second factor authentication"""
@@ -460,10 +473,7 @@ class OktaClassicClient(object):
         self.ui.info("You should soon receive a phone call at " + factor['profile']['phoneNumber'])
         response_data = response.json()
 
-        if 'stateToken' in response_data:
-            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
-        if 'sessionToken' in response_data:
-            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+        return self._build_auth_flow_result(response_data)
 
     def _login_send_push(self, state_token, factor):
         """ Send 'push' for the Okta Verify mobile app """
@@ -478,10 +488,7 @@ class OktaClassicClient(object):
 
         self.ui.info("Okta Verify push sent...")
         response_data = response.json()
-        if 'stateToken' in response_data:
-            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
-        if 'sessionToken' in response_data:
-            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+        return self._build_auth_flow_result(response_data)
 
     def _login_duo_universal(self, state_token, factor):
         duo_passcode = None
@@ -509,10 +516,7 @@ class OktaClassicClient(object):
         self.ui.info("Challenge with security keys ...")
         response_data = response.json()
 
-        if 'stateToken' in response_data:
-            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
-        if 'sessionToken' in response_data:
-            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+        return self._build_auth_flow_result(response_data)
 
     @staticmethod
     def get_available_socket():
@@ -578,12 +582,7 @@ class OktaClassicClient(object):
                 self.ui.warning("User canceled waiting for MFA success.")
                 raise
 
-        if 'stateToken' in response_data:
-            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
-        if 'sessionToken' in response_data:
-            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
-
-        # return None
+        return self._build_auth_flow_result(response_data)
 
     def _get_response_data(self, href, state_token):
         response = self._http_client.post(href,
@@ -661,12 +660,8 @@ class OktaClassicClient(object):
 
         response_data = response.json()
         if 'status' in response_data and response_data['status'] == 'SUCCESS':
-            if 'stateToken' in response_data:
-                return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
-            if 'sessionToken' in response_data:
-                return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
-        else:
-            return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
+            return self._build_auth_flow_result(response_data)
+        return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
 
     def _check_push_result(self, state_token, login_data):
         """ Check Okta API to see if the push request has been responded to"""
@@ -687,13 +682,10 @@ class OktaClassicClient(object):
                     if self._print_correct_answer:
                         self._print_correct_answer(response_data['_embedded']['factor']['_embedded']['challenge']['correctAnswer'])
                         self._print_correct_answer = None
-        except:
+        except Exception:
             pass
 
-        if 'stateToken' in response_data:
-            return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
-        if 'sessionToken' in response_data:
-            return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
+        return self._build_auth_flow_result(response_data)
 
     def _check_u2f_result(self, state_token, login_data):
         # should be deprecated soon as OKTA move forward webauthN
@@ -723,12 +715,8 @@ class OktaClassicClient(object):
 
         response_data = response.json()
         if 'status' in response_data and response_data['status'] == 'SUCCESS':
-            if 'stateToken' in response_data:
-                return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
-            if 'sessionToken' in response_data:
-                return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
-        else:
-            return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
+            return self._build_auth_flow_result(response_data)
+        return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
 
     def _check_webauthn_result(self, state_token, login_data):
         """ wait for webauthN challenge """
@@ -761,31 +749,17 @@ class OktaClassicClient(object):
 
         response_data = response.json()
         if 'status' in response_data and response_data['status'] == 'SUCCESS':
-            if 'stateToken' in response_data:
-                return {'stateToken': response_data['stateToken'], 'apiResponse': response_data}
-            if 'sessionToken' in response_data:
-                return {'stateToken': None, 'sessionToken': response_data['sessionToken'], 'apiResponse': response_data}
-        else:
-            return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
+            return self._build_auth_flow_result(response_data)
+        return {'stateToken': None, 'sessionToken': None, 'apiResponse': response_data}
 
     def get_saml_response(self, url, auth_session=None):
         """ return the base64 SAML value object from the SAML Response"""
         response = self._http_client.get(url, verify=self._verify_ssl_certs)
         response.raise_for_status()
 
-        saml_response = None
-        relay_state = None
-        form_action = None
+        saml_response, relay_state, form_action = parse_saml_form(response.text)
 
         saml_soup = BeautifulSoup(response.text, "html.parser")
-        if saml_soup.find('form') is not None:
-            form_action = saml_soup.find('form').get('action')
-        for input_tag in saml_soup.find_all('input'):
-            if input_tag.get('name') == 'SAMLResponse':
-                saml_response = input_tag.get('value')
-            elif input_tag.get('name') == 'RelayState':
-                relay_state = input_tag.get('value')
-
         if saml_response is None:
             state_token = self._extract_state_token_from_http_response(response)
             if state_token:
@@ -802,42 +776,9 @@ class OktaClassicClient(object):
             if saml_soup.find(class_='error-content') is not None:
                 saml_error += '\n' + saml_soup.find(class_='error-content').get_text()
 
-            raise RuntimeError(saml_error)
+            raise errors.GimmeAWSCredsError(saml_error, 2)
 
         return {'SAMLResponse': saml_response, 'RelayState': relay_state, 'TargetUrl': form_action}
-
-    def check_kwargs(self, kwargs):
-        if self._use_oauth_access_token is True:
-            if 'headers' not in kwargs:
-                kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
-
-        if self._use_oauth_id_token is True:
-            if 'headers' not in kwargs:
-                kwargs['headers'] = {}
-            kwargs['headers']['Authorization'] = "Bearer {}".format(self._oauth_access_token)
-
-        return kwargs
-
-    def get(self, url, **kwargs):
-        """ Retrieve resource that is protected by Okta """
-        parameters = self.check_kwargs(kwargs)
-        return self._http_client.get(url, **parameters)
-
-    def post(self, url, **kwargs):
-        """ Create resource that is protected by Okta """
-        parameters = self.check_kwargs(kwargs)
-        return self._http_client.post(url, **parameters)
-
-    def put(self, url, **kwargs):
-        """ Modify resource that is protected by Okta """
-        parameters = self.check_kwargs(kwargs)
-        return self._http_client.put(url, **parameters)
-
-    def delete(self, url, **kwargs):
-        """ Delete resource that is protected by Okta """
-        parameters = self.check_kwargs(kwargs)
-        return self._http_client.delete(url, **parameters)
 
     def _choose_factor(self, factors):
         """ gets a list of available authentication factors and
@@ -893,7 +834,7 @@ class OktaClassicClient(object):
             selection = factors.index(preferred_factors[0])
         elif len(factors) == 1:
             factor_name = self._build_factor_name(factors[0])
-            print("Using the only authentication factor configured: {}.".format(factor_name))
+            self.ui.info("Using the only authentication factor configured: {}.".format(factor_name))
             selection = factors.index(factors[0])
         else:
             self.ui.info("Pick a factor:")
