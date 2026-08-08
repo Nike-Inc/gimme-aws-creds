@@ -819,7 +819,11 @@ class GimmeAWSCreds:
             open_browser = True
         else:
             open_browser = False
-        auth_result = self.okta.auth_session(redirect_uri=self.conf_dict.get('app_url'), open_browser=open_browser)
+        redirect_uri = self.conf_dict.get('app_url')
+        auth_result = self.okta.auth_session(
+            redirect_uri=redirect_uri,
+            open_browser=open_browser,
+        )
         self.set_auth_session(auth_result)
 
         return auth_result
