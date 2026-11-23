@@ -3,11 +3,13 @@ import sys
 import unittest
 from contextlib import contextmanager
 from io import StringIO
+from unittest.mock import patch
 
 import requests
 import responses
 
 import gimme_aws_creds.common as common_def
+from gimme_aws_creds import errors
 from gimme_aws_creds.aws import AwsResolver
 from tests import read_fixture
 
@@ -84,6 +86,53 @@ class TestAwsResolver(unittest.TestCase):
         self.assertEqual(result[2], self.roles[2])
         self.assertEqual(result[3], self.roles[3])
         self.assertEqual(result[4], self.roles[4])
+
+    @responses.activate
+    def test_enumerate_saml_roles_regional_endpoints(self):
+        """Test posting to valid regional AWS SAML endpoints across partitions."""
+        regional_urls = [
+            'https://us-west-2.signin.aws.amazon.com/saml',
+            'https://cn-northwest-1.signin.amazonaws.cn/saml',
+            'https://us-gov-west-1.signin.amazonaws-us-gov.com/saml',
+        ]
+        for url in regional_urls:
+            with self.subTest(url=url):
+                responses.add(responses.POST, url, status=200, body=self.aws_nextsigninpage)
+                result = self.resolver._enumerate_saml_roles(self.saml, url)
+                self.assertEqual(result, self.roles)
+
+    def test_get_signinpage_rejects_untrusted_target_urls_without_posting(self):
+        """Non-AWS, HTTP, or spoofed TargetUrl values must fail before any POST."""
+        untrusted_urls = [
+            'https://evil.example/saml',
+            'https://evil.example/signin.aws.amazon.com/saml',
+            'https://evil.example/us-west-2.signin.aws.amazon.com/saml',
+            'http://signin.aws.amazon.com/saml',
+            'https://signin.aws.amazon.com@evil.example/saml',
+            'https://signin.aws.amazon.com:8443/saml',
+            'https://signin.aws.amazon.com/not-saml',
+            'https://\u212a\u212a-west-2.signin.aws.amazon.com/saml',
+            'https://[::1/saml',
+            'https://signin.aws.amazon.com]/saml',
+            '',
+            None,
+        ]
+        with patch.object(self.resolver._http_client, 'post') as post_mock:
+            for url in untrusted_urls:
+                with self.subTest(url=url):
+                    with self.assertRaises(errors.GimmeAWSCredsError):
+                        self.resolver.get_signinpage(self.saml, url)
+        post_mock.assert_not_called()
+
+    def test_enumerate_saml_roles_rejects_untrusted_target_url_without_posting(self):
+        """_enumerate_saml_roles must not POST SAML assertions to untrusted hosts."""
+        with patch.object(self.resolver._http_client, 'post') as post_mock:
+            with self.assertRaises(errors.GimmeAWSCredsError):
+                self.resolver._enumerate_saml_roles(
+                    self.saml,
+                    'https://evil.example/signin.aws.amazon.com/saml',
+                )
+        post_mock.assert_not_called()
 
     def test_display_role(self):
         """Test the roles are well displayed (grouped/indented by account)"""
