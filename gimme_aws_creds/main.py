@@ -31,7 +31,7 @@ from okta.exceptions.exceptions import ApiException as OktaApiException, NotFoun
 
 # local imports
 from . import errors, ui, version
-from .aws import AwsResolver
+from .aws import AwsResolver, parse_aws_saml_acs_url
 from .config import Config
 from .debug_formatter import setup_debug_logging
 from .default import DefaultResolver
@@ -254,20 +254,10 @@ class GimmeAWSCreds:
         else:
             raise errors.GimmeAWSCredsError("Unknown credentials type: {}".format(credentials['credentials_type']))
 
-    _ACS_PARTITIONS = [
-        ('signin.aws.amazon.com/saml', 'aws', 'us-east-1'),
-        ('signin.amazonaws.cn/saml', 'aws-cn', 'cn-north-1'),
-        ('signin.amazonaws-us-gov.com/saml', 'aws-us-gov', 'us-gov-east-1'),
-    ]
-
     @staticmethod
     def _get_partition_and_region_from_saml_acs(saml_acs_url):
         """ Determine the AWS partition and region by looking at the ACS endpoint URL. """
-        for suffix, partition, default_region in GimmeAWSCreds._ACS_PARTITIONS:
-            if saml_acs_url.endswith(suffix):
-                match = re.search(r"https://(.+)\." + re.escape(suffix.split('/')[0]), saml_acs_url)
-                return (partition, match.group(1)) if match else (partition, default_region)
-        raise errors.GimmeAWSCredsError("{} is an unknown ACS URL".format(saml_acs_url))
+        return parse_aws_saml_acs_url(saml_acs_url)
 
     @staticmethod
     def _get_sts_creds(partition, region, assertion, idp, role, duration=3600):

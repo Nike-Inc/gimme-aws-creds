@@ -11,12 +11,59 @@ See the License for the specific language governing permissions and* limitations
 """
 import base64
 import json
+import re
+from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
 import gimme_aws_creds.common as commondef
 from .common import parse_saml_role_attributes, create_http_session
 from . import errors
+
+
+AWS_SAML_ACS_PARTITIONS = (
+    ('signin.aws.amazon.com', 'aws', 'us-east-1'),
+    ('signin.amazonaws.cn', 'aws-cn', 'cn-north-1'),
+    ('signin.amazonaws-us-gov.com', 'aws-us-gov', 'us-gov-east-1'),
+)
+
+_AWS_REGION_RE = re.compile(r'^[a-z]{2}(?:-[a-z]+)+-[0-9]+$')
+
+
+def parse_aws_saml_acs_url(saml_acs_url):
+    """Validate an AWS SAML ACS URL and return ``(partition, region)``."""
+    if (
+        isinstance(saml_acs_url, str)
+        and saml_acs_url
+        and saml_acs_url.isascii()
+        and not any(ch.isspace() or ord(ch) < 0x20 or ord(ch) == 0x7F or ch == '\\' for ch in saml_acs_url)
+    ):
+        try:
+            parsed = urlparse(saml_acs_url)
+            hostname = parsed.hostname
+        except ValueError:
+            parsed = None
+            hostname = None
+
+        if (
+            parsed is not None
+            and parsed.scheme == 'https'
+            and hostname
+            and parsed.netloc.lower() in (hostname, '{}:443'.format(hostname))
+            and parsed.path == '/saml'
+            and not (parsed.params or parsed.query or parsed.fragment)
+        ):
+            for base_host, partition, default_region in AWS_SAML_ACS_PARTITIONS:
+                if hostname == base_host:
+                    return partition, default_region
+                regional_suffix = '.' + base_host
+                if hostname.endswith(regional_suffix):
+                    region = hostname[:-len(regional_suffix)]
+                    if _AWS_REGION_RE.fullmatch(region):
+                        return partition, region
+                    break
+
+    raise errors.GimmeAWSCredsError("{} is an unknown ACS URL".format(saml_acs_url))
 
 
 class AwsResolver:
@@ -34,6 +81,8 @@ class AwsResolver:
 
     def get_signinpage(self, saml_token, saml_target_url):
         """ Post SAML token to aws sign in page and get back html result"""
+        parse_aws_saml_acs_url(saml_target_url)
+
         payload = {
             'SAMLResponse': saml_token,
             'RelayState': ''

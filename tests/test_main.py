@@ -173,6 +173,68 @@ class TestMain(unittest.TestCase):
         self.assertRaises(errors.GimmeAWSCredsExitBase, creds._get_partition_and_region_from_saml_acs,
                           'https://signin.amazonaws-foo.com/saml')
 
+    def test_get_partition_accepts_valid_aws_acs_urls(self):
+        creds = GimmeAWSCreds()
+        cases = [
+            ('https://signin.aws.amazon.com/saml', ('aws', 'us-east-1')),
+            ('https://us-west-2.signin.aws.amazon.com/saml', ('aws', 'us-west-2')),
+            ('https://eu-central-1.signin.aws.amazon.com/saml', ('aws', 'eu-central-1')),
+            ('https://signin.amazonaws.cn/saml', ('aws-cn', 'cn-north-1')),
+            ('https://cn-northwest-1.signin.amazonaws.cn/saml', ('aws-cn', 'cn-northwest-1')),
+            ('https://signin.amazonaws-us-gov.com/saml', ('aws-us-gov', 'us-gov-east-1')),
+            ('https://us-gov-west-1.signin.amazonaws-us-gov.com/saml', ('aws-us-gov', 'us-gov-west-1')),
+            ('https://signin.aws.amazon.com:443/saml', ('aws', 'us-east-1')),
+            ('HTTPS://US-WEST-2.SIGNIN.AWS.AMAZON.COM/saml', ('aws', 'us-west-2')),
+        ]
+        for url, expected in cases:
+            with self.subTest(url=url):
+                self.assertEqual(creds._get_partition_and_region_from_saml_acs(url), expected)
+
+    def test_get_partition_rejects_spoofed_and_invalid_acs_urls(self):
+        creds = GimmeAWSCreds()
+        invalid_urls = [
+            'https://evil.example/signin.aws.amazon.com/saml',
+            'https://evil.example/signin.amazonaws.cn/saml',
+            'https://evil.example/signin.amazonaws-us-gov.com/saml',
+            'https://evil.example/us-west-2.signin.aws.amazon.com/saml',
+            'https://evil.example/x.signin.aws.amazon.com/saml',
+            'http://signin.aws.amazon.com/saml',
+            'http://us-west-2.signin.aws.amazon.com/saml',
+            '//signin.aws.amazon.com/saml',
+            'https://signin.aws.amazon.com.evil.example/saml',
+            'https://evil-signin.aws.amazon.com/saml',
+            'https://evil.signin.aws.amazon.com/saml',
+            'https://evil.us-west-2.signin.aws.amazon.com/saml',
+            'https://.signin.aws.amazon.com/saml',
+            'https://signin.aws.amazon.com@evil.example/saml',
+            'https://user:pass@signin.aws.amazon.com/saml',
+            'https://@signin.aws.amazon.com/saml',
+            'https://signin.aws.amazon.com:8443/saml',
+            'https://signin.aws.amazon.com:80/saml',
+            'https://signin.aws.amazon.com:/saml',
+            'https://signin.aws.amazon.com:abc/saml',
+            'https://signin.aws.amazon.com/other',
+            'https://signin.aws.amazon.com/saml/',
+            'https://signin.aws.amazon.com/saml/extra',
+            'https://signin.aws.amazon.com/foo/saml',
+            'https://signin.aws.amazon.com/saml?next=https://evil.example',
+            'https://signin.aws.amazon.com/saml#frag',
+            'https://signin.aws.amazon.com/saml;param=1',
+            'https://evil.example\\@signin.aws.amazon.com/saml',
+            'https://\u212a\u212a-west-2.signin.aws.amazon.com/saml',
+            'https://[::1/saml',
+            'https://signin.aws.amazon.com]/saml',
+            ' https://signin.aws.amazon.com/saml',
+            'https://signin.aws.amazon.com/saml\n',
+            '',
+            None,
+        ]
+        for url in invalid_urls:
+            with self.subTest(url=url):
+                with self.assertRaises(errors.GimmeAWSCredsError) as ctx:
+                    creds._get_partition_and_region_from_saml_acs(url)
+                self.assertIn('unknown ACS URL', ctx.exception.message)
+
     def test_parse_role_arn_base_path(self):
         creds = GimmeAWSCreds()
         arn = "arn:aws:iam::123456789012:role/okta-1234-role"
